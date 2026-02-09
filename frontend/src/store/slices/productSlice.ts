@@ -4,11 +4,17 @@ import api from '../../lib/api';
 export interface ProductVariant {
   id: string;
   name: string;
+  nameAr?: string;
   price: number;
   discountPrice?: number | null;
   stock: number;
   image?: string | null;
-  attributes: Array<{ name: string; value: string }>;
+  attributes: Array<{
+    name: string;
+    nameAr?: string;
+    value: string;
+    valueAr?: string;
+  }>;
   isDefault: boolean;
   status: boolean;
 }
@@ -16,8 +22,10 @@ export interface ProductVariant {
 export interface Product {
   id: string;
   name: string;
+  nameAr?: string;
   slug: string;
   description?: string;
+  descriptionAr?: string;
   price: number;
   discountPrice?: number;
   stock: number;
@@ -29,17 +37,20 @@ export interface Product {
   vendor: {
     id: string;
     storeName: string;
+    storeNameAr?: string;
     slug: string;
     rating: number;
   };
   category: {
     id: string;
     name: string;
+    nameAr?: string;
     slug: string;
   };
   brand?: {
     id: string;
     name: string;
+    nameAr?: string;
     slug: string;
   };
 }

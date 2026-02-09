@@ -16,6 +16,10 @@ export const getVendorAnalytics = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Vendor not found' });
     }
 
+    if (vendor.status !== 'APPROVED') {
+      return res.status(403).json({ error: 'Vendor account is not approved or is suspended' });
+    }
+
     const { period = '30' } = req.query; // days
     const periodDays = parseInt(period as string, 10);
     const startDate = new Date();

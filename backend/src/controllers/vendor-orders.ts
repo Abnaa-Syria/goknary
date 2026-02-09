@@ -23,6 +23,10 @@ export const getVendorOrders = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Vendor not found' });
     }
 
+    if (vendor.status !== 'APPROVED') {
+      return res.status(403).json({ error: 'Vendor account is not approved or is suspended' });
+    }
+
     const { page = '1', limit = '20', status } = req.query;
     const pageNum = parseInt(page as string, 10);
     const limitNum = parseInt(limit as string, 10);

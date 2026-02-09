@@ -7,10 +7,8 @@ export const getDashboardStats = async (req: Request, res: Response) => {
     // Total users
     const totalUsers = await prisma.user.count();
 
-    // Total vendors
-    const totalVendors = await prisma.vendor.count({
-      where: { status: 'APPROVED' },
-    });
+    // Total vendors (all statuses)
+    const totalVendors = await prisma.vendor.count();
 
     // Pending vendors
     const pendingVendors = await prisma.vendor.count({

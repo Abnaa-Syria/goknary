@@ -38,6 +38,12 @@ const CategoryPage: React.FC = () => {
     max: searchParams.get('maxPrice') || '',
   });
 
+  // Helper to get localized category name
+  const getCategoryName = (category: any | null | undefined) => {
+    if (!category) return isRTL ? t('category.defaultName', 'الفئة') : t('category.defaultName', 'Category');
+    return isRTL && category.nameAr ? category.nameAr : category.name;
+  };
+
   useEffect(() => {
     if (slug) {
       dispatch(fetchCategoryBySlug(slug));
@@ -102,26 +108,44 @@ const CategoryPage: React.FC = () => {
   // Get active filters for display
   const activeFilters: string[] = [];
   if (searchParams.get('minPrice') || searchParams.get('maxPrice')) {
-    activeFilters.push('Price');
+    activeFilters.push(isRTL ? 'السعر' : 'Price');
   }
   if (searchParams.get('minRating')) {
-    activeFilters.push(`Rating ${searchParams.get('minRating')}+`);
+    const ratingLabel = searchParams.get('minRating');
+    activeFilters.push(
+      isRTL
+        ? `تقييم ${ratingLabel}+`
+        : `Rating ${ratingLabel}+`
+    );
   }
   if (searchParams.get('brandId')) {
-    activeFilters.push('Brand');
+    activeFilters.push(isRTL ? 'العلامة التجارية' : 'Brand');
   }
 
   const breadcrumbItems = [
     // Add parent category if exists
-    ...(currentCategory?.parent ? [{ label: currentCategory.parent.name, to: `/category/${currentCategory.parent.slug}` }] : []),
-    { label: currentCategory?.name || 'Category', to: currentCategory ? `/category/${currentCategory.slug}` : undefined },
+    ...(currentCategory?.parent
+      ? [{
+          label: getCategoryName(currentCategory.parent),
+          to: `/category/${currentCategory.parent.slug}`,
+        }]
+      : []),
+    {
+      label: getCategoryName(currentCategory),
+      to: currentCategory ? `/category/${currentCategory.slug}` : undefined,
+    },
   ];
 
   return (
     <>
       <SEO
-        title={currentCategory?.name || 'Category'}
-        description={currentCategory?.description || `Browse ${currentCategory?.name || 'products'} on GoKnary`}
+        title={getCategoryName(currentCategory)}
+        description={
+          currentCategory?.description ||
+          (isRTL
+            ? `تسوّق ${getCategoryName(currentCategory)} على GoKnary`
+            : `Browse ${getCategoryName(currentCategory)} on GoKnary`)
+        }
       />
       <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 lg:py-8">
         {/* Breadcrumbs */}
@@ -130,14 +154,16 @@ const CategoryPage: React.FC = () => {
         {/* Page Header */}
         <div className="mb-4 sm:mb-6">
           <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2">
-            {currentCategory?.name || 'Category'}
+            {getCategoryName(currentCategory)}
           </h1>
           {currentCategory?.description && (
             <p className="text-gray-600">{currentCategory.description}</p>
           )}
           {pagination && (
             <p className="text-sm text-gray-500 mt-2">
-              {pagination.total} products found
+              {isRTL
+                ? `${pagination.total} منتج`
+                : `${pagination.total} products found`}
             </p>
           )}
         </div>
@@ -152,8 +178,8 @@ const CategoryPage: React.FC = () => {
               </svg>
               <h3 className="font-semibold text-gray-900">
                 {currentCategory?.children && currentCategory.children.length > 0 
-                  ? 'Browse Subcategories' 
-                  : 'Related Categories'}
+                  ? (isRTL ? 'تصفح الفئات الفرعية' : 'Browse Subcategories')
+                  : (isRTL ? 'فئات ذات صلة' : 'Related Categories')}
               </h3>
             </div>
             <div className="flex flex-wrap gap-2 sm:gap-3">
@@ -165,7 +191,7 @@ const CategoryPage: React.FC = () => {
                     to={`/category/${child.slug}`}
                     className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:border-primary-500 hover:text-primary-600 hover:bg-primary-50 transition-all duration-200 shadow-sm"
                   >
-                    {child.name}
+                    {getCategoryName(child)}
                   </Link>
                 ))
               }
@@ -177,7 +203,9 @@ const CategoryPage: React.FC = () => {
                       to={`/category/${currentCategory.parent.slug}`}
                       className="px-4 py-2 bg-primary-100 border border-primary-200 rounded-lg text-sm font-medium text-primary-700 hover:bg-primary-200 transition-all duration-200"
                     >
-                      ← All {currentCategory.parent.name}
+                      {isRTL
+                        ? `← كل ${getCategoryName(currentCategory.parent)}`
+                        : `← All ${getCategoryName(currentCategory.parent)}`}
                     </Link>
                   )}
                   {currentCategory.siblings.map((sibling) => (
@@ -185,8 +213,8 @@ const CategoryPage: React.FC = () => {
                       key={sibling.id}
                       to={`/category/${sibling.slug}`}
                       className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:border-primary-500 hover:text-primary-600 hover:bg-primary-50 transition-all duration-200 shadow-sm"
-                    >
-                      {sibling.name}
+                      >
+                        {getCategoryName(sibling)}
                     </Link>
                   ))}
                 </>
@@ -198,7 +226,9 @@ const CategoryPage: React.FC = () => {
         {/* Active Filters Chips */}
         {activeFilters.length > 0 && (
           <div className="flex items-center flex-wrap gap-2 mb-4 pb-4 border-b border-gray-200">
-            <span className="text-sm text-gray-600 font-medium">Active filters:</span>
+          <span className="text-sm text-gray-600 font-medium">
+            {isRTL ? 'الفلاتر المفعّلة:' : 'Active filters:'}
+          </span>
             {activeFilters.map((filter, idx) => (
               <span
                 key={idx}
@@ -211,7 +241,7 @@ const CategoryPage: React.FC = () => {
               onClick={clearFilters}
               className="text-sm text-primary-600 hover:text-primary-700 font-medium underline"
             >
-              Clear all
+            {isRTL ? 'مسح الكل' : 'Clear all'}
             </button>
           </div>
         )}
@@ -225,11 +255,13 @@ const CategoryPage: React.FC = () => {
           >
             <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6 space-y-6 lg:sticky lg:top-24">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-bold text-lg text-gray-900">Filters</h3>
+                <h3 className="font-bold text-lg text-gray-900">
+                  {isRTL ? 'الفلاتر' : 'Filters'}
+                </h3>
                 <button
                   onClick={() => setShowFilters(false)}
                   className="lg:hidden p-1 hover:bg-gray-100 rounded-lg transition-colors"
-                  aria-label="Close filters"
+                  aria-label={isRTL ? 'إغلاق الفلاتر' : 'Close filters'}
                 >
                   <FiX className="w-5 h-5" />
                 </button>
@@ -241,7 +273,7 @@ const CategoryPage: React.FC = () => {
                   onClick={() => toggleFilterSection('price')}
                   className="flex items-center justify-between w-full mb-4 font-semibold text-gray-900"
                 >
-                  <span>Price</span>
+                  <span>{isRTL ? 'السعر' : 'Price'}</span>
                   {expandedFilters.includes('price') ? (
                     <ChevronUpIcon />
                   ) : (
@@ -252,7 +284,9 @@ const CategoryPage: React.FC = () => {
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-sm text-gray-600 mb-1">Min</label>
+                        <label className="block text-sm text-gray-600 mb-1">
+                          {isRTL ? 'الحد الأدنى' : 'Min'}
+                        </label>
                         <input
                           type="number"
                           value={priceRange.min}
@@ -262,7 +296,9 @@ const CategoryPage: React.FC = () => {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm text-gray-600 mb-1">Max</label>
+                        <label className="block text-sm text-gray-600 mb-1">
+                          {isRTL ? 'الحد الأقصى' : 'Max'}
+                        </label>
                         <input
                           type="number"
                           value={priceRange.max}
@@ -276,7 +312,7 @@ const CategoryPage: React.FC = () => {
                       onClick={handlePriceFilter}
                       className="w-full px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors text-sm font-medium"
                     >
-                      Apply
+                      {isRTL ? 'تطبيق' : 'Apply'}
                     </button>
                   </div>
                 )}
@@ -288,7 +324,7 @@ const CategoryPage: React.FC = () => {
                   onClick={() => toggleFilterSection('rating')}
                   className="flex items-center justify-between w-full mb-4 font-semibold text-gray-900"
                 >
-                  <span>Rating</span>
+                  <span>{isRTL ? 'التقييم' : 'Rating'}</span>
                   {expandedFilters.includes('rating') ? (
                     <ChevronUpIcon />
                   ) : (
@@ -312,13 +348,13 @@ const CategoryPage: React.FC = () => {
                             newParams.set('page', '1');
                             setSearchParams(newParams);
                           }}
-                          className={`w-full text-left px-3 py-2 rounded-lg transition-colors text-sm ${
+                          className={`w-full ${isRTL ? 'text-right' : 'text-left'} px-3 py-2 rounded-lg transition-colors text-sm ${
                             isActive
                               ? 'bg-primary-50 text-primary-700 font-medium'
                               : 'text-gray-700 hover:bg-gray-50'
                           }`}
                         >
-                          {rating}+ stars
+                          {isRTL ? `${rating}+ نجوم` : `${rating}+ stars`}
                         </button>
                       );
                     })}
@@ -332,7 +368,7 @@ const CategoryPage: React.FC = () => {
                   onClick={clearFilters}
                   className="w-full px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
                 >
-                  Clear All Filters
+                  {isRTL ? 'مسح كل الفلاتر' : 'Clear All Filters'}
                 </button>
               )}
             </div>
@@ -348,7 +384,9 @@ const CategoryPage: React.FC = () => {
                 className="lg:hidden flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
               >
                 <FiFilter className="w-4 h-4" />
-                <span className="text-sm font-medium">Filters</span>
+                <span className="text-sm font-medium">
+                  {isRTL ? 'الفلاتر' : 'Filters'}
+                </span>
                 {activeFilters.length > 0 && (
                   <span className="bg-primary-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
                     {activeFilters.length}
@@ -358,17 +396,29 @@ const CategoryPage: React.FC = () => {
 
               {/* Sort */}
               <div className="flex items-center space-x-3 w-full sm:w-auto">
-                <label className="text-sm text-gray-600 font-medium whitespace-nowrap">Sort by:</label>
+                <label className="text-sm text-gray-600 font-medium whitespace-nowrap">
+                  {isRTL ? 'الترتيب حسب:' : 'Sort by:'}
+                </label>
                 <select
                   value={searchParams.get('sort') || 'relevance'}
                   onChange={(e) => handleSortChange(e.target.value)}
                   className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none text-sm bg-white"
                 >
-                  <option value="relevance">Relevance</option>
-                  <option value="price_asc">Price: Low to High</option>
-                  <option value="price_desc">Price: High to Low</option>
-                  <option value="rating">Highest Rated</option>
-                  <option value="newest">Newest</option>
+                  <option value="relevance">
+                    {isRTL ? 'الصلة' : 'Relevance'}
+                  </option>
+                  <option value="price_asc">
+                    {isRTL ? 'السعر: من الأقل للأعلى' : 'Price: Low to High'}
+                  </option>
+                  <option value="price_desc">
+                    {isRTL ? 'السعر: من الأعلى للأقل' : 'Price: High to Low'}
+                  </option>
+                  <option value="rating">
+                    {isRTL ? 'أعلى تقييمًا' : 'Highest Rated'}
+                  </option>
+                  <option value="newest">
+                    {isRTL ? 'الأحدث' : 'Newest'}
+                  </option>
                 </select>
               </div>
             </div>
@@ -400,10 +450,12 @@ const CategoryPage: React.FC = () => {
                       disabled={pagination.page === 1}
                       className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
                     >
-                      Previous
+                      {isRTL ? 'السابق' : 'Previous'}
                     </button>
                     <span className="px-4 py-2 text-sm text-gray-600">
-                      Page {pagination.page} of {pagination.totalPages}
+                      {isRTL
+                        ? `الصفحة ${pagination.page} من ${pagination.totalPages}`
+                        : `Page ${pagination.page} of ${pagination.totalPages}`}
                     </span>
                     <button
                       onClick={() => {
@@ -414,19 +466,21 @@ const CategoryPage: React.FC = () => {
                       disabled={pagination.page === pagination.totalPages}
                       className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
                     >
-                      Next
+                      {isRTL ? 'التالي' : 'Next'}
                     </button>
                   </div>
                 )}
               </>
             ) : (
               <div className="text-center py-12 bg-gray-50 rounded-lg">
-                <p className="text-lg text-gray-600 mb-4">No products found</p>
+                <p className="text-lg text-gray-600 mb-4">
+                  {isRTL ? 'لا توجد منتجات' : 'No products found'}
+                </p>
                 <button
                   onClick={clearFilters}
                   className="px-6 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
                 >
-                  Clear Filters
+                  {isRTL ? 'مسح الفلاتر' : 'Clear Filters'}
                 </button>
               </div>
             )}

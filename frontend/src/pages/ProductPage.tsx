@@ -46,6 +46,27 @@ const ProductPage: React.FC = () => {
   const isInWishlist = product ? wishlistItemIds.includes(product.id) : false;
   const isInCompare = product ? compareItemIds.includes(product.id) : false;
 
+  // Helpers for localized names
+  const getProductName = (p: any | null | undefined) => {
+    if (!p) return '';
+    return isRTL && p.nameAr ? p.nameAr : p.name;
+  };
+
+  const getCategoryName = (c: any | null | undefined) => {
+    if (!c) return isRTL ? t('category.defaultName', 'الفئة') : t('category.defaultName', 'Category');
+    return isRTL && c.nameAr ? c.nameAr : c.name;
+  };
+
+  const getBrandName = (b: any | null | undefined) => {
+    if (!b) return '';
+    return isRTL && b.nameAr ? b.nameAr : b.name;
+  };
+
+  const getVendorName = (v: any | null | undefined) => {
+    if (!v) return '';
+    return isRTL && v.storeNameAr ? v.storeNameAr : v.storeName;
+  };
+
   useEffect(() => {
     if (slug) {
       dispatch(fetchProductBySlug(slug));
@@ -127,8 +148,11 @@ const ProductPage: React.FC = () => {
   const mainImage = selectedVariant?.image || images[selectedImageIndex] || images[0] || '/imgs/default-product.jpg';
 
   const breadcrumbItems = [
-    { label: product.category?.name || 'Category', to: product.category ? `/category/${product.category.slug}` : undefined },
-    { label: product.name },
+    {
+      label: getCategoryName(product.category),
+      to: product.category ? `/category/${product.category.slug}` : undefined,
+    },
+    { label: getProductName(product) },
   ];
 
   const handleAddToCart = async () => {
@@ -226,9 +250,15 @@ const ProductPage: React.FC = () => {
   return (
     <>
       <SEO
-        title={product.name}
-        description={product.description || `Buy ${product.name} on GoKnary`}
-        keywords={`${product.name}, ${product.category?.name}, ${product.brand?.name || ''}`}
+        title={getProductName(product)}
+        description={
+          product.description ||
+          product.descriptionAr ||
+          (isRTL
+            ? `اشتري ${getProductName(product)} من GoKnary`
+            : `Buy ${getProductName(product)} on GoKnary`)
+        }
+        keywords={`${getProductName(product)}, ${getCategoryName(product.category)}, ${getBrandName(product.brand)}`}
       />
       <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 lg:py-8">
         <Breadcrumbs items={breadcrumbItems} />
@@ -292,11 +322,11 @@ const ProductPage: React.FC = () => {
                   to={`/category/${product.category?.slug}`}
                   className="text-primary-600 hover:text-primary-700 text-sm font-medium"
                 >
-                  {product.brand.name}
+                  {getBrandName(product.brand)}
                 </Link>
               )}
               <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mt-2 mb-4">
-                {product.name}
+                {getProductName(product)}
               </h1>
               
               {/* Rating */}
@@ -305,7 +335,11 @@ const ProductPage: React.FC = () => {
                   <FiStar className="w-5 h-5 fill-yellow-400 text-yellow-400" />
                   <span className="font-semibold text-gray-900">{product.ratingAvg.toFixed(1)}</span>
                 </div>
-                <span className="text-gray-500">({product.ratingCount} reviews)</span>
+                <span className="text-gray-500">
+                  {isRTL
+                    ? `(${product.ratingCount} تقييم)`
+                    : `(${product.ratingCount} reviews)`}
+                </span>
                 <button
                   type="button"
                   onClick={() => {
@@ -316,7 +350,7 @@ const ProductPage: React.FC = () => {
                   }}
                   className="text-primary-600 hover:text-primary-700 text-sm font-medium underline"
                 >
-                  See all reviews
+                  {isRTL ? 'عرض كل التقييمات' : 'See all reviews'}
                 </button>
               </div>
             </div>
@@ -324,7 +358,9 @@ const ProductPage: React.FC = () => {
             {/* Variants Selection */}
             {product.variants && product.variants.length > 0 && (
               <div className="mb-6">
-                <h3 className="text-sm font-medium text-gray-700 mb-3">Select Option:</h3>
+                <h3 className="text-sm font-medium text-gray-700 mb-3">
+                  {isRTL ? 'اختر خياراً:' : 'Select Option:'}
+                </h3>
                 <div className="flex flex-wrap gap-2">
                   {product.variants.map((variant: any) => (
                     <button
@@ -339,8 +375,12 @@ const ProductPage: React.FC = () => {
                           : 'border-gray-200 hover:border-gray-300 text-gray-700'
                       }`}
                     >
-                      {variant.name}
-                      {variant.stock === 0 && <span className="ml-1 text-xs">(Out of stock)</span>}
+                      {isRTL && variant.nameAr ? variant.nameAr : variant.name}
+                      {variant.stock === 0 && (
+                        <span className={`${isRTL ? 'mr-1' : 'ml-1'} text-xs`}>
+                          {isRTL ? 'غير متوفر' : '(Out of stock)'}
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -348,7 +388,9 @@ const ProductPage: React.FC = () => {
                   <div className="mt-2 text-xs text-gray-500">
                     {selectedVariant.attributes?.map((attr: any, idx: number) => (
                       <span key={idx} className="inline-block bg-gray-100 px-2 py-0.5 rounded mr-1">
-                        {attr.name}: {attr.value}
+                        {isRTL && attr.nameAr ? attr.nameAr : attr.name}
+                        {': '}
+                        {isRTL && attr.valueAr ? attr.valueAr : attr.value}
                       </span>
                     ))}
                   </div>
@@ -368,7 +410,8 @@ const ProductPage: React.FC = () => {
                       {formatPrice(originalPrice)}
                     </span>
                     <span className="bg-green-500 text-white text-xs sm:text-sm font-bold px-2 sm:px-3 py-1 rounded-lg">
-                      Save {formatPrice(originalPrice - displayPrice)}
+                      {isRTL ? 'توفّر ' : 'Save '}
+                      {formatPrice(originalPrice - displayPrice)}
                     </span>
                   </>
                 )}
@@ -376,7 +419,9 @@ const ProductPage: React.FC = () => {
               {currentStock > 0 ? (
                 <div className="flex items-center gap-2 text-green-600 text-sm font-medium">
                   <FiCheck className="w-4 h-4" />
-                  <span>{t('product.inStock')} ({currentStock})</span>
+                  <span>
+                    {t('product.inStock')} ({currentStock})
+                  </span>
                 </div>
               ) : (
                 <div className="text-red-600 text-sm font-medium">{t('product.outOfStock')}</div>
@@ -392,7 +437,7 @@ const ProductPage: React.FC = () => {
                     onClick={() => setQuantity(Math.max(1, quantity - 1))}
                     disabled={quantity <= 1}
                     className="p-2 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded-l-lg"
-                    aria-label="Decrease quantity"
+                    aria-label={isRTL ? 'تقليل الكمية' : 'Decrease quantity'}
                   >
                     <FiMinusCircle className="w-5 h-5" />
                   </button>
@@ -403,7 +448,7 @@ const ProductPage: React.FC = () => {
                     onClick={() => setQuantity(Math.min(currentStock, quantity + 1))}
                     disabled={quantity >= currentStock}
                     className="p-2 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded-r-lg"
-                    aria-label="Increase quantity"
+                    aria-label={isRTL ? 'زيادة الكمية' : 'Increase quantity'}
                   >
                     <FiPlusCircle className="w-5 h-5" />
                   </button>
@@ -432,7 +477,15 @@ const ProductPage: React.FC = () => {
                     className={`p-3 sm:p-4 border-2 rounded-lg transition-colors flex-shrink-0 ${
                       isInWishlist ? 'border-primary-500 bg-primary-50 text-primary-600 hover:bg-primary-100' : 'border-gray-300 hover:bg-gray-50'
                     }`}
-                    aria-label={isInWishlist ? "Remove from wishlist" : "Add to wishlist"}
+                    aria-label={
+                      isInWishlist
+                        ? isRTL
+                          ? 'إزالة من المفضلة'
+                          : 'Remove from wishlist'
+                        : isRTL
+                          ? 'إضافة إلى المفضلة'
+                          : 'Add to wishlist'
+                    }
                   >
                     <FiHeart className={`w-4 h-4 sm:w-5 sm:h-5 ${isInWishlist ? 'fill-current' : ''}`} />
                   </button>
@@ -441,7 +494,15 @@ const ProductPage: React.FC = () => {
                     className={`p-3 sm:p-4 border-2 rounded-lg transition-colors flex-shrink-0 ${
                       isInCompare ? 'border-secondary-500 bg-secondary-50 text-secondary-600 hover:bg-secondary-100' : 'border-gray-300 hover:bg-gray-50'
                     }`}
-                    aria-label={isInCompare ? "Remove from compare" : "Add to compare"}
+                    aria-label={
+                      isInCompare
+                        ? isRTL
+                          ? 'إزالة من المقارنة'
+                          : 'Remove from compare'
+                        : isRTL
+                          ? 'إضافة إلى المقارنة'
+                          : 'Add to compare'
+                    }
                   >
                     <CompareIcon className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
@@ -454,22 +515,40 @@ const ProductPage: React.FC = () => {
               <div className="flex items-start space-x-3">
                 <FiTruck className="w-5 h-5 text-primary-500 mt-0.5 flex-shrink-0" />
                 <div>
-                  <h4 className="font-semibold text-gray-900 mb-1">Free Delivery</h4>
-                  <p className="text-sm text-gray-600">On orders over EGP 500. Usually delivered within 2-5 days.</p>
+                  <h4 className="font-semibold text-gray-900 mb-1">
+                    {isRTL ? 'توصيل مجاني' : 'Free Delivery'}
+                  </h4>
+                  <p className="text-sm text-gray-600">
+                    {isRTL
+                      ? 'على الطلبات التي تزيد عن 500 جنيه. التسليم عادة خلال ٢–٥ أيام.'
+                      : 'On orders over EGP 500. Usually delivered within 2-5 days.'}
+                  </p>
                 </div>
               </div>
               <div className="flex items-start space-x-3">
                 <FiShield className="w-5 h-5 text-primary-500 mt-0.5 flex-shrink-0" />
                 <div>
-                  <h4 className="font-semibold text-gray-900 mb-1">Easy Returns</h4>
-                  <p className="text-sm text-gray-600">14-day return policy. No questions asked.</p>
+                  <h4 className="font-semibold text-gray-900 mb-1">
+                    {isRTL ? 'إرجاع سهل' : 'Easy Returns'}
+                  </h4>
+                  <p className="text-sm text-gray-600">
+                    {isRTL
+                      ? 'سياسة استرجاع خلال 14 يوماً بدون أسئلة.'
+                      : '14-day return policy. No questions asked.'}
+                  </p>
                 </div>
               </div>
               <div className="flex items-start space-x-3">
                 <FiCheck className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
                 <div>
-                  <h4 className="font-semibold text-gray-900 mb-1">Secure Payment</h4>
-                  <p className="text-sm text-gray-600">Your payment information is safe and secure.</p>
+                  <h4 className="font-semibold text-gray-900 mb-1">
+                    {isRTL ? 'دفع آمن' : 'Secure Payment'}
+                  </h4>
+                  <p className="text-sm text-gray-600">
+                    {isRTL
+                      ? 'بيانات الدفع الخاصة بك آمنة ومشفّرة.'
+                      : 'Your payment information is safe and secure.'}
+                  </p>
                 </div>
               </div>
             </div>
@@ -478,12 +557,14 @@ const ProductPage: React.FC = () => {
             <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 mb-1">Sold by</p>
+                  <p className="text-sm text-gray-600 mb-1">
+                    {isRTL ? 'البائع' : 'Sold by'}
+                  </p>
                   <Link
                     to={`/store/${product.vendor.slug}`}
                     className="text-primary-600 hover:text-primary-700 font-semibold text-lg"
                   >
-                    {product.vendor.storeName}
+                    {getVendorName(product.vendor)}
                   </Link>
                   <div className="flex items-center space-x-1 mt-1">
                     <FiStar className="w-4 h-4 fill-yellow-400 text-yellow-400" />
@@ -496,7 +577,7 @@ const ProductPage: React.FC = () => {
                   to={`/store/${product.vendor.slug}`}
                   className="px-4 py-2 border border-primary-500 text-primary-600 rounded-lg hover:bg-primary-50 transition-colors text-sm font-medium"
                 >
-                  Visit Store
+                  {isRTL ? 'زيارة المتجر' : 'Visit Store'}
                 </Link>
               </div>
             </div>
@@ -504,11 +585,15 @@ const ProductPage: React.FC = () => {
         </div>
 
         {/* Description */}
-        {product.description && (
+        {(product.description || product.descriptionAr) && (
           <div className="mb-16">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">{t('product.description')}</h2>
             <div className="prose max-w-none p-6 bg-white border border-gray-200 rounded-xl">
-              <p className="text-gray-700 leading-relaxed whitespace-pre-line">{product.description}</p>
+              <p className="text-gray-700 leading-relaxed whitespace-pre-line">
+                {isRTL && product.descriptionAr
+                  ? product.descriptionAr
+                  : product.description}
+              </p>
             </div>
           </div>
         )}
@@ -522,7 +607,7 @@ const ProductPage: React.FC = () => {
                 onClick={() => setShowReviewForm(true)}
                 className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors text-sm font-medium"
               >
-                Write a Review
+                {isRTL ? 'اكتب تقييماً' : 'Write a Review'}
               </button>
             )}
           </div>
@@ -530,12 +615,14 @@ const ProductPage: React.FC = () => {
           {/* Review Form */}
           {showReviewForm && (
             <div className="mb-8 p-6 bg-white border border-gray-200 rounded-xl">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Write Your Review</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                {isRTL ? 'اكتب تقييمك' : 'Write Your Review'}
+              </h3>
               <div className="space-y-4">
                 {/* Rating */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Rating <span className="text-red-500">*</span>
+                    {isRTL ? 'التقييم' : 'Rating'} <span className="text-red-500">*</span>
                   </label>
                   <div className="flex items-center space-x-2">
                     {[1, 2, 3, 4, 5].map((star) => (
@@ -554,20 +641,26 @@ const ProductPage: React.FC = () => {
                         />
                       </button>
                     ))}
-                    <span className="text-sm text-gray-600 ml-2">{reviewRating} out of 5</span>
+                    <span className="text-sm text-gray-600 ml-2">
+                      {isRTL
+                        ? `${reviewRating} من 5`
+                        : `${reviewRating} out of 5`}
+                    </span>
                   </div>
                 </div>
 
                 {/* Title */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Review Title (Optional)
+                    {isRTL ? 'عنوان التقييم (اختياري)' : 'Review Title (Optional)'}
                   </label>
                   <input
                     type="text"
                     value={reviewTitle}
                     onChange={(e) => setReviewTitle(e.target.value)}
-                    placeholder="Summarize your review"
+                    placeholder={
+                      isRTL ? 'اكتب ملخصاً قصيراً للتقييم' : 'Summarize your review'
+                    }
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   />
                 </div>
@@ -575,12 +668,16 @@ const ProductPage: React.FC = () => {
                 {/* Comment */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Your Review (Optional)
+                    {isRTL ? 'نص التقييم (اختياري)' : 'Your Review (Optional)'}
                   </label>
                   <textarea
                     value={reviewComment}
                     onChange={(e) => setReviewComment(e.target.value)}
-                    placeholder="Share your experience with this product"
+                    placeholder={
+                      isRTL
+                        ? 'شاركنا تجربتك مع هذا المنتج'
+                        : 'Share your experience with this product'
+                    }
                     rows={4}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
                   />
@@ -593,7 +690,13 @@ const ProductPage: React.FC = () => {
                     disabled={submittingReview}
                     className="px-6 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
                   >
-                    {submittingReview ? 'Submitting...' : 'Submit Review'}
+                    {submittingReview
+                      ? isRTL
+                        ? 'جاري الإرسال...'
+                        : 'Submitting...'
+                      : isRTL
+                        ? 'إرسال التقييم'
+                        : 'Submit Review'}
                   </button>
                   <button
                     onClick={() => {
@@ -605,7 +708,7 @@ const ProductPage: React.FC = () => {
                     disabled={submittingReview}
                     className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
                   >
-                    Cancel
+                    {isRTL ? 'إلغاء' : 'Cancel'}
                   </button>
                 </div>
               </div>
@@ -619,16 +722,19 @@ const ProductPage: React.FC = () => {
                   onClick={() => navigate('/login', { state: { from: { pathname: window.location.pathname } } })}
                   className="text-blue-600 hover:underline font-medium"
                 >
-                  Sign in
+                  {isRTL ? 'سجّل الدخول' : 'Sign in'}
                 </button>
-                {' '}to write a review
+                {' '}
+                {isRTL ? 'لكتابة تقييم' : 'to write a review'}
               </p>
             </div>
           )}
 
           {reviewsLoading ? (
             <div className="text-center py-12 bg-gray-50 rounded-xl border border-gray-200">
-              <p className="text-gray-600">Loading reviews...</p>
+              <p className="text-gray-600">
+                {isRTL ? 'جاري تحميل التقييمات...' : 'Loading reviews...'}
+              </p>
             </div>
           ) : reviewsError ? (
             <div className="text-center py-12 bg-red-50 rounded-xl border border-red-200">
@@ -636,7 +742,11 @@ const ProductPage: React.FC = () => {
             </div>
           ) : reviews.length === 0 ? (
             <div className="text-center py-12 bg-gray-50 rounded-xl border border-gray-200">
-              <p className="text-gray-600">No reviews yet. Be the first to review this product!</p>
+              <p className="text-gray-600">
+                {isRTL
+                  ? 'لا توجد تقييمات حتى الآن. كن أول من يقيّم هذا المنتج!'
+                  : 'No reviews yet. Be the first to review this product!'}
+              </p>
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-gray-200 divide-y">
@@ -696,7 +806,9 @@ const ProductPage: React.FC = () => {
         {/* Similar Products */}
         {similarProducts && similarProducts.length > 0 && (
           <div>
-            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6">You May Also Like</h2>
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6">
+              {isRTL ? 'منتجات قد تعجبك أيضاً' : 'You May Also Like'}
+            </h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-6 gap-3 sm:gap-4 lg:gap-6">
               {similarProducts.map((similarProduct) => (
                 <ProductCard key={similarProduct.id} product={similarProduct} />

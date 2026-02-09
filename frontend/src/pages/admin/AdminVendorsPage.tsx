@@ -169,6 +169,15 @@ const AdminVendorsPage: React.FC = () => {
                           <FiPauseCircle className="w-5 h-5" />
                         </button>
                       )}
+                      {vendor.status === 'SUSPENDED' && (
+                        <button
+                          onClick={() => handleApprove(vendor.id)}
+                          className="p-2 text-green-600 hover:bg-green-50 rounded"
+                          title="Re-approve"
+                        >
+                          <FiCheckCircle className="w-5 h-5" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

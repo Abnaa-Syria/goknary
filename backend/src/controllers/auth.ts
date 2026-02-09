@@ -34,7 +34,7 @@ export const register = async (req: Request, res: Response) => {
     // Hash password
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // Create user
+    // Create user (as CUSTOMER or VENDOR)
     const user = await prisma.user.create({
       data: {
         email,
@@ -50,6 +50,24 @@ export const register = async (req: Request, res: Response) => {
         createdAt: true,
       },
     });
+
+    // If user registered directly as a vendor, create a vendor profile in PENDING status
+    if (user.role === 'VENDOR') {
+      const defaultStoreName = user.name || email.split('@')[0];
+
+      await prisma.vendor.create({
+        data: {
+          userId: user.id,
+          storeName: defaultStoreName,
+          slug: defaultStoreName
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/(^-|-$)+/g, ''),
+          status: 'PENDING',
+          verified: false,
+        },
+      });
+    }
 
     // Generate tokens
     const tokenPayload = {
