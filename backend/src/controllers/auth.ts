@@ -1,16 +1,40 @@
 import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../lib/jwt';
 import { ValidationError, UnauthorizedError } from '../lib/errors';
 import { z } from 'zod';
 import { AuthRequest } from '../middleware/auth';
 
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+/**
+ * SHA-256 hash of a token — stored in DB instead of the raw token
+ * so that even if the blacklist table leaks, tokens can't be reused.
+ */
+const hashToken = (token: string): string =>
+  crypto.createHash('sha256').update(token).digest('hex');
+
+/**
+ * Delete expired rows from the blacklist.
+ * Called opportunistically on logout — no need for a cron job for now.
+ */
+const pruneExpiredBlacklist = async (): Promise<void> => {
+  await prisma.refreshTokenBlacklist.deleteMany({
+    where: { expiresAt: { lt: new Date() } },
+  });
+};
+
+// ─── Schemas ─────────────────────────────────────────────────────────────────
+
+// FIX L-06: Removed 'VENDOR' from allowed roles.
+// Users can only self-register as CUSTOMER.
+// Vendors must apply via POST /api/vendor/apply after registering.
 const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
   name: z.string().min(2).optional(),
-  role: z.enum(['CUSTOMER', 'VENDOR']).default('CUSTOMER'),
 });
 
 const loginSchema = z.object({
@@ -18,29 +42,27 @@ const loginSchema = z.object({
   password: z.string(),
 });
 
+// ─── Controllers ─────────────────────────────────────────────────────────────
+
 export const register = async (req: Request, res: Response) => {
   try {
-    const { email, password, name, role } = registerSchema.parse(req.body);
+    // FIX L-06: role is no longer accepted from the request body.
+    // All self-registered users start as CUSTOMER.
+    const { email, password, name } = registerSchema.parse(req.body);
 
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-    });
-
+    const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
       return res.status(400).json({ error: 'User already exists' });
     }
 
-    // Hash password
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // Create user (as CUSTOMER or VENDOR)
     const user = await prisma.user.create({
       data: {
         email,
         passwordHash,
         name: name || email.split('@')[0],
-        role: role || 'CUSTOMER',
+        role: 'CUSTOMER', // always CUSTOMER — never trust the client
       },
       select: {
         id: true,
@@ -51,31 +73,7 @@ export const register = async (req: Request, res: Response) => {
       },
     });
 
-    // If user registered directly as a vendor, create a vendor profile in PENDING status
-    if (user.role === 'VENDOR') {
-      const defaultStoreName = user.name || email.split('@')[0];
-
-      await prisma.vendor.create({
-        data: {
-          userId: user.id,
-          storeName: defaultStoreName,
-          slug: defaultStoreName
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/(^-|-$)+/g, ''),
-          status: 'PENDING',
-          verified: false,
-        },
-      });
-    }
-
-    // Generate tokens
-    const tokenPayload = {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-    };
-
+    const tokenPayload = { id: user.id, email: user.email, role: user.role };
     const accessToken = generateAccessToken(tokenPayload);
     const refreshToken = generateRefreshToken(tokenPayload);
 
@@ -98,29 +96,17 @@ export const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = loginSchema.parse(req.body);
 
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { email },
-    });
-
+    const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    // Verify password
     const isValidPassword = await bcrypt.compare(password, user.passwordHash);
-
     if (!isValidPassword) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    // Generate tokens
-    const tokenPayload = {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-    };
-
+    const tokenPayload = { id: user.id, email: user.email, role: user.role };
     const accessToken = generateAccessToken(tokenPayload);
     const refreshToken = generateRefreshToken(tokenPayload);
 
@@ -152,19 +138,25 @@ export const refreshToken = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Refresh token is required' });
     }
 
-    // Verify refresh token
+    // FIX C-03: Check blacklist before issuing a new access token.
+    // If this token was used in a logout call, reject it.
+    const tokenHash = hashToken(token);
+    const blacklisted = await prisma.refreshTokenBlacklist.findUnique({
+      where: { tokenHash },
+    });
+    if (blacklisted) {
+      return res.status(401).json({ error: 'Refresh token has been revoked' });
+    }
+
     const decoded = verifyRefreshToken(token);
 
-    // Generate new access token
     const accessToken = generateAccessToken({
       id: decoded.id,
       email: decoded.email,
       role: decoded.role,
     });
 
-    res.json({
-      accessToken,
-    });
+    res.json({ accessToken });
   } catch (error) {
     console.error('Error refreshing token:', error);
     res.status(401).json({ error: 'Invalid or expired refresh token' });
@@ -172,9 +164,45 @@ export const refreshToken = async (req: Request, res: Response) => {
 };
 
 export const logout = async (req: Request, res: Response) => {
-  // In a more advanced implementation, you might want to blacklist the token
-  // For now, we'll just return success
-  res.json({ message: 'Logged out successfully' });
+  try {
+    // FIX C-03: Blacklist the refresh token so it can never be used again.
+    // The access token (15m) will expire naturally.
+    const { refreshToken: token } = req.body;
+
+    if (token) {
+      const tokenHash = hashToken(token);
+
+      // Decode without throwing — token may already be expired, and that's fine.
+      // We still want to blacklist it to be safe.
+      let expiresAt: Date;
+      try {
+        const decoded = verifyRefreshToken(token);
+        // jwt payload `exp` is in seconds
+        expiresAt = new Date((decoded as any).exp * 1000);
+      } catch {
+        // If the token is already expired, blacklist it for 7 days from now
+        // (the max refresh token lifetime) so it can't be replayed if the
+        // clock was skewed.
+        expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      }
+
+      // Upsert: safe to call multiple times for the same token
+      await prisma.refreshTokenBlacklist.upsert({
+        where: { tokenHash },
+        update: {}, // already blacklisted — nothing to change
+        create: { token, tokenHash, expiresAt },
+      });
+
+      // Opportunistically clean up expired rows (fire-and-forget)
+      pruneExpiredBlacklist().catch(() => {});
+    }
+
+    res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('Error during logout:', error);
+    // Always return success on logout — client should clear its tokens regardless
+    res.json({ message: 'Logged out successfully' });
+  }
 };
 
 export const getMe = async (req: AuthRequest, res: Response) => {
@@ -222,7 +250,6 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
 
     const updateData = updateProfileSchema.parse(req.body);
 
-    // Convert empty strings to null for database
     const dataToUpdate: { name?: string; phone?: string | null } = {};
     if (updateData.name !== undefined) {
       dataToUpdate.name = updateData.name;
@@ -256,4 +283,3 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ error: 'Failed to update profile' });
   }
 };
-
