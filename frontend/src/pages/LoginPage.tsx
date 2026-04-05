@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { login, clearError } from '../store/slices/authSlice';
 
+const VERIFY_SESSION_KEY = 'goknary_pending_verify';
+
 const LoginPage: React.FC = () => {
   const { t } = useTranslation();
   const dispatch = useAppDispatch();
@@ -42,8 +44,17 @@ const LoginPage: React.FC = () => {
     try {
       await dispatch(login(formData)).unwrap();
       navigate(from, { replace: true });
-    } catch (err) {
-      // Error is handled by Redux
+    } catch (err: any) {
+      if (err?.verifyEmail && err.userId) {
+        sessionStorage.setItem(
+          VERIFY_SESSION_KEY,
+          JSON.stringify({ userId: err.userId, email: err.email || formData.email })
+        );
+        navigate('/verify-email', {
+          replace: true,
+          state: { userId: err.userId, email: err.email || formData.email },
+        });
+      }
     }
   };
 
@@ -83,9 +94,17 @@ const LoginPage: React.FC = () => {
               />
             </div>
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                {t('auth.password')}
-              </label>
+              <div className="flex justify-between items-center">
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                  {t('auth.password')}
+                </label>
+                <Link
+                  to="/forgot-password"
+                  className="text-sm font-medium text-primary-500 hover:text-primary-600"
+                >
+                  {t('auth.forgotPassword')}
+                </Link>
+              </div>
               <input
                 id="password"
                 name="password"

@@ -8,6 +8,7 @@ import AdminCategoriesPage from './AdminCategoriesPage';
 import AdminBrandsPage from './AdminBrandsPage';
 import AdminBannersPage from './AdminBannersPage';
 import AdminOrdersPage from './AdminOrdersPage';
+import AdminSettingsPage from './AdminSettingsPage';
 
 interface DashboardStats {
   totalUsers: number;
@@ -106,6 +107,12 @@ const AdminDashboard: React.FC = () => {
             >
               {t('admin.orders')}
             </Link>
+            <Link
+              to="/admin/settings"
+              className="block px-4 py-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              {t('admin.settings')}
+            </Link>
           </nav>
         </aside>
 
@@ -117,6 +124,7 @@ const AdminDashboard: React.FC = () => {
             <Route path="brands/*" element={<AdminBrandsPage />} />
             <Route path="banners/*" element={<AdminBannersPage />} />
             <Route path="orders/*" element={<AdminOrdersPage />} />
+            <Route path="settings" element={<AdminSettingsPage />} />
             <Route path="*" element={<Navigate to="/admin" replace />} />
           </Routes>
         </main>

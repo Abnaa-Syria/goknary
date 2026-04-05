@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { register, clearError } from '../store/slices/authSlice';
 
+const VERIFY_SESSION_KEY = 'goknary_pending_verify';
+
 const RegisterPage: React.FC = () => {
   const { t } = useTranslation();
   const dispatch = useAppDispatch();
@@ -15,7 +17,6 @@ const RegisterPage: React.FC = () => {
     email: '',
     password: '',
     confirmPassword: '',
-    role: 'CUSTOMER' as 'CUSTOMER' | 'VENDOR',
   });
 
   useEffect(() => {
@@ -45,20 +46,29 @@ const RegisterPage: React.FC = () => {
       return;
     }
 
-    if (formData.password.length < 6) {
+    if (formData.password.length < 8) {
       alert(t('validation.passwordStrength'));
       return;
     }
 
     try {
-      await dispatch(
+      const result = await dispatch(
         register({
           email: formData.email,
           password: formData.password,
           name: formData.name,
-          role: formData.role,
         })
       ).unwrap();
+
+      if (result.requiresVerification && result.userId) {
+        sessionStorage.setItem(
+          VERIFY_SESSION_KEY,
+          JSON.stringify({ userId: result.userId, email: formData.email })
+        );
+        navigate('/verify-email', { state: { userId: result.userId, email: formData.email } });
+        return;
+      }
+
       navigate('/');
     } catch (err) {
       // Error is handled by Redux
@@ -113,21 +123,6 @@ const RegisterPage: React.FC = () => {
                 className="mt-1 input-field"
                 placeholder="you@example.com"
               />
-            </div>
-            <div>
-              <label htmlFor="role" className="block text-sm font-medium text-gray-700">
-                {t('common.account')}
-              </label>
-              <select
-                id="role"
-                name="role"
-                value={formData.role}
-                onChange={handleChange}
-                className="mt-1 input-field"
-              >
-                <option value="CUSTOMER">{t('admin.users')}</option>
-                <option value="VENDOR">{t('admin.vendors')}</option>
-              </select>
             </div>
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">

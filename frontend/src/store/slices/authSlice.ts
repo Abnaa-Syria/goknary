@@ -1,4 +1,4 @@
-import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../lib/api';
 
 export interface User {
@@ -20,6 +20,19 @@ interface AuthState {
   error: string | null;
 }
 
+export type RegisterFulfilledPayload =
+  | { requiresVerification: true; userId: string; message?: string }
+  | {
+      requiresVerification: false;
+      user: User;
+      accessToken: string;
+      refreshToken: string;
+    };
+
+export type LoginRejectedPayload =
+  | string
+  | { verifyEmail: true; userId: string; email: string; message?: string };
+
 const initialState: AuthState = {
   user: null,
   accessToken: localStorage.getItem('accessToken'),
@@ -31,17 +44,58 @@ const initialState: AuthState = {
 
 export const register = createAsyncThunk(
   'auth/register',
-  async ({ email, password, name, role }: { email: string; password: string; name?: string; role?: string }, { rejectWithValue }) => {
+  async (
+    { email, password, name }: { email: string; password: string; name?: string },
+    { rejectWithValue }
+  ) => {
     try {
-      const response = await api.post('/auth/register', { email, password, name, role });
-      const { user, accessToken, refreshToken } = response.data;
-      
-      localStorage.setItem('accessToken', accessToken);
-      localStorage.setItem('refreshToken', refreshToken);
-      
-      return { user, accessToken, refreshToken };
+      const response = await api.post('/auth/register', { email, password, name, role: 'CUSTOMER' });
+      const data = response.data;
+
+      if (data.requiresVerification && data.userId) {
+        return { requiresVerification: true as const, userId: data.userId, message: data.message };
+      }
+
+      if (data.accessToken && data.refreshToken && data.user) {
+        localStorage.setItem('accessToken', data.accessToken);
+        localStorage.setItem('refreshToken', data.refreshToken);
+        return {
+          requiresVerification: false as const,
+          user: data.user,
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken,
+        };
+      }
+
+      return rejectWithValue(data?.error || 'Registration failed');
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.error || 'Registration failed');
+    }
+  }
+);
+
+export const verifyEmail = createAsyncThunk(
+  'auth/verifyEmail',
+  async ({ userId, otp }: { userId: string; otp: string }, { rejectWithValue }) => {
+    try {
+      const response = await api.post('/auth/verify-email', { userId, otp });
+      const { user, accessToken, refreshToken } = response.data;
+      localStorage.setItem('accessToken', accessToken);
+      localStorage.setItem('refreshToken', refreshToken);
+      return { user, accessToken, refreshToken };
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.error || 'Verification failed');
+    }
+  }
+);
+
+export const resendRegistrationOTP = createAsyncThunk(
+  'auth/resendRegistrationOTP',
+  async ({ userId }: { userId: string }, { rejectWithValue }) => {
+    try {
+      await api.post('/auth/resend-otp', { userId });
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.error || 'Failed to resend code');
     }
   }
 );
@@ -52,13 +106,22 @@ export const login = createAsyncThunk(
     try {
       const response = await api.post('/auth/login', { email, password });
       const { user, accessToken, refreshToken } = response.data;
-      
+
       localStorage.setItem('accessToken', accessToken);
       localStorage.setItem('refreshToken', refreshToken);
-      
+
       return { user, accessToken, refreshToken };
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.error || 'Login failed');
+      const res = error.response;
+      if (res?.status === 403 && res.data?.requiresVerification && res.data?.userId) {
+        return rejectWithValue({
+          verifyEmail: true as const,
+          userId: res.data.userId as string,
+          email,
+          message: res.data?.error,
+        });
+      }
+      return rejectWithValue((res?.data?.error as string) || 'Login failed');
     }
   }
 );
@@ -114,9 +177,14 @@ const authSlice = createSlice({
       })
       .addCase(register.fulfilled, (state, action) => {
         state.loading = false;
-        state.user = action.payload.user;
-        state.accessToken = action.payload.accessToken;
-        state.refreshToken = action.payload.refreshToken;
+        state.error = null;
+        const p = action.payload as RegisterFulfilledPayload;
+        if (p.requiresVerification) {
+          return;
+        }
+        state.user = p.user;
+        state.accessToken = p.accessToken;
+        state.refreshToken = p.refreshToken;
         state.isAuthenticated = true;
       })
       .addCase(register.rejected, (state, action) => {
@@ -137,7 +205,12 @@ const authSlice = createSlice({
       })
       .addCase(login.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload as string;
+        const p = action.payload as LoginRejectedPayload;
+        if (p && typeof p === 'object' && 'verifyEmail' in p && p.verifyEmail) {
+          state.error = null;
+          return;
+        }
+        state.error = typeof p === 'string' ? p : 'Login failed';
       })
       // Logout
       .addCase(logout.fulfilled, (state) => {
@@ -161,7 +234,27 @@ const authSlice = createSlice({
         if (action.payload) {
           state.error = action.payload as string;
         }
-      });
+      })
+      // Verify email (OTP)
+      .addCase(verifyEmail.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(verifyEmail.fulfilled, (state, action) => {
+        state.loading = false;
+        state.user = action.payload.user;
+        state.accessToken = action.payload.accessToken;
+        state.refreshToken = action.payload.refreshToken;
+        state.isAuthenticated = true;
+        state.error = null;
+      })
+      .addCase(verifyEmail.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+      .addCase(resendRegistrationOTP.pending, () => {})
+      .addCase(resendRegistrationOTP.fulfilled, () => {})
+      .addCase(resendRegistrationOTP.rejected, () => {});
   },
 });
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import api from '../../lib/api';
+import ChangePasswordSection from '../../components/account/ChangePasswordSection';
 
 interface Vendor {
   id: string;
@@ -11,7 +12,7 @@ interface Vendor {
 }
 
 const VendorSettingsPage: React.FC = () => {
-  const navigate = useNavigate();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [vendor, setVendor] = useState<Vendor | null>(null);
   const [formData, setFormData] = useState({
@@ -204,6 +205,10 @@ const VendorSettingsPage: React.FC = () => {
           </button>
         </div>
       </form>
+
+      <div className="mt-8">
+        <ChangePasswordSection title={t('account.changePassword')} />
+      </div>
     </div>
   );
 };

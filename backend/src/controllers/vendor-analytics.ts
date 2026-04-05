@@ -21,9 +21,11 @@ export const getVendorAnalytics = async (req: AuthRequest, res: Response) => {
     }
 
     const { period = '30' } = req.query; // days
-    const periodDays = parseInt(period as string, 10);
+    // M-11 Fix: bound period to prevent OOM from querying decades of data
+    const periodDays = Math.min(Math.max(parseInt(period as string, 10) || 30, 1), 365);
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - periodDays);
+
 
     // Total orders
     const totalOrders = await prisma.order.count({

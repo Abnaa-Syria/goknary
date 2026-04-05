@@ -32,19 +32,12 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
     }
 
     const userId = req.user.id;
-    const sessionId = getSessionId(req);
     const { addressId, address, shippingMethod, notes } = createOrderSchema.parse(req.body);
 
-    // Get cart items (for logged-in users we primarily use userId,
-    // but also fall back to session-based cart if present)
-    const cartWhere =
-      userId && sessionId
-        ? { OR: [{ userId }, { sessionId }] }
-        : userId
-        ? { userId }
-        : sessionId
-        ? { sessionId }
-        : { userId: '' }; // will be handled by length check below
+    // M-05 Fix: For authenticated users, ONLY use userId — never merge with a
+    // session-id header. Cart merging should happen at login, not at checkout.
+    // Using sessionId here would allow header spoofing to steal guest carts.
+    const cartWhere = { userId };
 
     const cartItems = await prisma.cartItem.findMany({
       where: cartWhere,
@@ -117,54 +110,69 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       const shippingCost = subtotal >= 500 ? 0 : 50; // Free shipping over 500 EGP
       const total = subtotal + shippingCost;
 
-      // Create order
-      const order = await prisma.order.create({
-        data: {
-          userId,
-          vendorId,
-          status: 'PENDING',
-          subtotal,
-          shippingCost,
-          total,
-          addressJson: JSON.stringify(orderAddress),
-          shippingMethod: shippingMethod || 'Standard',
-          notes,
-          items: {
-            create: orderItemsData,
-          },
-          statusHistory: {
-            create: {
-              status: 'PENDING',
-              notes: 'Order created',
-            },
-          },
-        },
-        include: {
-          items: {
-            include: {
-              product: true,
-            },
-          },
-          vendor: {
-            select: {
-              storeName: true,
-              slug: true,
-            },
-          },
-        },
-      });
+      // C-01 Fix: Wrap order creation + stock decrement in a single transaction
+      // to prevent race conditions / overselling when concurrent orders hit low stock.
+      const order = await prisma.$transaction(async (tx) => {
+        // Re-verify stock inside the transaction (prevents TOCTOU race)
+        for (const item of vendorItems) {
+          const freshProduct = await tx.product.findUnique({
+            where: { id: item.productId },
+            select: { stock: true, name: true },
+          });
+          if (!freshProduct || freshProduct.stock < item.quantity) {
+            throw new ValidationError(
+              `Insufficient stock for "${item.product.name}". Only ${freshProduct?.stock ?? 0} left.`
+            );
+          }
+        }
 
-      // Update product stock
-      for (const item of vendorItems) {
-        await prisma.product.update({
-          where: { id: item.productId },
+        // Create the order
+        const createdOrder = await tx.order.create({
           data: {
-            stock: {
-              decrement: item.quantity,
+            userId,
+            vendorId,
+            status: 'PENDING',
+            subtotal,
+            shippingCost,
+            total,
+            addressJson: JSON.stringify(orderAddress),
+            shippingMethod: shippingMethod || 'Standard',
+            notes,
+            items: {
+              create: orderItemsData,
+            },
+            statusHistory: {
+              create: {
+                status: 'PENDING',
+                notes: 'Order created',
+              },
+            },
+          },
+          include: {
+            items: {
+              include: {
+                product: true,
+              },
+            },
+            vendor: {
+              select: {
+                storeName: true,
+                slug: true,
+              },
             },
           },
         });
-      }
+
+        // Decrement stock atomically inside the same transaction
+        for (const item of vendorItems) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stock: { decrement: item.quantity } },
+          });
+        }
+
+        return createdOrder;
+      });
 
       orders.push(order);
     }
@@ -178,7 +186,8 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       message: 'Order created successfully',
       orders: orders.map((order) => ({
         ...order,
-        address: JSON.parse(order.addressJson),
+        // H-09 Fix: safe JSON.parse — malformed addressJson won't crash the endpoint
+        address: (() => { try { return JSON.parse(order.addressJson); } catch { return {}; } })(),
       })),
     });
   } catch (error) {
@@ -231,7 +240,8 @@ export const getOrders = async (req: AuthRequest, res: Response) => {
     res.json({
       orders: orders.map((order) => ({
         ...order,
-        address: JSON.parse(order.addressJson),
+        // H-09 Fix: safe JSON.parse
+        address: (() => { try { return JSON.parse(order.addressJson); } catch { return {}; } })(),
         items: order.items.map((item) => ({
           ...item,
           product: {
@@ -304,7 +314,8 @@ export const getOrderById = async (req: AuthRequest, res: Response) => {
 
     res.json({
       ...order,
-      address: JSON.parse(order.addressJson),
+      // H-09 Fix: safe JSON.parse — a corrupt addressJson won't crash the endpoint
+      address: (() => { try { return JSON.parse(order.addressJson); } catch { return {}; } })(),
       items: order.items.map((item) => ({
         ...item,
         product: {

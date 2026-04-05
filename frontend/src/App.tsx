@@ -10,7 +10,10 @@ import AccountPage from './pages/AccountPage';
 import WishlistPage from './pages/WishlistPage';
 import ComparePage from './pages/ComparePage';
 import LoginPage from './pages/LoginPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import RegisterPage from './pages/RegisterPage';
+import VerifyEmailPage from './pages/VerifyEmailPage';
 import LogoutPage from './pages/LogoutPage';
 import SearchPage from './pages/SearchPage';
 import StorePage from './pages/StorePage';
@@ -58,7 +61,10 @@ function App() {
           
           {/* Auth Routes */}
           <Route path="login" element={<LoginPage />} />
+          <Route path="forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="reset-password" element={<ResetPasswordPage />} />
           <Route path="register" element={<RegisterPage />} />
+          <Route path="verify-email" element={<VerifyEmailPage />} />
           <Route path="logout" element={<LogoutPage />} />
           
           {/* Account Routes */}

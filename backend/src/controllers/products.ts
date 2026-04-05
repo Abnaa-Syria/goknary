@@ -1,8 +1,10 @@
 import { Request, Response } from 'express';
+import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { NotFoundError } from '../lib/errors';
 import { Prisma } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth';
+
 
 export const getProducts = async (req: Request, res: Response) => {
   try {
@@ -77,7 +79,8 @@ export const getProducts = async (req: Request, res: Response) => {
     }
 
     if (search) {
-      const searchTerm = search as string;
+      // L-08 Fix: cap search term length to prevent full-table-scan DoS
+      const searchTerm = String(search).slice(0, 100);
       where.OR = [
         { name: { contains: searchTerm } },
         { description: { contains: searchTerm } },
@@ -311,12 +314,26 @@ export const createProductReview = async (req: AuthRequest, res: Response) => {
     }
 
     const { slug } = req.params;
-    const { rating, title, comment, images } = req.body;
 
-    // Validate rating
-    if (!rating || rating < 1 || rating > 5) {
-      return res.status(400).json({ error: 'Rating must be between 1 and 5' });
+    // H-04 Fix: Validate review body with Zod (consistent with rest of codebase)
+    const reviewSchema = z.object({
+      rating: z.number({ required_error: 'Rating is required' }).int().min(1).max(5),
+      title: z.string().max(200).optional(),
+      comment: z.string().max(2000).optional(),
+      images: z.array(z.string().url()).max(5).optional(),
+    });
+
+    let reviewData: z.infer<typeof reviewSchema>;
+    try {
+      reviewData = reviewSchema.parse(req.body);
+    } catch (zodErr) {
+      if (zodErr instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Invalid review data', details: zodErr.errors });
+      }
+      throw zodErr;
     }
+
+    const { rating, title, comment, images } = reviewData;
 
     // Find product
     const product = await prisma.product.findUnique({
@@ -347,7 +364,7 @@ export const createProductReview = async (req: AuthRequest, res: Response) => {
       data: {
         productId: product.id,
         userId: req.user.id,
-        rating: parseInt(rating, 10),
+        rating: rating,
         title: title || null,
         comment: comment || null,
         images: images ? JSON.stringify(images) : null,
