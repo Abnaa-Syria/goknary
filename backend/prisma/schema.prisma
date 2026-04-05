@@ -24,6 +24,9 @@ model User {
   password_reset_token   String?   @db.VarChar(255)
   password_reset_expires DateTime? @db.DateTime(0)
 
+  vendor   Vendor?
+  reviews  Review[]
+
   @@map("users")
 }
 
@@ -57,6 +60,9 @@ model Vendor {
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
 
+  user     User       @relation(fields: [userId], references: [id])
+  products Product[]
+
   @@map("vendors")
 }
 
@@ -73,6 +79,10 @@ model Category {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
+  parent   Category?  @relation("CategoryChildren", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryChildren")
+  products Product[]
+
   @@index([parentId], map: "categories_parent_id_fkey")
   @@map("categories")
 }
@@ -87,6 +97,8 @@ model Brand {
   descriptionAr String?  @map("description_ar") @db.Text
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
+
+  products Product[]
 
   @@map("brands")
 }
@@ -114,6 +126,15 @@ model Product {
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
 
+  vendor        Vendor          @relation(fields: [vendorId], references: [id])
+  category      Category        @relation(fields: [categoryId], references: [id])
+  brand         Brand?          @relation(fields: [brandId], references: [id])
+  variants      ProductVariant[]
+  reviews       Review[]
+  cartItems     CartItem[]
+  wishlistItems WishlistItem[]
+  compareItems  CompareItem[]
+
   @@index([categoryId])
   @@index([vendorId])
   @@index([slug])
@@ -136,6 +157,8 @@ model ProductVariant {
   status        Boolean  @default(true)
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
+
+  product  Product  @relation(fields: [productId], references: [id])
 
   @@index([productId])
   @@map("product_variants")
@@ -199,6 +222,8 @@ model CartItem {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  product  Product  @relation(fields: [productId], references: [id])
+
   @@index([userId, productId])
   @@index([sessionId, productId])
   @@index([variantId])
@@ -216,6 +241,9 @@ model Review {
   images    String?  @db.Text
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
+
+  product  Product  @relation(fields: [productId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
 
   @@unique([productId, userId])
   @@index([productId])
@@ -310,6 +338,8 @@ model WishlistItem {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  product  Product  @relation(fields: [productId], references: [id])
+
   @@unique([userId, productId])
   @@index([userId])
   @@index([productId], map: "wishlist_items_product_id_fkey")
@@ -322,6 +352,8 @@ model CompareItem {
   sessionId String?  @map("session_id")
   productId String   @map("product_id")
   createdAt DateTime @default(now()) @map("created_at")
+
+  product  Product  @relation(fields: [productId], references: [id])
 
   @@unique([userId, productId])
   @@unique([sessionId, productId])
