@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import toast from 'react-hot-toast';
 import api from '../../lib/api';
 
 interface ChangePasswordSectionProps {
@@ -35,11 +36,14 @@ const ChangePasswordSection: React.FC<ChangePasswordSectionProps> = ({ title, cl
     try {
       await api.post('/auth/change-password', { currentPassword, newPassword });
       setSuccess(true);
+      toast.success(t('account.passwordUpdated'));
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (err: any) {
-      setError(err.response?.data?.error || t('messages.errorOccurred'));
+      const msg = err.response?.data?.error || t('messages.errorOccurred');
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }

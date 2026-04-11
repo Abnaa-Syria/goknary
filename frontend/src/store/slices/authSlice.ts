@@ -9,6 +9,7 @@ export interface User {
   avatar?: string;
   role: string;
   emailVerified: boolean;
+  phoneVerified: boolean;
 }
 
 interface AuthState {
@@ -16,6 +17,7 @@ interface AuthState {
   accessToken: string | null;
   refreshToken: string | null;
   isAuthenticated: boolean;
+  isInitialized: boolean;
   loading: boolean;
   error: string | null;
 }
@@ -38,6 +40,7 @@ const initialState: AuthState = {
   accessToken: localStorage.getItem('accessToken'),
   refreshToken: localStorage.getItem('refreshToken'),
   isAuthenticated: !!localStorage.getItem('accessToken'),
+  isInitialized: !localStorage.getItem('accessToken'), // If no token, we are 'initialized' as guest
   loading: false,
   error: null,
 };
@@ -45,11 +48,11 @@ const initialState: AuthState = {
 export const register = createAsyncThunk(
   'auth/register',
   async (
-    { email, password, name }: { email: string; password: string; name?: string },
+    { email, password, name, phone }: { email: string; password: string; name?: string; phone: string },
     { rejectWithValue }
   ) => {
     try {
-      const response = await api.post('/auth/register', { email, password, name, role: 'CUSTOMER' });
+      const response = await api.post('/auth/register', { email, password, name, phone, role: 'CUSTOMER' });
       const data = response.data;
 
       if (data.requiresVerification && data.userId) {
@@ -227,10 +230,12 @@ const authSlice = createSlice({
         state.loading = false;
         state.user = action.payload;
         state.isAuthenticated = true;
+        state.isInitialized = true;
       })
       .addCase(getCurrentUser.rejected, (state, action) => {
         state.loading = false;
         state.isAuthenticated = false;
+        state.isInitialized = true;
         if (action.payload) {
           state.error = action.payload as string;
         }

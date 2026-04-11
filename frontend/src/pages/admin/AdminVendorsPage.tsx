@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import api from '../../lib/api';
-import { FiCheckCircle, FiXCircle, FiPauseCircle } from 'react-icons/fi';
+import { FiCheckCircle, FiXCircle, FiPauseCircle, FiPackage } from 'react-icons/fi';
+import { useNavigate } from 'react-router-dom';
 
 interface Vendor {
   id: string;
@@ -15,22 +17,37 @@ interface Vendor {
 }
 
 const AdminVendorsPage: React.FC = () => {
+  const navigate = useNavigate();
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [pagination, setPagination] = useState({ 
+    page: 1, 
+    totalPages: 1,
+    totalCount: 0 
+  });
 
   useEffect(() => {
     fetchVendors();
-  }, [statusFilter]);
+  }, [statusFilter, pagination.page]);
 
   const fetchVendors = async () => {
     try {
-      const params: any = {};
+      setLoading(true);
+      const params: any = {
+        page: pagination.page,
+        limit: 10
+      };
       if (statusFilter !== 'all') {
         params.status = statusFilter;
       }
       const response = await api.get('/admin/vendors', { params });
       setVendors(response.data.vendors);
+      setPagination(prev => ({
+        ...prev,
+        totalPages: response.data.pagination.totalPages,
+        totalCount: response.data.pagination.totalCount
+      }));
     } catch (error) {
       console.error('Failed to fetch vendors:', error);
     } finally {
@@ -41,9 +58,10 @@ const AdminVendorsPage: React.FC = () => {
   const handleApprove = async (id: string) => {
     try {
       await api.patch(`/admin/vendors/${id}/approve`);
+      toast.success('Vendor approved successfully');
       fetchVendors();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to approve vendor');
+      toast.error(error.response?.data?.error || 'Failed to approve vendor');
     }
   };
 
@@ -52,9 +70,10 @@ const AdminVendorsPage: React.FC = () => {
 
     try {
       await api.patch(`/admin/vendors/${id}/reject`);
+      toast.success('Vendor rejected');
       fetchVendors();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to reject vendor');
+      toast.error(error.response?.data?.error || 'Failed to reject vendor');
     }
   };
 
@@ -63,9 +82,10 @@ const AdminVendorsPage: React.FC = () => {
 
     try {
       await api.patch(`/admin/vendors/${id}/suspend`);
+      toast.success('Vendor suspended');
       fetchVendors();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to suspend vendor');
+      toast.error(error.response?.data?.error || 'Failed to suspend vendor');
     }
   };
 
@@ -142,6 +162,14 @@ const AdminVendorsPage: React.FC = () => {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex space-x-2">
+                      <button 
+                        onClick={() => navigate(`/admin/vendors/${vendor.id}/products`)}
+                        className="p-2 text-primary-600 hover:bg-primary-50 rounded"
+                        title="Manage Master Catalog"
+                      >
+                        <FiPackage className="w-5 h-5" />
+                      </button>
+                      
                       {vendor.status === 'PENDING' && (
                         <>
                           <button
@@ -184,6 +212,31 @@ const AdminVendorsPage: React.FC = () => {
               ))}
             </tbody>
           </table>
+          
+          {/* Dashboard Pagination */}
+          {pagination.totalPages > 1 && (
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">
+                Showing Page {pagination.page} of {pagination.totalPages} ({pagination.totalCount} Total)
+              </p>
+              <div className="flex gap-2">
+                <button 
+                  disabled={pagination.page === 1}
+                  onClick={() => setPagination(p => ({ ...p, page: p.page - 1 }))}
+                  className="px-4 py-2 bg-white border border-gray-200 rounded-xl text-xs font-black uppercase tracking-widest disabled:opacity-30 hover:border-primary-500 transition-all"
+                >
+                  Prev
+                </button>
+                <button 
+                  disabled={pagination.page === pagination.totalPages}
+                  onClick={() => setPagination(p => ({ ...p, page: p.page + 1 }))}
+                  className="px-4 py-2 bg-white border border-gray-200 rounded-xl text-xs font-black uppercase tracking-widest disabled:opacity-30 hover:border-primary-500 transition-all"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

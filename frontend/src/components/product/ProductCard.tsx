@@ -38,9 +38,9 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   const brandName = product.brand 
     ? (isRTL && (product.brand as any).nameAr ? (product.brand as any).nameAr : product.brand.name)
     : null;
-  const vendorName = isRTL && (product.vendor as any).storeNameAr 
-    ? (product.vendor as any).storeNameAr 
-    : product.vendor.storeName;
+  const vendorName = isRTL && (product.vendor as any)?.storeNameAr 
+    ? (product.vendor as any)?.storeNameAr 
+    : product.vendor?.storeName || 'Unknown Vendor';
 
   const handleWishlistToggle = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -193,7 +193,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           <div className="flex items-center justify-center text-xs text-gray-500 truncate">
             <span className="me-1 whitespace-nowrap">{t('product.vendor')}:</span>
             <Link
-              to={`/store/${product.vendor.slug}`}
+              to={`/store/${product.vendor?.slug || ''}`}
               onClick={(e) => e.stopPropagation()}
               className="text-primary-600 hover:underline font-medium truncate"
             >

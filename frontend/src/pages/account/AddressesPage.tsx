@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { MapPin, Plus, Trash2, Edit2, Check, Loader2, Home, Briefcase, Globe } from 'lucide-react';
+import toast from 'react-hot-toast';
 import api from '../../lib/api';
-import { FiEdit2, FiTrash, FiPlusCircle } from 'react-icons/fi';
 
 interface Address {
   id: string;
@@ -17,12 +18,27 @@ interface Address {
   isDefault: boolean;
 }
 
+const COUNTRIES = [
+  "Egypt",
+  "Saudi Arabia",
+  "United Arab Emirates",
+  "Kuwait",
+  "Qatar",
+  "Oman",
+  "Bahrain",
+  "Jordan",
+  "Lebanon"
+];
+
 const AddressesPage: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isRTL = i18n.language === 'ar';
+  
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [editingAddress, setEditingAddress] = useState<Address | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  
   const [formData, setFormData] = useState({
     label: 'Home',
     fullName: '',
@@ -32,8 +48,8 @@ const AddressesPage: React.FC = () => {
     city: '',
     state: '',
     postalCode: '',
-    country: 'Egypt',
-    isDefault: false,
+    country: 'Egypt', // Default as requested
+    isDefault: false
   });
 
   useEffect(() => {
@@ -42,68 +58,35 @@ const AddressesPage: React.FC = () => {
 
   const fetchAddresses = async () => {
     try {
+      setLoading(true);
       const response = await api.get('/addresses');
       setAddresses(response.data.addresses);
     } catch (error) {
-      console.error('Failed to fetch addresses:', error);
+      toast.error('Failed to load addresses');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const value = e.target.type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value;
-    setFormData({
-      ...formData,
-      [e.target.name]: value,
-    });
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      if (editingAddress) {
-        await api.patch(`/addresses/${editingAddress.id}`, formData);
+      if (editingId) {
+        await api.patch(`/addresses/${editingId}`, formData);
+        toast.success('Address updated');
       } else {
         await api.post('/addresses', formData);
+        toast.success('Address added');
       }
+      setShowForm(false);
+      setEditingId(null);
       fetchAddresses();
-      resetForm();
-    } catch (error: any) {
-      alert(error.response?.data?.error || t('messages.errorOccurred'));
+    } catch (error) {
+      toast.error('Failed to save address');
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm(t('account.confirmDeleteAddress'))) return;
-
-    try {
-      await api.delete(`/addresses/${id}`);
-      fetchAddresses();
-    } catch (error: any) {
-      alert(error.response?.data?.error || t('messages.errorOccurred'));
-    }
-  };
-
-  const resetForm = () => {
-    setFormData({
-      label: 'Home',
-      fullName: '',
-      phone: '',
-      addressLine1: '',
-      addressLine2: '',
-      city: '',
-      state: '',
-      postalCode: '',
-      country: 'Egypt',
-      isDefault: false,
-    });
-    setEditingAddress(null);
-    setShowForm(false);
-  };
-
-  const startEdit = (address: Address) => {
-    setEditingAddress(address);
+  const handleEdit = (address: Address) => {
     setFormData({
       label: address.label,
       fullName: address.fullName,
@@ -114,224 +97,292 @@ const AddressesPage: React.FC = () => {
       state: address.state || '',
       postalCode: address.postalCode,
       country: address.country,
-      isDefault: address.isDefault,
+      isDefault: address.isDefault
     });
+    setEditingId(address.id);
     setShowForm(true);
   };
 
-  const getLabelText = (label: string) => {
-    switch (label) {
-      case 'Home':
-        return t('account.labelHome');
-      case 'Work':
-        return t('account.labelWork');
-      case 'Other':
-        return t('account.labelOther');
-      default:
-        return label;
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this address?')) return;
+    try {
+      await api.delete(`/addresses/${id}`);
+      toast.success('Address deleted');
+      fetchAddresses();
+    } catch (error) {
+      toast.error('Failed to delete address');
     }
   };
 
-  if (loading) {
-    return <div className="text-center py-8">{t('common.loading')}</div>;
+  const getLabelIcon = (label: string) => {
+    switch (label.toLowerCase()) {
+      case 'home': return <Home size={16} />;
+      case 'office': 
+      case 'work': return <Briefcase size={16} />;
+      default: return <MapPin size={16} />;
+    }
+  };
+
+  if (loading && addresses.length === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
+      </div>
+    );
   }
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">{t('account.myAddresses')}</h2>
-        <button
-          onClick={() => {
-            resetForm();
-            setShowForm(true);
-          }}
-          className="btn-primary flex items-center gap-2"
-        >
-          <FiPlusCircle className="w-5 h-5" />
-          <span>{t('account.addNewAddress')}</span>
-        </button>
-      </div>
-
-      {showForm && (
-        <div className="card p-6 mb-6">
-          <h3 className="text-xl font-bold mb-4">
-            {editingAddress ? t('account.editAddress') : t('account.addNewAddress')}
-          </h3>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">{t('account.label')}</label>
-                <select
-                  name="label"
-                  value={formData.label}
-                  onChange={handleChange}
-                  className="input-field"
-                >
-                  <option value="Home">{t('account.labelHome')}</option>
-                  <option value="Work">{t('account.labelWork')}</option>
-                  <option value="Other">{t('account.labelOther')}</option>
-                </select>
-              </div>
-              <div className="flex items-center">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    name="isDefault"
-                    checked={formData.isDefault}
-                    onChange={handleChange}
-                    className="w-4 h-4 text-primary-500 rounded"
-                  />
-                  <span className="text-sm font-medium">{t('account.setAsDefault')}</span>
-                </label>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">{t('account.fullName')}</label>
-              <input
-                type="text"
-                name="fullName"
-                value={formData.fullName}
-                onChange={handleChange}
-                className="input-field"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">{t('account.phone')}</label>
-              <input
-                type="tel"
-                name="phone"
-                value={formData.phone}
-                onChange={handleChange}
-                className="input-field"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">{t('account.addressLine1')}</label>
-              <input
-                type="text"
-                name="addressLine1"
-                value={formData.addressLine1}
-                onChange={handleChange}
-                className="input-field"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">{t('account.addressLine2')}</label>
-              <input
-                type="text"
-                name="addressLine2"
-                value={formData.addressLine2}
-                onChange={handleChange}
-                className="input-field"
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">{t('account.city')}</label>
-                <input
-                  type="text"
-                  name="city"
-                  value={formData.city}
-                  onChange={handleChange}
-                  className="input-field"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">{t('account.state')}</label>
-                <input
-                  type="text"
-                  name="state"
-                  value={formData.state}
-                  onChange={handleChange}
-                  className="input-field"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">{t('account.postalCode')}</label>
-                <input
-                  type="text"
-                  name="postalCode"
-                  value={formData.postalCode}
-                  onChange={handleChange}
-                  className="input-field"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-4">
-              <button type="submit" className="btn-primary">
-                {editingAddress ? t('account.updateAddress') : t('account.addAddress')}
-              </button>
-              <button
-                type="button"
-                onClick={resetForm}
-                className="btn-outline"
-              >
-                {t('common.cancel')}
-              </button>
-            </div>
-          </form>
+    <div className="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+        <div>
+          <h1 className="text-2xl font-black text-gray-900 uppercase tracking-tight">
+            {t('checkout.shippingAddress')}
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">Manage your saved addresses for faster checkout</p>
         </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {addresses.map((address) => (
-          <div key={address.id} className="card p-4 relative">
-            {address.isDefault && (
-              <span className="absolute top-2 end-2 bg-primary-500 text-white text-xs px-2 py-1 rounded">
-                {t('account.default')}
-              </span>
-            )}
-            <div className="mb-4">
-              <h3 className="font-bold text-lg">{getLabelText(address.label)}</h3>
-              <p className="text-gray-600">{address.fullName}</p>
-              <p className="text-gray-600">{address.phone}</p>
-              <p className="text-gray-600">{address.addressLine1}</p>
-              {address.addressLine2 && <p className="text-gray-600">{address.addressLine2}</p>}
-              <p className="text-gray-600">
-                {address.city}
-                {address.state && `, ${address.state}`} {address.postalCode}
-              </p>
-              <p className="text-gray-600">{address.country}</p>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => startEdit(address)}
-                className="flex items-center gap-1 text-primary-500 hover:text-primary-600 text-sm"
-              >
-                <FiEdit2 className="w-4 h-4" />
-                <span>{t('common.edit')}</span>
-              </button>
-              <button
-                onClick={() => handleDelete(address.id)}
-                className="flex items-center gap-1 text-red-500 hover:text-red-600 text-sm"
-              >
-                <FiTrash className="w-4 h-4" />
-                <span>{t('common.delete')}</span>
-              </button>
-            </div>
-          </div>
-        ))}
-
-        {addresses.length === 0 && !showForm && (
-          <div className="col-span-2 text-center py-12 text-gray-500">
-            {t('account.noAddresses')}
-          </div>
+        {!showForm && (
+          <button
+            onClick={() => {
+              setFormData({
+                label: 'Home',
+                fullName: '',
+                phone: '',
+                addressLine1: '',
+                addressLine2: '',
+                city: '',
+                state: '',
+                postalCode: '',
+                country: 'Egypt',
+                isDefault: addresses.length === 0
+              });
+              setEditingId(null);
+              setShowForm(true);
+            }}
+            className="flex items-center gap-2 bg-primary-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-primary-700 transition-all shadow-lg shadow-primary-200"
+          >
+            <Plus size={20} />
+            Add New Address
+          </button>
         )}
       </div>
+
+      {showForm ? (
+        <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 sm:p-8 space-y-6">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-xl font-bold text-gray-900">
+              {editingId ? 'Edit Address' : 'New Address'}
+            </h2>
+            <button 
+              type="button" 
+              onClick={() => setShowForm(false)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              Cancel
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="md:col-span-2">
+              <label className="block text-sm font-bold text-gray-700 mb-2">Label (e.g. Home, Office)</label>
+              <div className="flex gap-3">
+                {['Home', 'Office', 'Other'].map((l) => (
+                  <button
+                    key={l}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, label: l })}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all border ${
+                      formData.label === l ? 'bg-primary-50 border-primary-600 text-primary-700 font-bold' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+                    }`}
+                  >
+                    {getLabelIcon(l)}
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Full Name</label>
+              <input
+                type="text"
+                required
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-500 transition-all"
+                value={formData.fullName}
+                onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Phone Number</label>
+              <input
+                type="tel"
+                required
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-500 transition-all"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-bold text-gray-700 mb-2">Address Line 1</label>
+              <input
+                type="text"
+                required
+                placeholder="Street address, P.O. box, company name"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-500 transition-all"
+                value={formData.addressLine1}
+                onChange={(e) => setFormData({ ...formData, addressLine1: e.target.value })}
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-bold text-gray-700 mb-2">Address Line 2 (Optional)</label>
+              <input
+                type="text"
+                placeholder="Apartment, suite, unit, building, floor, etc."
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-500 transition-all"
+                value={formData.addressLine2}
+                onChange={(e) => setFormData({ ...formData, addressLine2: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">City</label>
+              <input
+                type="text"
+                required
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-500 transition-all"
+                value={formData.city}
+                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">State / Province</label>
+              <input
+                type="text"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-500 transition-all"
+                value={formData.state}
+                onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Postal / Zip Code</label>
+              <input
+                type="text"
+                required
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-500 transition-all"
+                value={formData.postalCode}
+                onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Country</label>
+              <select
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-500 transition-all"
+                value={formData.country}
+                onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+              >
+                {COUNTRIES.map(country => (
+                  <option key={country} value={country}>{country}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="flex items-center gap-3 cursor-pointer group">
+                <div className={`w-12 h-6 rounded-full transition-all relative ${formData.isDefault ? 'bg-primary-600' : 'bg-gray-200'}`}>
+                  <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${formData.isDefault ? 'right-1' : 'left-1'}`} />
+                </div>
+                <input
+                  type="checkbox"
+                  className="hidden"
+                  checked={formData.isDefault}
+                  onChange={(e) => setFormData({ ...formData, isDefault: e.target.checked })}
+                />
+                <span className="text-sm font-bold text-gray-700">Set as default shipping address</span>
+              </label>
+            </div>
+          </div>
+
+          <div className="flex gap-4 pt-4 border-t border-gray-50">
+            <button
+              type="submit"
+              className="flex-1 bg-gray-900 text-white px-6 py-4 rounded-xl font-bold hover:bg-black transition-all"
+            >
+              {editingId ? 'Save Changes' : 'Add Address'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowForm(false)}
+              className="px-6 py-4 rounded-xl border border-gray-200 font-bold text-gray-600 hover:bg-gray-50 transition-all"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          {addresses.length === 0 ? (
+            <div className="col-span-full bg-white rounded-2xl border-2 border-dashed border-gray-200 p-12 text-center">
+              <MapPin size={48} className="mx-auto text-gray-300 mb-4" />
+              <h3 className="text-lg font-bold text-gray-900">No saved addresses</h3>
+              <p className="text-sm text-gray-500">Add an address to speed up your checkout process.</p>
+            </div>
+          ) : (
+            addresses.map((address) => (
+              <div 
+                key={address.id}
+                className={`bg-white rounded-2xl p-6 border-2 transition-all relative group ${
+                  address.isDefault ? 'border-primary-600 shadow-xl shadow-primary-50' : 'border-gray-100 hover:border-gray-200'
+                }`}
+              >
+                {address.isDefault && (
+                  <div className="absolute top-4 right-4 bg-primary-600 text-white text-[10px] font-black uppercase px-2 py-1 rounded-lg">
+                    Default
+                  </div>
+                )}
+                
+                <div className="flex items-center gap-2 mb-4 text-primary-700 font-bold">
+                  {getLabelIcon(address.label)}
+                  <span className="text-sm uppercase tracking-wide">{address.label}</span>
+                </div>
+
+                <div className="space-y-1 mb-6">
+                  <h4 className="font-black text-gray-900">{address.fullName}</h4>
+                  <p className="text-sm text-gray-500 leading-relaxed">
+                    {address.addressLine1}<br />
+                    {address.addressLine2 && <>{address.addressLine2}<br /></>}
+                    {address.city}, {address.state} {address.postalCode}<br />
+                    {address.country}
+                  </p>
+                  <p className="text-sm font-medium text-gray-900 pt-2">{address.phone}</p>
+                </div>
+
+                <div className="flex gap-2 pt-4 border-t border-gray-50">
+                  <button
+                    onClick={() => handleEdit(address)}
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 text-gray-600 rounded-lg text-xs font-bold hover:bg-gray-100 transition-all border border-gray-100"
+                  >
+                    <Edit2 size={14} />
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDelete(address.id)}
+                    className="flex items-center justify-center p-2 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 transition-all border border-red-50"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 };
 
 export default AddressesPage;
-

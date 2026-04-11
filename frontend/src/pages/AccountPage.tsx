@@ -4,7 +4,7 @@ import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { getCurrentUser, logout } from '../store/slices/authSlice';
 import ProfilePage from './account/ProfilePage';
 import AddressesPage from './account/AddressesPage';
-import OrdersPage from './account/OrdersPage';
+import MyOrdersPage from './MyOrdersPage';
 import OrderDetailsPage from './account/OrderDetailsPage';
 
 const AccountPage: React.FC = () => {
@@ -113,7 +113,7 @@ const AccountPage: React.FC = () => {
           <Routes>
             <Route index element={<ProfilePage />} />
             <Route path="addresses" element={<AddressesPage />} />
-            <Route path="orders" element={<OrdersPage />} />
+            <Route path="orders" element={<MyOrdersPage />} />
             <Route path="orders/:id" element={<OrderDetailsPage />} />
             <Route path="*" element={<Navigate to="/account" replace />} />
           </Routes>

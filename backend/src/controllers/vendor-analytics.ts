@@ -85,22 +85,26 @@ export const getVendorAnalytics = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    const salesByDayMap = new Map<string, { date: string; orders: number; sales: number }>();
+    // 30-day time-series buckets (ensures no gaps in chart data)
+    const salesByDay: { date: string; orders: number; sales: number }[] = [];
+    for (let i = 0; i < periodDays; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - (periodDays - 1 - i));
+      const dateKey = d.toISOString().slice(0, 10);
+      salesByDay.push({ date: dateKey, orders: 0, sales: 0 });
+    }
+
     ordersForSales.forEach((order) => {
-      const dateKey = order.createdAt.toISOString().slice(0, 10); // YYYY-MM-DD
-      const entry = salesByDayMap.get(dateKey) || {
-        date: dateKey,
-        orders: 0,
-        sales: 0,
-      };
-      entry.orders += 1;
-      entry.sales += order.total;
-      salesByDayMap.set(dateKey, entry);
+      const dateKey = order.createdAt.toISOString().slice(0, 10);
+      const bucket = salesByDay.find((b) => b.date === dateKey);
+      if (bucket) {
+        bucket.orders += 1;
+        bucket.sales += order.total;
+      }
     });
 
-    const salesByDay = Array.from(salesByDayMap.values()).sort(
-      (a, b) => a.date.localeCompare(b.date)
-    );
+    // Sort to be safe (though already sequential from loop)
+    const sortedSalesByDay = salesByDay;
 
     // Top selling products (aggregate in JS to avoid groupBy relation constraints)
     const orderItemsForTopProducts = await prisma.orderItem.findMany({
@@ -140,7 +144,7 @@ export const getVendorAnalytics = async (req: AuthRequest, res: Response) => {
       topProductsMap.set(item.productId, existing);
     });
 
-    const topProducts = Array.from(topProductsMap.values())
+    const topProducts  = Array.from(topProductsMap.values())
       .sort((a, b) => b.quantitySold - a.quantitySold)
       .slice(0, 10);
 

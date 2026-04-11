@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
-import { useAppDispatch } from '../../store/hooks';
+import { useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
 
 interface VendorApplyPageProps {
-  onApplied: () => void;
+  onApplied?: () => void;
 }
 
 const VendorApplyPage: React.FC<VendorApplyPageProps> = ({ onApplied }) => {
-  const dispatch = useAppDispatch();
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     storeName: '',
     description: '',
@@ -33,7 +33,8 @@ const VendorApplyPage: React.FC<VendorApplyPageProps> = ({ onApplied }) => {
       await api.post('/vendor/apply', formData);
       setSuccess(true);
       setTimeout(() => {
-        onApplied();
+        if (onApplied) onApplied();
+        else navigate('/vendor');
       }, 2000);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to submit application');

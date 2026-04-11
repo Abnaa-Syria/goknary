@@ -156,3 +156,29 @@ export const deleteAddress = async (req: AuthRequest, res: Response) => {
   }
 };
 
+export const getAddress = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id } = req.params;
+
+    const address = await prisma.address.findFirst({
+      where: {
+        id,
+        userId: req.user.id,
+      },
+    });
+
+    if (!address) {
+      return res.status(404).json({ error: 'Address not found' });
+    }
+
+    res.json({ address });
+  } catch (error) {
+    console.error('Error fetching address:', error);
+    res.status(500).json({ error: 'Failed to fetch address' });
+  }
+};
+

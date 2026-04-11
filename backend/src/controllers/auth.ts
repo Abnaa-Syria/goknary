@@ -5,27 +5,32 @@ import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../lib/jwt';
 import { generateOTP, hashOTP, verifyOTP } from '../lib/otp';
-import { sendOTPEmail, sendWelcomeEmail, sendPasswordResetEmail } from '../lib/email';
+import { sendWhatsAppOTP, sendWhatsAppPasswordReset } from '../lib/whatsapp';
 
 // ─── Validation Schemas ───────────────────────────────────────────────────────
 
+/**
+ * E.164 phone regex: +[country code][number], total 8–15 digits
+ * Accepts +20xxxxxxxxxx, +1xxxxxxxxxx, etc.
+ */
+const phoneRegex = /^\+[1-9]\d{7,14}$/;
+
 const registerSchema = z.object({
-  name: z.string().min(2).max(100),
-  email: z.string().email(),
+  name:     z.string().min(2).max(100),
+  email:    z.string().email(),
   password: z.string().min(8).max(128),
-  // Bug L-06 Fix: removed VENDOR — users cannot self-register as vendors
-  role: z.enum(['CUSTOMER']).default('CUSTOMER'),
-  phone: z.string().optional(),
+  phone:    z.string().regex(phoneRegex, 'Phone must be in international format, e.g. +201012345678'),
+  role:     z.enum(['CUSTOMER']).default('CUSTOMER'),
 });
 
 const loginSchema = z.object({
-  email: z.string().email(),
+  email:    z.string().email(),
   password: z.string().min(1),
 });
 
-const verifyEmailSchema = z.object({
+const verifyPhoneSchema = z.object({
   userId: z.string().min(1),
-  otp: z.string().length(6).regex(/^\d{6}$/, 'OTP must be 6 digits'),
+  otp:    z.string().length(6).regex(/^\d{6}$/, 'OTP must be 6 digits'),
 });
 
 const resendOTPSchema = z.object({
@@ -33,30 +38,32 @@ const resendOTPSchema = z.object({
 });
 
 const updateProfileSchema = z.object({
-  name: z.string().min(2).max(100).optional(),
-  phone: z.string().optional(),
+  name:   z.string().min(2).max(100).optional(),
+  email:  z.string().email().optional(),
+  phone:  z.string().regex(phoneRegex, 'Invalid phone format').optional(),
   avatar: z.string().url().optional(),
 });
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),
-  newPassword: z.string().min(8).max(128),
+  newPassword:     z.string().min(8).max(128),
 });
 
+// Password reset via WhatsApp OTP
 const forgotPasswordSchema = z.object({
-  email: z.string().email(),
+  phone: z.string().regex(phoneRegex, 'Phone must be in international format, e.g. +201012345678'),
 });
 
-const resetPasswordSchema = z.object({
-  token: z.string().min(1),
+const verifyResetOtpSchema = z.object({
+  phone:       z.string().regex(phoneRegex),
+  otp:         z.string().length(6).regex(/^\d{6}$/),
   newPassword: z.string().min(8).max(128),
 });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const OTP_EXPIRES_MINUTES = parseInt(process.env.OTP_EXPIRES_MINUTES || '10', 10);
-const OTP_MAX_ATTEMPTS = parseInt(process.env.OTP_MAX_ATTEMPTS || '5', 10);
-const PASSWORD_RESET_EXPIRES_MINUTES = parseInt(process.env.PASSWORD_RESET_EXPIRES_MINUTES || '60', 10);
+const OTP_EXPIRES_MINUTES     = parseInt(process.env.OTP_EXPIRES_MINUTES     || '10', 10);
+const OTP_MAX_ATTEMPTS        = parseInt(process.env.OTP_MAX_ATTEMPTS         || '5',  10);
 
 const safeParseError = (error: unknown): string => {
   if (error instanceof z.ZodError) {
@@ -69,31 +76,33 @@ const safeParseError = (error: unknown): string => {
 
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, email, password, role, phone } = registerSchema.parse(req.body);
+    const { name, email, password, phone, role } = registerSchema.parse(req.body);
 
-    // Check if email already registered
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
-      if (!existingUser.emailVerified) {
-        // Re-registration attempt on unverified account → resend OTP
-        const otp = generateOTP();
-        const hashedOTP = await hashOTP(otp);
+    // ── Check for existing email ─────────────────────────────────────────────
+    const existingByEmail = await prisma.user.findUnique({ where: { email } });
+    if (existingByEmail) {
+      if (!existingByEmail.phoneVerified) {
+        // Re-registration on unverified account → fresh OTP to same phone
+        const otp          = generateOTP();
+        const hashedOTP    = await hashOTP(otp);
         const otpExpiresAt = new Date(Date.now() + OTP_EXPIRES_MINUTES * 60 * 1000);
 
         await prisma.user.update({
-          where: { id: existingUser.id },
-          data: { otpCode: hashedOTP, otpExpiresAt, otpAttempts: 0 },
+          where: { id: existingByEmail.id },
+          data:  { otpCode: hashedOTP, otpExpiresAt, otpAttempts: 0 },
         });
 
         try {
-          await sendOTPEmail(existingUser.email, otp, existingUser.name ?? existingUser.email, OTP_EXPIRES_MINUTES);
-        } catch (emailErr) {
-          console.error('Failed to resend OTP email:', emailErr);
+          if (existingByEmail.phone) {
+            await sendWhatsAppOTP(existingByEmail.phone, otp, OTP_EXPIRES_MINUTES);
+          }
+        } catch (wa) {
+          console.error('[WhatsApp] Failed to resend OTP:', wa);
         }
 
         res.status(200).json({
-          message: 'A new verification code has been sent to your email.',
-          userId: existingUser.id,
+          message:              'A new verification code has been sent to your WhatsApp.',
+          userId:               existingByEmail.id,
           requiresVerification: true,
         });
         return;
@@ -102,15 +111,43 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Hash password
+    // ── Check for existing phone ─────────────────────────────────────────────
+    const existingByPhone = await prisma.user.findUnique({ where: { phone } });
+    if (existingByPhone) {
+      if (!existingByPhone.phoneVerified) {
+        // Same phone, different email, unverified → resend
+        const otp          = generateOTP();
+        const hashedOTP    = await hashOTP(otp);
+        const otpExpiresAt = new Date(Date.now() + OTP_EXPIRES_MINUTES * 60 * 1000);
+
+        await prisma.user.update({
+          where: { id: existingByPhone.id },
+          data:  { otpCode: hashedOTP, otpExpiresAt, otpAttempts: 0 },
+        });
+
+        try {
+          await sendWhatsAppOTP(phone, otp, OTP_EXPIRES_MINUTES);
+        } catch (wa) {
+          console.error('[WhatsApp] Failed to resend OTP:', wa);
+        }
+
+        res.status(200).json({
+          message:              'A new verification code has been sent to your WhatsApp.',
+          userId:               existingByPhone.id,
+          requiresVerification: true,
+        });
+        return;
+      }
+      res.status(409).json({ error: 'This WhatsApp number is already registered.' });
+      return;
+    }
+
+    // ── Create new user ──────────────────────────────────────────────────────
     const hashedPassword = await bcrypt.hash(password, 12);
+    const otp            = generateOTP();
+    const hashedOTP      = await hashOTP(otp);
+    const otpExpiresAt   = new Date(Date.now() + OTP_EXPIRES_MINUTES * 60 * 1000);
 
-    // Generate OTP before creating user
-    const otp = generateOTP();
-    const hashedOTP = await hashOTP(otp);
-    const otpExpiresAt = new Date(Date.now() + OTP_EXPIRES_MINUTES * 60 * 1000);
-
-    // Create user (NOT yet verified — no tokens issued)
     const user = await prisma.user.create({
       data: {
         name,
@@ -118,24 +155,24 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         passwordHash: hashedPassword,
         role,
         phone,
-        emailVerified: false,
-        otpCode: hashedOTP,
+        emailVerified:  false,
+        phoneVerified:  false,
+        otpCode:        hashedOTP,
         otpExpiresAt,
-        otpAttempts: 0,
+        otpAttempts:    0,
       },
     });
 
-    // Send OTP email (non-blocking — don't crash registration if email fails)
+    // Send OTP via WhatsApp (non-blocking — registration succeeds even if WA is down)
     try {
-      await sendOTPEmail(email, otp, name, OTP_EXPIRES_MINUTES);
-    } catch (emailErr) {
-      console.error('Failed to send OTP email:', emailErr);
-      // Still return success — user can use resend endpoint
+      await sendWhatsAppOTP(phone, otp, OTP_EXPIRES_MINUTES);
+    } catch (wa) {
+      console.error('[WhatsApp] Failed to send OTP on register:', wa);
     }
 
     res.status(201).json({
-      message: `A verification code has been sent to ${email}. Please check your inbox.`,
-      userId: user.id,
+      message:              `A verification code has been sent to your WhatsApp number ${phone}.`,
+      userId:               user.id,
       requiresVerification: true,
     });
   } catch (error) {
@@ -148,11 +185,11 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-// ─── Verify Email (OTP) ───────────────────────────────────────────────────────
+// ─── Verify Phone (OTP) ───────────────────────────────────────────────────────
 
 export const verifyEmail = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { userId, otp } = verifyEmailSchema.parse(req.body);
+    const { userId, otp } = verifyPhoneSchema.parse(req.body);
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
 
@@ -161,80 +198,73 @@ export const verifyEmail = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    if (user.emailVerified) {
-      res.status(400).json({ error: 'This email is already verified.' });
+    if (user.phoneVerified) {
+      res.status(400).json({ error: 'This account is already verified.' });
       return;
     }
 
-    // Check attempt limit
+    // Attempt limit
     if (user.otpAttempts >= OTP_MAX_ATTEMPTS) {
       res.status(429).json({
-        error: `Too many failed attempts. Please use the resend code option.`,
+        error: 'Too many failed attempts. Please use the resend code option.',
       });
       return;
     }
 
-    // Check expiry
+    // Expiry check
     if (!user.otpCode || !user.otpExpiresAt || user.otpExpiresAt < new Date()) {
       res.status(400).json({
-        error: 'Verification code has expired. Please request a new one.',
+        error:   'Verification code has expired. Please request a new one.',
         expired: true,
       });
       return;
     }
 
-    // Verify OTP
     const isValid = await verifyOTP(otp, user.otpCode);
 
     if (!isValid) {
-      // Increment failed attempts
       await prisma.user.update({
         where: { id: userId },
-        data: { otpAttempts: { increment: 1 } },
+        data:  { otpAttempts: { increment: 1 } },
       });
-
       const remaining = OTP_MAX_ATTEMPTS - (user.otpAttempts + 1);
       res.status(400).json({
-        error: `Invalid verification code. ${remaining > 0 ? `${remaining} attempts remaining.` : 'No attempts remaining.'}`,
+        error:            `Invalid verification code. ${remaining > 0 ? `${remaining} attempts remaining.` : 'No attempts remaining.'}`,
         attemptsRemaining: remaining,
       });
       return;
     }
 
-    // ✅ OTP is valid — verify the user and issue tokens
+    // ✅ Valid OTP — verify and issue tokens
     const verifiedUser = await prisma.user.update({
       where: { id: userId },
-      data: {
-        emailVerified: true,
-        otpCode: null,
-        otpExpiresAt: null,
-        otpAttempts: 0,
+      data:  {
+        phoneVerified:  true,
+        emailVerified:  true, // keep in sync for middleware checks
+        otpCode:        null,
+        otpExpiresAt:   null,
+        otpAttempts:    0,
       },
       select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        phone: true,
-        avatar: true,
+        id:           true,
+        name:         true,
+        email:        true,
+        role:         true,
+        phone:        true,
+        avatar:       true,
+        phoneVerified: true,
         emailVerified: true,
-        createdAt: true,
+        createdAt:    true,
       },
     });
 
-    // Generate tokens now that user is verified
     const tokenPayload = { id: verifiedUser.id, email: verifiedUser.email, role: verifiedUser.role };
-    const accessToken = generateAccessToken(tokenPayload);
+    const accessToken  = generateAccessToken(tokenPayload);
     const refreshToken = generateRefreshToken(tokenPayload);
 
-    // Send welcome email (fire-and-forget)
-    sendWelcomeEmail(verifiedUser.email, verifiedUser.name ?? verifiedUser.email).catch((err) =>
-      console.error('Failed to send welcome email:', err)
-    );
-
     res.status(200).json({
-      message: 'Email verified successfully! Welcome to GoKnary.',
-      user: verifiedUser,
+      message: 'Phone verified successfully! Welcome to GoKanary.',
+      user:    verifiedUser,
       accessToken,
       refreshToken,
     });
@@ -243,7 +273,7 @@ export const verifyEmail = async (req: Request, res: Response): Promise<void> =>
       res.status(400).json({ error: 'Invalid request data', details: error.errors });
       return;
     }
-    console.error('Email verification error:', error);
+    console.error('Phone verification error:', error);
     res.status(500).json({ error: 'Verification failed. Please try again.' });
   }
 };
@@ -261,31 +291,35 @@ export const resendOTP = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    if (user.emailVerified) {
-      res.status(400).json({ error: 'This email is already verified.' });
+    if (user.phoneVerified) {
+      res.status(400).json({ error: 'This account is already verified.' });
       return;
     }
 
-    // Generate a fresh OTP and reset attempts
-    const otp = generateOTP();
-    const hashedOTP = await hashOTP(otp);
+    if (!user.phone) {
+      res.status(400).json({ error: 'No WhatsApp number on file. Please re-register.' });
+      return;
+    }
+
+    const otp          = generateOTP();
+    const hashedOTP    = await hashOTP(otp);
     const otpExpiresAt = new Date(Date.now() + OTP_EXPIRES_MINUTES * 60 * 1000);
 
     await prisma.user.update({
       where: { id: userId },
-      data: { otpCode: hashedOTP, otpExpiresAt, otpAttempts: 0 },
+      data:  { otpCode: hashedOTP, otpExpiresAt, otpAttempts: 0 },
     });
 
     try {
-      await sendOTPEmail(user.email, otp, user.name ?? user.email, OTP_EXPIRES_MINUTES);
-    } catch (emailErr) {
-      console.error('Failed to send OTP email:', emailErr);
-      res.status(500).json({ error: 'Failed to send verification email. Please try again.' });
+      await sendWhatsAppOTP(user.phone, otp, OTP_EXPIRES_MINUTES);
+    } catch (wa) {
+      console.error('[WhatsApp] Failed to resend OTP:', wa);
+      res.status(500).json({ error: 'Failed to send WhatsApp message. Please try again.' });
       return;
     }
 
     res.status(200).json({
-      message: `A new verification code has been sent to ${user.email}.`,
+      message: `A new verification code has been sent to ${user.phone}.`,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -316,35 +350,47 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Check if email is verified
-    if (!user.emailVerified) {
-      // Auto-resend a fresh OTP on login attempt for unverified accounts
-      const otp = generateOTP();
-      const hashedOTP = await hashOTP(otp);
+    // Check phone verification
+    if (!user.phoneVerified) {
+      // Auto-resend a fresh OTP
+      const otp          = generateOTP();
+      const hashedOTP    = await hashOTP(otp);
       const otpExpiresAt = new Date(Date.now() + OTP_EXPIRES_MINUTES * 60 * 1000);
 
       await prisma.user.update({
         where: { id: user.id },
-        data: { otpCode: hashedOTP, otpExpiresAt, otpAttempts: 0 },
+        data:  { otpCode: hashedOTP, otpExpiresAt, otpAttempts: 0 },
       });
 
-      sendOTPEmail(user.email, otp, user.name ?? user.email, OTP_EXPIRES_MINUTES).catch((err) =>
-        console.error('Failed to send OTP on login:', err)
-      );
+      if (user.phone) {
+        sendWhatsAppOTP(user.phone, otp, OTP_EXPIRES_MINUTES).catch((err) =>
+          console.error('[WhatsApp] Failed to send OTP on login:', err)
+        );
+      }
 
       res.status(403).json({
-        error: 'Please verify your email before logging in.',
+        error:                'Please verify your WhatsApp number before logging in.',
         requiresVerification: true,
-        userId: user.id,
+        userId:               user.id,
       });
       return;
     }
 
     const tokenPayload = { id: user.id, email: user.email, role: user.role };
-    const accessToken = generateAccessToken(tokenPayload);
+    const accessToken  = generateAccessToken(tokenPayload);
     const refreshToken = generateRefreshToken(tokenPayload);
 
-    const { passwordHash: _pass, otpCode, otpExpiresAt, otpAttempts, ...safeUser } = user;
+    const {
+      passwordHash: _pass,
+      otpCode,
+      otpExpiresAt,
+      otpAttempts,
+      passwordResetToken,
+      passwordResetExpires,
+      passwordResetOtp,
+      passwordResetOtpExpires,
+      ...safeUser
+    } = user as any;
 
     res.json({ user: safeUser, accessToken, refreshToken });
   } catch (error) {
@@ -368,13 +414,9 @@ export const refreshToken = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // Check if token has been blacklisted (used after logout)
-    // The existing schema stores SHA-256 hash of the token for fast lookup
-    const crypto = await import('crypto');
+    const crypto    = await import('crypto');
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-    const blacklisted = await prisma.refreshTokenBlacklist.findFirst({
-      where: { tokenHash },
-    });
+    const blacklisted = await prisma.refreshTokenBlacklist.findFirst({ where: { tokenHash } });
 
     if (blacklisted) {
       res.status(401).json({ error: 'Token has been revoked. Please log in again.' });
@@ -389,29 +431,26 @@ export const refreshToken = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // Verify user still exists and is verified
     const user = await prisma.user.findUnique({
-      where: { id: payload.id },
-      select: { id: true, email: true, role: true, emailVerified: true },
+      where:  { id: payload.id },
+      select: { id: true, email: true, role: true, phoneVerified: true, emailVerified: true },
     });
 
-    if (!user || !user.emailVerified) {
+    if (!user || (!user.phoneVerified && !user.emailVerified)) {
       res.status(401).json({ error: 'User not found or not verified.' });
       return;
     }
 
-    const tokenPayload = { id: user.id, email: user.email, role: user.role };
-    const newAccessToken = generateAccessToken(tokenPayload);
+    const tokenPayload    = { id: user.id, email: user.email, role: user.role };
+    const newAccessToken  = generateAccessToken(tokenPayload);
     const newRefreshToken = generateRefreshToken(tokenPayload);
 
-    // Blacklist the old refresh token (token rotation)
-    const cryptoModule = await import('crypto');
-    const newTokenHash = cryptoModule.createHash('sha256').update(token).digest('hex');
+    // Rotate: blacklist the old token
     await prisma.refreshTokenBlacklist.create({
       data: {
         token,
-        tokenHash: newTokenHash,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+        tokenHash,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       },
     });
 
@@ -426,14 +465,13 @@ export const refreshToken = async (req: Request, res: Response): Promise<void> =
 
 export const logout = async (req: Request, res: Response): Promise<void> => {
   try {
-    // Bug C-03 Fix: blacklist the refresh token so it can't be reused
     const { refreshToken: token } = req.body;
 
     if (token && typeof token === 'string') {
       try {
-        verifyRefreshToken(token); // only blacklist if it was actually a valid token
+        verifyRefreshToken(token);
         const cryptoMod = await import('crypto');
-        const hash = cryptoMod.createHash('sha256').update(token).digest('hex');
+        const hash      = cryptoMod.createHash('sha256').update(token).digest('hex');
         await prisma.refreshTokenBlacklist.create({
           data: {
             token,
@@ -463,16 +501,17 @@ export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
     }
 
     const user = await prisma.user.findUnique({
-      where: { id: req.user.id },
+      where:  { id: req.user.id },
       select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        phone: true,
-        avatar: true,
+        id:           true,
+        name:         true,
+        email:        true,
+        role:         true,
+        phone:        true,
+        avatar:       true,
+        phoneVerified: true,
         emailVerified: true,
-        createdAt: true,
+        createdAt:    true,
         vendor: {
           select: {
             id: true,
@@ -506,19 +545,28 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
     }
 
     const updateData = updateProfileSchema.parse(req.body);
+    const data: any  = { ...updateData };
+
+    if (updateData.email) {
+      const currentUser = await prisma.user.findUnique({ where: { id: req.user.id } });
+      if (currentUser && currentUser.email !== updateData.email) {
+        data.emailVerified = false;
+      }
+    }
 
     const updatedUser = await prisma.user.update({
-      where: { id: req.user.id },
-      data: updateData,
+      where:  { id: req.user.id },
+      data,
       select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        phone: true,
-        avatar: true,
+        id:           true,
+        name:         true,
+        email:        true,
+        role:         true,
+        phone:        true,
+        avatar:       true,
+        phoneVerified: true,
         emailVerified: true,
-        createdAt: true,
+        createdAt:    true,
       },
     });
 
@@ -533,7 +581,7 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
   }
 };
 
-// ─── Change Password (authenticated — all roles) ────────────────────────────
+// ─── Change Password ──────────────────────────────────────────────────────────
 
 export const changePassword = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -556,14 +604,16 @@ export const changePassword = async (req: AuthRequest, res: Response): Promise<v
       return;
     }
 
+    const samePassword = await bcrypt.compare(newPassword, user.passwordHash);
+    if (samePassword) {
+      res.status(400).json({ error: 'New password cannot be the same as the current password.' });
+      return;
+    }
+
     const passwordHash = await bcrypt.hash(newPassword, 12);
     await prisma.user.update({
       where: { id: user.id },
-      data: {
-        passwordHash,
-        passwordResetToken: null,
-        passwordResetExpires: null,
-      },
+      data:  { passwordHash, passwordResetToken: null, passwordResetExpires: null },
     });
 
     res.json({ message: 'Password updated successfully.' });
@@ -577,42 +627,39 @@ export const changePassword = async (req: AuthRequest, res: Response): Promise<v
   }
 };
 
-// ─── Forgot Password (public) ─────────────────────────────────────────────────
-
-const GENERIC_RESET_MESSAGE =
-  'If an account exists for this email, you will receive password reset instructions shortly.';
+// ─── Forgot Password — Request OTP via WhatsApp ───────────────────────────────
 
 export const forgotPassword = async (req: Request, res: Response): Promise<void> => {
-  try {
-    console.log('Forgot password request received:', req.body);
-    const { email } = forgotPasswordSchema.parse(req.body);
-    console.log('Email:', email);
-    const user = await prisma.user.findUnique({ where: { email } });
-    console.log('User:', user);
+  // Generic response to prevent phone enumeration
+  const GENERIC_MSG = 'If a verified account exists for this number, you will receive a WhatsApp message with a reset code.';
 
-    if (!user || !user.emailVerified) {
-      res.status(200).json({ message: GENERIC_RESET_MESSAGE });
+  try {
+    const { phone } = forgotPasswordSchema.parse(req.body);
+
+    const user = await prisma.user.findUnique({ where: { phone } });
+
+    if (!user || !user.phoneVerified) {
+      res.status(200).json({ message: GENERIC_MSG });
       return;
     }
 
-    const crypto = await import('crypto');
-    const rawToken = crypto.randomBytes(32).toString('hex');
-    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
-    const passwordResetExpires = new Date(Date.now() + PASSWORD_RESET_EXPIRES_MINUTES * 60 * 1000);
+    const otp            = generateOTP();
+    const hashedOTP      = await hashOTP(otp);
+    const otpExpiresAt   = new Date(Date.now() + OTP_EXPIRES_MINUTES * 60 * 1000);
 
     await prisma.user.update({
       where: { id: user.id },
-      data: { passwordResetToken: tokenHash, passwordResetExpires },
+      data:  {
+        passwordResetOtp:        hashedOTP,
+        passwordResetOtpExpires: otpExpiresAt,
+      },
     });
 
-    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
-    const resetUrl = `${frontendUrl}/reset-password?token=${encodeURIComponent(rawToken)}`;
-
-    sendPasswordResetEmail(user.email, user.name ?? user.email, resetUrl, PASSWORD_RESET_EXPIRES_MINUTES).catch(
-      (err) => console.error('Failed to send password reset email:', err)
+    sendWhatsAppPasswordReset(phone, otp, OTP_EXPIRES_MINUTES).catch((err) =>
+      console.error('[WhatsApp] Failed to send password reset OTP:', err)
     );
 
-    res.status(200).json({ message: GENERIC_RESET_MESSAGE });
+    res.status(200).json({ message: GENERIC_MSG });
   } catch (error) {
     if (error instanceof z.ZodError) {
       res.status(400).json({ error: 'Invalid request data', details: error.errors });
@@ -623,57 +670,54 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
   }
 };
 
-// ─── Reset Password with token (public) ───────────────────────────────────────
+// ─── Reset Password — Verify WhatsApp OTP + set new password ─────────────────
 
 export const resetPassword = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { token, newPassword } = resetPasswordSchema.parse(req.body);
+    const { phone, otp, newPassword } = verifyResetOtpSchema.parse(req.body);
 
-    if(!token || !newPassword) {
-      res.status(400).json({ error: 'Invalid request data' });
-      return;
-    }
-
-    const crypto = await import('crypto');
-    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-
-    const user = await prisma.user.findFirst({
-      where: {
-        passwordResetToken: tokenHash,
-        passwordResetExpires: { gt: new Date() },
-      },
-    });
-
+    const user = await prisma.user.findUnique({ where: { phone } });
 
     if (!user) {
-      res.status(400).json({
-        error: 'This reset link is invalid or has expired. Please request a new one.',
-      });
+      res.status(400).json({ error: 'No account found for this WhatsApp number.' });
       return;
     }
-    const comparePassword = await bcrypt.compare(newPassword, user.passwordHash);
-    if(comparePassword) {
+
+    if (!user.passwordResetOtp || !user.passwordResetOtpExpires) {
+      res.status(400).json({ error: 'No reset code found. Please request a new one.' });
+      return;
+    }
+
+    if (user.passwordResetOtpExpires < new Date()) {
+      res.status(400).json({ error: 'Reset code has expired. Please request a new one.' });
+      return;
+    }
+
+    const isValid = await verifyOTP(otp, user.passwordResetOtp);
+    if (!isValid) {
+      res.status(400).json({ error: 'Invalid reset code.' });
+      return;
+    }
+
+    const samePassword = await bcrypt.compare(newPassword, user.passwordHash);
+    if (samePassword) {
       res.status(400).json({ error: 'New password cannot be the same as the current password.' });
       return;
     }
-    if(newPassword.length < 8) {
-      res.status(400).json({ error: 'Password must be at least 8 characters long.' });
-      return;
-    }
-
-
 
     const passwordHash = await bcrypt.hash(newPassword, 12);
     await prisma.user.update({
       where: { id: user.id },
-      data: {
+      data:  {
         passwordHash,
-        passwordResetToken: null,
-        passwordResetExpires: null,
+        passwordResetOtp:        null,
+        passwordResetOtpExpires: null,
+        passwordResetToken:      null,
+        passwordResetExpires:    null,
       },
     });
 
-    res.json({ message: 'Your password has been reset. You can sign in with your new password.' });
+    res.json({ message: 'Your password has been reset. You can now sign in with your new password.' });
   } catch (error) {
     if (error instanceof z.ZodError) {
       res.status(400).json({ error: 'Invalid request data', details: error.errors });

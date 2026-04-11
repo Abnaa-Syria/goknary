@@ -1,9 +1,22 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { 
+  Plus, 
+  Edit2, 
+  Trash2, 
+  Eye, 
+  EyeOff, 
+  Package, 
+  Tag, 
+  Search,
+  Filter,
+  ArrowRight
+} from 'lucide-react';
+import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { formatPrice } from '../../lib/utils';
-import { FiPlusCircle, FiEdit2, FiTrash, FiCheckCircle, FiXCircle } from 'react-icons/fi';
-
+import { EmptyState } from '../admin/DashboardComponents';
+import { motion } from 'framer-motion';
 interface Product {
   id: string;
   name: string;
@@ -12,7 +25,7 @@ interface Product {
   discountPrice?: number;
   stock: number;
   status: string;
-  images: string[];
+  images: any; // Can be string or string[]
   category: {
     name: string;
   };
@@ -22,7 +35,7 @@ const VendorProductsPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchProducts();
@@ -38,22 +51,21 @@ const VendorProductsPage: React.FC = () => {
       setProducts(response.data.products);
     } catch (error) {
       console.error('Failed to fetch products:', error);
+      toast.error('Failed to sync product inventory.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this product?')) return;
+    if (!window.confirm('Are you sure you want to delete this product? This action cannot be undone.')) return;
 
     try {
       await api.delete(`/vendor/products/${id}`);
-      setMessage({ type: 'success', text: 'Product deleted successfully' });
-      setTimeout(() => setMessage(null), 3000);
+      toast.success('Product removed from catalog.');
       fetchProducts();
     } catch (error: any) {
-      setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to delete product' });
-      setTimeout(() => setMessage(null), 3000);
+      toast.error(error.response?.data?.error || 'Failed to delete product');
     }
   };
 
@@ -61,128 +73,197 @@ const VendorProductsPage: React.FC = () => {
     try {
       const newStatus = product.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
       await api.patch(`/vendor/products/${product.id}`, { status: newStatus });
-      setMessage({ type: 'success', text: `Product ${newStatus === 'ACTIVE' ? 'activated' : 'deactivated'} successfully` });
-      setTimeout(() => setMessage(null), 3000);
+      toast.success(`Product is now ${newStatus.toLowerCase()}.`);
       fetchProducts();
     } catch (error: any) {
-      setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to update product status' });
-      setTimeout(() => setMessage(null), 3000);
+      toast.error(error.response?.data?.error || 'Failed to update product status');
     }
   };
 
   if (loading) {
-    return <div className="text-center py-8">Loading products...</div>;
+    return (
+      <div className="space-y-6">
+        <div className="h-10 w-48 bg-gray-200 rounded-lg animate-pulse"></div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="h-64 bg-gray-100 rounded-2xl animate-pulse"></div>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">My Products</h2>
-        <Link to="/vendor/products/new" className="btn-primary flex items-center space-x-2">
-          <FiPlusCircle className="w-5 h-5" />
+    <div className="space-y-8">
+      {/* Header Section */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Product Catalog</h1>
+          <p className="text-gray-500 mt-1 text-sm">Manage your inventory, pricing, and visibility.</p>
+        </div>
+        <Link 
+          to="/vendor/products/new" 
+          className="flex items-center justify-center gap-2 px-6 py-2.5 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 transition-all shadow-lg shadow-purple-100"
+        >
+          <Plus size={20} />
           <span>Add New Product</span>
         </Link>
       </div>
 
-      {message && (
-        <div className={`mb-4 p-4 rounded-lg ${
-          message.type === 'success' 
-            ? 'bg-green-50 border border-green-200 text-green-700' 
-            : 'bg-red-50 border border-red-200 text-red-700'
-        }`}>
-          {message.text}
+      {/* Filters & Tools */}
+      <div className="flex flex-wrap items-center gap-4 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+        <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-xl border border-gray-200">
+          <Filter size={16} className="text-gray-400" />
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="bg-transparent text-sm font-medium focus:outline-none pr-4"
+          >
+            <option value="all">All Statuses</option>
+            <option value="DRAFT">Draft</option>
+            <option value="ACTIVE">Active</option>
+            <option value="INACTIVE">Inactive</option>
+          </select>
         </div>
-      )}
-
-      {/* Info Banner */}
-      {products.some(p => p.status !== 'ACTIVE') && statusFilter === 'all' && (
-        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 text-blue-800 rounded-lg">
-          <p className="text-sm">
-            <strong>Note:</strong> Only products with status "ACTIVE" will appear on the website. 
-            Products with "DRAFT" or "INACTIVE" status are hidden from customers.
-          </p>
+        
+        <div className="relative flex-1 max-w-xs hidden sm:block">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+          <input 
+            type="text" 
+            placeholder="Search my products..." 
+            className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+          />
         </div>
-      )}
-
-      <div className="mb-4">
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="input-field w-auto"
-        >
-          <option value="all">All Products</option>
-          <option value="DRAFT">Draft</option>
-          <option value="ACTIVE">Active</option>
-          <option value="INACTIVE">Inactive</option>
-        </select>
       </div>
 
       {products.length === 0 ? (
-        <div className="card p-12 text-center">
-          <p className="text-gray-500 mb-4">No products found.</p>
-          <Link to="/vendor/products/new" className="btn-primary inline-block">
-            Add Your First Product
-          </Link>
-        </div>
+        <EmptyState 
+          title="No Products Found" 
+          message="Your catalog is currently empty. Start adding products to showcase them to customers." 
+        />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {products.map((product) => {
-            const mainImage = product.images?.[0] || '/imgs/default-product.jpg';
-            const displayPrice = product.discountPrice || product.price;
+            // Normalize images
+            let images = [];
+            try {
+              images = typeof product.images === 'string' ? JSON.parse(product.images) : product.images;
+              if (!Array.isArray(images)) images = [];
+            } catch (e) {
+              images = [];
+            }
+            
+            const mainImage = images[0] || '/imgs/default-product.jpg';
+            const hasDiscount = product.discountPrice && product.discountPrice < product.price;
+            const discountPercentage = hasDiscount 
+              ? Math.round(((product.price - (product.discountPrice as number)) / product.price) * 100)
+              : 0;
 
             return (
-              <div key={product.id} className="card p-4">
-                <div className="relative mb-4">
+              <motion.div 
+                key={product.id} 
+                layout
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="group bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-purple-100 transition-all duration-300 overflow-hidden"
+              >
+                {/* Image Container */}
+                <div className="relative h-56 overflow-hidden">
                   <img
                     src={mainImage}
                     alt={product.name}
-                    className="w-full h-48 object-cover rounded-lg"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
-                  <span
-                    className={`absolute top-2 right-2 px-2 py-1 rounded text-xs font-medium ${
+                  
+                  {/* Status Badge */}
+                  <div className="absolute top-4 left-4 flex gap-2">
+                    <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur-md ${
                       product.status === 'ACTIVE'
-                        ? 'bg-green-100 text-green-800'
+                        ? 'bg-green-500/90 text-white'
                         : product.status === 'DRAFT'
-                        ? 'bg-yellow-100 text-yellow-800'
-                        : 'bg-gray-100 text-gray-800'
-                    }`}
-                  >
-                    {product.status}
-                  </span>
-                </div>
-
-                <h3 className="font-medium mb-2 line-clamp-2">{product.name}</h3>
-                <p className="text-sm text-gray-500 mb-2">{product.category.name}</p>
-                <p className="font-bold mb-2">{formatPrice(displayPrice)}</p>
-                <p className="text-sm text-gray-500 mb-4">Stock: {product.stock}</p>
-
-                <div className="flex space-x-2">
-                  <Link
-                    to={`/vendor/products/${product.id}/edit`}
-                    className="flex-1 btn-outline text-sm py-2 flex items-center justify-center space-x-1"
-                  >
-                    <FiEdit2 className="w-4 h-4" />
-                    <span>Edit</span>
-                  </Link>
-                  <button
-                    onClick={() => handleToggleStatus(product)}
-                    className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                    title={product.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
-                  >
-                    {product.status === 'ACTIVE' ? (
-                      <FiXCircle className="w-4 h-4" />
-                    ) : (
-                      <FiCheckCircle className="w-4 h-4" />
+                        ? 'bg-yellow-500/90 text-white'
+                        : 'bg-gray-500/90 text-white'
+                    }`}>
+                      {product.status}
+                    </span>
+                    
+                    {hasDiscount && (
+                      <span className="bg-red-500/90 text-white px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur-md">
+                        {discountPercentage}% OFF
+                      </span>
                     )}
-                  </button>
-                  <button
-                    onClick={() => handleDelete(product.id)}
-                    className="px-3 py-2 border border-red-300 text-red-500 rounded-lg hover:bg-red-50"
-                  >
-                    <FiTrash className="w-4 h-4" />
-                  </button>
+                  </div>
+
+                  <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                    <button 
+                       onClick={() => navigate(`/vendor/products/${product.id}/edit`)}
+                       className="p-3 bg-white text-gray-900 rounded-full hover:bg-purple-600 hover:text-white transition-all shadow-lg"
+                    >
+                      <Edit2 size={20} />
+                    </button>
+                    <button 
+                       onClick={() => handleToggleStatus(product)}
+                       className="p-3 bg-white text-gray-900 rounded-full hover:bg-purple-600 hover:text-white transition-all shadow-lg"
+                    >
+                      {product.status === 'ACTIVE' ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </button>
+                  </div>
                 </div>
-              </div>
+
+                {/* Content */}
+                <div className="p-6">
+                  <div className="flex items-start justify-between gap-4 mb-2">
+                    <h3 className="font-bold text-gray-900 line-clamp-1 group-hover:text-purple-600 transition-colors">
+                      {product.name}
+                    </h3>
+                    <div className="px-2 py-0.5 bg-gray-50 text-gray-500 text-[10px] font-bold rounded uppercase">
+                      {product.category.name}
+                    </div>
+                  </div>
+
+                  <div className="flex items-end justify-between mt-4">
+                    <div className="space-y-1">
+                      <p className="text-xs text-gray-400 font-bold uppercase tracking-tighter">Current Price</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl font-black text-gray-900">
+                          {formatPrice(hasDiscount ? product.discountPrice! : product.price)}
+                        </span>
+                        {hasDiscount && (
+                          <span className="text-sm text-gray-400 line-through font-medium">
+                            {formatPrice(product.price)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="text-right">
+                      <p className="text-xs text-gray-400 font-bold uppercase tracking-tighter">Availability</p>
+                      <div className={`flex items-center gap-1.5 mt-1 font-bold text-sm ${product.stock > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                        <Package size={14} />
+                        {product.stock} in stock
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 pt-6 border-t border-gray-50 flex items-center justify-between">
+                    <button 
+                      className="text-xs font-bold text-gray-400 hover:text-red-500 transition-colors flex items-center gap-1"
+                      onClick={() => handleDelete(product.id)}
+                    >
+                      <Trash2 size={14} />
+                      Remove
+                    </button>
+                    
+                    <Link 
+                      to={`/vendor/products/${product.id}/edit`}
+                      className="text-xs font-bold text-purple-600 flex items-center gap-1 hover:gap-2 transition-all"
+                    >
+                      Management Details
+                      <ArrowRight size={14} />
+                    </Link>
+                  </div>
+                </div>
+              </motion.div>
             );
           })}
         </div>

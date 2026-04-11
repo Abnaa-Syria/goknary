@@ -4,9 +4,12 @@ import { useTranslation } from 'react-i18next';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { fetchCart, updateCartItem, removeFromCart } from '../store/slices/cartSlice';
 import { FiTrash, FiMinusCircle, FiPlusCircle } from 'react-icons/fi';
+import { Tag } from 'lucide-react';
 import { formatPrice } from '../lib/utils';
 import { SEO } from '../components/common/SEO';
 import EmptyState from '../components/common/EmptyState';
+import api from '../lib/api';
+import toast from 'react-hot-toast';
 
 const CartPage: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -14,6 +17,10 @@ const CartPage: React.FC = () => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const { items, subtotal, total, itemCount, loading } = useAppSelector((state) => state.cart);
+
+  const [promoCode, setPromoCode] = React.useState('');
+  const [applyingPromo, setApplyingPromo] = React.useState(false);
+  const [appliedPromo, setAppliedPromo] = React.useState<{ code: string; discountAmount: number } | null>(null);
 
   useEffect(() => {
     dispatch(fetchCart());
@@ -29,6 +36,27 @@ const CartPage: React.FC = () => {
       dispatch(removeFromCart(itemId));
     }
   };
+
+  const handleApplyPromo = async () => {
+    if (!promoCode.trim()) return;
+    setApplyingPromo(true);
+    try {
+      const response = await api.post('/coupons/apply', { code: promoCode, cartTotal: subtotal });
+      setAppliedPromo({
+        code: response.data.code,
+        discountAmount: response.data.discountAmount
+      });
+      toast.success(response.data.message || 'Promo applied successfully!');
+      setPromoCode('');
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Invalid promo code');
+    } finally {
+      setApplyingPromo(false);
+    }
+  };
+
+  const currentShipping = subtotal >= 500 ? 0 : 50;
+  const finalCalculatedTotal = (subtotal - (appliedPromo?.discountAmount || 0)) + currentShipping;
 
   if (loading && items.length === 0) {
     return (
@@ -172,15 +200,52 @@ const CartPage: React.FC = () => {
                   )}
                 </span>
               </div>
+
+              {appliedPromo && (
+                <div className="flex justify-between items-center text-emerald-600 bg-emerald-50 p-2 rounded-lg border border-emerald-100">
+                  <span className="font-medium flex items-center gap-2">
+                    <Tag size={16} /> Promo: {appliedPromo.code}
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="font-bold">- {formatPrice(appliedPromo.discountAmount)}</span>
+                    <button onClick={() => setAppliedPromo(null)} className="text-emerald-700 hover:text-emerald-900">
+                      <FiTrash className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="border-t pt-3 flex justify-between text-lg font-bold">
                 <span>{t('cart.total')}</span>
-                <span>{formatPrice(total + (subtotal >= 500 ? 0 : 50))}</span>
+                <span>{formatPrice(Math.max(0, finalCalculatedTotal))}</span>
+              </div>
+            </div>
+
+            {/* Promo Code Input */}
+            <div className="mb-6 border-t border-gray-100 pt-6 mt-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Have a promo code?</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Enter code..."
+                  value={promoCode}
+                  onChange={(e) => setPromoCode(e.target.value)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500 font-mono uppercase"
+                  disabled={applyingPromo || !!appliedPromo}
+                />
+                <button
+                  onClick={handleApplyPromo}
+                  disabled={applyingPromo || !promoCode.trim() || !!appliedPromo}
+                  className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors font-medium whitespace-nowrap"
+                >
+                  {applyingPromo ? '...' : 'Apply'}
+                </button>
               </div>
             </div>
 
             <button
-              onClick={() => navigate('/checkout')}
-              className="w-full btn-primary py-3 text-lg"
+              onClick={() => navigate('/checkout', { state: { appliedPromo } })}
+              className="w-full btn-primary py-3 text-lg mt-6"
             >
               {t('cart.checkout')}
             </button>

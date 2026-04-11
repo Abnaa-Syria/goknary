@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { FiPlusCircle, FiEdit2, FiTrash } from 'react-icons/fi';
 
@@ -58,13 +59,15 @@ const AdminCategoriesPage: React.FC = () => {
       
       if (editingCategory) {
         await api.patch(`/admin/categories/${editingCategory.id}`, dataToSend);
+        toast.success(t('messages.updateSuccess'));
       } else {
         await api.post('/admin/categories', dataToSend);
+        toast.success(t('messages.addSuccess'));
       }
       fetchCategories();
       resetForm();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to save category');
+      toast.error(error.response?.data?.error || 'Failed to save category');
     }
   };
 
@@ -73,9 +76,10 @@ const AdminCategoriesPage: React.FC = () => {
 
     try {
       await api.delete(`/admin/categories/${id}`);
+      toast.success(t('messages.deleteSuccess'));
       fetchCategories();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to delete category');
+      toast.error(error.response?.data?.error || 'Failed to delete category');
     }
   };
 

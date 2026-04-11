@@ -187,3 +187,40 @@ export const suspendVendor = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * Unified vendor status management (Approve, Reject, Suspend)
+ */
+export const updateVendorStatus = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    const validStatusValues = Object.values(VendorStatus);
+    if (!status || !validStatusValues.includes(status as VendorStatus)) {
+      return res.status(400).json({
+        error: `Invalid status value. Must be one of: ${validStatusValues.join(', ')}`,
+      });
+    }
+
+    const vendor = await prisma.vendor.findUnique({ where: { id } });
+    if (!vendor) throw new NotFoundError('Vendor not found');
+
+    const updated = await prisma.vendor.update({
+      where: { id },
+      data: { 
+        status: status as VendorStatus,
+        verified: status === 'APPROVED' ? true : vendor.verified
+      },
+    });
+
+    res.json({
+      message: `Vendor status updated to ${status}`,
+      vendor: updated,
+    });
+  } catch (error) {
+    if (error instanceof NotFoundError) return res.status(404).json({ error: error.message });
+    console.error('Error updating vendor status:', error);
+    res.status(500).json({ error: 'Failed to synchronize vendor lifecycle' });
+  }
+};
+

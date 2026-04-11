@@ -74,7 +74,9 @@ async function main() {
       passwordHash,
       role: 'ADMIN',
       name: 'Admin User',
+      phone: '+201000000000',
       emailVerified: true,
+      phoneVerified: true,
     },
   });
 
@@ -251,7 +253,9 @@ async function main() {
         passwordHash,
         role: 'VENDOR',
         name: vendorData.name,
+        phone: `+2010000001${String(vendorsData.indexOf(vendorData)).padStart(2, '0')}`,
         emailVerified: true,
+        phoneVerified: true,
       },
     });
 
@@ -286,7 +290,9 @@ async function main() {
         passwordHash,
         role: 'CUSTOMER',
         name: `Customer ${i}`,
+        phone: `+2011000${String(i).padStart(5, '0')}`,
         emailVerified: true,
+        phoneVerified: true,
       },
     });
     customers.push(customer);
@@ -678,7 +684,7 @@ async function main() {
       data: {
         userId: customer.id,
         vendorId: vendor.id,
-        status: ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED'][Math.floor(Math.random() * 5)],
+        status: (['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED'] as const)[Math.floor(Math.random() * 5)],
         subtotal,
         shippingCost,
         total,

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { FiPlusCircle, FiEdit2, FiTrash } from 'react-icons/fi';
 
@@ -46,13 +47,15 @@ const AdminBannersPage: React.FC = () => {
     try {
       if (editingBanner) {
         await api.patch(`/admin/banners/${editingBanner.id}`, formData);
+        toast.success('Banner updated successfully');
       } else {
         await api.post('/admin/banners', formData);
+        toast.success('Banner created successfully');
       }
       fetchBanners();
       resetForm();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to save banner');
+      toast.error(error.response?.data?.error || 'Failed to save banner');
     }
   };
 
@@ -61,9 +64,10 @@ const AdminBannersPage: React.FC = () => {
 
     try {
       await api.delete(`/admin/banners/${id}`);
+      toast.success('Banner deleted');
       fetchBanners();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to delete banner');
+      toast.error(error.response?.data?.error || 'Failed to delete banner');
     }
   };
 

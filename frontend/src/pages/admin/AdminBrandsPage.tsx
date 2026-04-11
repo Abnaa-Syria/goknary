@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { FiPlusCircle, FiEdit2, FiTrash } from 'react-icons/fi';
 
@@ -48,13 +49,15 @@ const AdminBrandsPage: React.FC = () => {
     try {
       if (editingBrand) {
         await api.patch(`/admin/brands/${editingBrand.id}`, formData);
+        toast.success(t('messages.updateSuccess'));
       } else {
         await api.post('/admin/brands', formData);
+        toast.success(t('messages.addSuccess'));
       }
       fetchBrands();
       resetForm();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to save brand');
+      toast.error(error.response?.data?.error || 'Failed to save brand');
     }
   };
 
@@ -63,9 +66,10 @@ const AdminBrandsPage: React.FC = () => {
 
     try {
       await api.delete(`/admin/brands/${id}`);
+      toast.success(t('messages.deleteSuccess'));
       fetchBrands();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to delete brand');
+      toast.error(error.response?.data?.error || 'Failed to delete brand');
     }
   };
 

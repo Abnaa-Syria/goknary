@@ -7,50 +7,56 @@ import { slugify } from '../lib/utils';
 
 const variantInputSchema = z.object({
   name: z.string().min(1),
-  nameAr: z.string().optional(), // Arabic name
+  nameAr: z.string().optional(),
   price: z.number().positive(),
   discountPrice: z.number().positive().optional().nullable(),
+  discountType: z.enum(['PERCENTAGE', 'FIXED']).optional().nullable(),
+  discountValue: z.number().nonnegative().optional().nullable(),
   stock: z.number().int().nonnegative(),
   imageUrl: z.string().optional().nullable(),
   attributes: z.array(z.object({
     name: z.string(),
-    nameAr: z.string().optional(), // Arabic attribute name
+    nameAr: z.string().optional(),
     value: z.string(),
-    valueAr: z.string().optional(), // Arabic attribute value
+    valueAr: z.string().optional(),
   })),
   isDefault: z.boolean().optional().default(false),
   status: z.boolean().optional().default(true),
 });
 
 const productSchema = z.object({
+  vendorId: z.string().optional(),
   categoryId: z.string(),
-  brandId: z.string().optional(),
+  brandId: z.string().optional().nullable(),
   name: z.string().min(1),
-  nameAr: z.string().optional(), // Arabic name
+  nameAr: z.string().optional(),
   description: z.string().optional(),
-  descriptionAr: z.string().optional(), // Arabic description
+  descriptionAr: z.string().optional(),
   price: z.number().positive(),
-  discountPrice: z.number().positive().optional(),
+  discountPrice: z.number().positive().optional().nullable(),
+  discountType: z.enum(['PERCENTAGE', 'FIXED']).optional().nullable(),
+  discountValue: z.number().nonnegative().optional().nullable(),
   stock: z.number().int().nonnegative(),
   images: z.array(z.string()).min(1),
   featured: z.boolean().default(false),
-  status: z.enum(['DRAFT', 'ACTIVE', 'INACTIVE']).optional().default('ACTIVE'),
+  status: z.enum(['DRAFT', 'PENDING', 'ACTIVE', 'APPROVED', 'INACTIVE', 'REJECTED']).optional().default('ACTIVE'),
   hasVariants: z.boolean().optional().default(false),
-  variants: z.array(variantInputSchema).optional(),
 });
 
 const variantSchema = z.object({
   name: z.string().min(1),
-  nameAr: z.string().optional(), // Arabic name
+  nameAr: z.string().optional(),
   price: z.number().positive(),
   discountPrice: z.number().positive().optional().nullable(),
+  discountType: z.enum(['PERCENTAGE', 'FIXED']).optional().nullable(),
+  discountValue: z.number().nonnegative().optional().nullable(),
   stock: z.number().int().nonnegative(),
   image: z.string().optional().nullable(),
   attributes: z.array(z.object({
     name: z.string(),
-    nameAr: z.string().optional(), // Arabic attribute name
+    nameAr: z.string().optional(),
     value: z.string(),
-    valueAr: z.string().optional(), // Arabic attribute value
+    valueAr: z.string().optional(),
   })),
   isDefault: z.boolean().optional().default(false),
   status: z.boolean().optional().default(true),
@@ -62,12 +68,28 @@ export const getVendorProducts = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const vendor = await prisma.vendor.findUnique({
-      where: { userId: req.user.id },
-    });
+    let targetVendorId: string;
 
-    if (!vendor) {
-      return res.status(404).json({ error: 'Vendor not found' });
+    if (req.user.role === 'ADMIN') {
+      const queryVendorId = req.query.vendorId as string;
+      if (queryVendorId) {
+        targetVendorId = queryVendorId;
+      } else {
+        const vendor = await prisma.vendor.findUnique({
+          where: { userId: req.user.id },
+        });
+        if (!vendor) return res.status(400).json({ error: 'Admin must provide vendorId or have a linked vendor account' });
+        targetVendorId = vendor.id;
+      }
+    } else {
+      const vendor = await prisma.vendor.findUnique({
+        where: { userId: req.user.id },
+      });
+
+      if (!vendor) {
+        return res.status(404).json({ error: 'Vendor not found' });
+      }
+      targetVendorId = vendor.id;
     }
 
     const { page = '1', limit = '20', status } = req.query;
@@ -75,7 +97,7 @@ export const getVendorProducts = async (req: AuthRequest, res: Response) => {
     const limitNum = parseInt(limit as string, 10);
     const skip = (pageNum - 1) * limitNum;
 
-    const where: any = { vendorId: vendor.id };
+    const where: any = { vendorId: targetVendorId };
     if (status) {
       where.status = status;
     }
@@ -84,21 +106,10 @@ export const getVendorProducts = async (req: AuthRequest, res: Response) => {
       prisma.product.findMany({
         where,
         include: {
-          category: {
-            select: {
-              name: true,
-              slug: true,
-            },
-          },
-          brand: {
-            select: {
-              name: true,
-            },
-          },
+          category: { select: { name: true, slug: true } },
+          brand: { select: { name: true } },
         },
-        orderBy: {
-          createdAt: 'desc',
-        },
+        orderBy: { createdAt: 'desc' },
         skip,
         take: limitNum,
       }),
@@ -129,32 +140,26 @@ export const getVendorProduct = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const vendor = await prisma.vendor.findUnique({
-      where: { userId: req.user.id },
-    });
-
-    if (!vendor) {
-      return res.status(404).json({ error: 'Vendor not found' });
-    }
-
     const { id } = req.params;
 
-    const product = await prisma.product.findFirst({
-      where: {
-        id,
-        vendorId: vendor.id,
-      },
+    const product = await prisma.product.findUnique({
+      where: { id },
       include: {
         category: true,
         brand: true,
-        variants: {
-          orderBy: { createdAt: 'asc' },
-        },
+        variants: { orderBy: { createdAt: 'asc' } },
       },
     });
 
-    if (!product) {
-      throw new NotFoundError('Product not found');
+    if (!product) throw new NotFoundError('Product not found');
+
+    if (req.user.role !== 'ADMIN') {
+      const vendor = await prisma.vendor.findUnique({
+        where: { userId: req.user.id },
+      });
+      if (!vendor || product.vendorId !== vendor.id) {
+        return res.status(403).json({ error: 'Unauthorized to access this product' });
+      }
     }
 
     res.json({
@@ -180,21 +185,28 @@ export const createVendorProduct = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const vendor = await prisma.vendor.findUnique({
-      where: { userId: req.user.id },
-    });
-
-    if (!vendor || vendor.status !== 'APPROVED') {
-      return res.status(403).json({ error: 'Vendor account not approved' });
-    }
-
     const productData = productSchema.parse(req.body);
 
-    // Generate slug and SKU
+    let targetVendorId: string;
+
+    if (req.user.role === 'ADMIN') {
+      if (!productData.vendorId) {
+        return res.status(400).json({ error: 'Admin must provide vendorId to create a product' });
+      }
+      targetVendorId = productData.vendorId;
+    } else {
+      const vendor = await prisma.vendor.findUnique({
+        where: { userId: req.user.id },
+      });
+
+      if (!vendor || vendor.status !== 'APPROVED') {
+        return res.status(403).json({ error: 'Vendor account not approved' });
+      }
+      targetVendorId = vendor.id;
+    }
+
     const slug = slugify(productData.name);
-    const existingSlug = await prisma.product.findUnique({
-      where: { slug },
-    });
+    const existingSlug = await prisma.product.findUnique({ where: { slug } });
 
     if (existingSlug) {
       return res.status(400).json({ error: 'Product name is already taken' });
@@ -205,17 +217,19 @@ export const createVendorProduct = async (req: AuthRequest, res: Response) => {
 
     const product = await prisma.product.create({
       data: {
-        vendorId: vendor.id,
+        vendorId: targetVendorId,
         categoryId: productData.categoryId,
         brandId: productData.brandId || null,
         name: productData.name,
-        nameAr: productData.nameAr || null, // Arabic name
+        nameAr: productData.nameAr || null,
         slug,
         description: productData.description || '',
-        descriptionAr: productData.descriptionAr || null, // Arabic description
+        descriptionAr: productData.descriptionAr || null,
         sku,
         price: productData.price,
-        discountPrice: productData.discountPrice || null,
+        discountPrice: productData.discountPrice ?? null,
+        discountType: productData.discountType ?? null,
+        discountValue: productData.discountValue ?? null,
         stock: productData.stock,
         images: JSON.stringify(productData.images),
         status: productData.status || 'ACTIVE',
@@ -223,29 +237,19 @@ export const createVendorProduct = async (req: AuthRequest, res: Response) => {
         hasVariants: productData.hasVariants || false,
       },
       include: {
-        category: {
-          select: {
-            name: true,
-            slug: true,
-          },
-        },
-        brand: {
-          select: {
-            name: true,
-          },
-        },
+        category: { select: { name: true, slug: true } },
+        brand: { select: { name: true } },
         variants: true,
       },
     });
 
-    // Create variants if provided
-    if (productData.hasVariants && productData.variants && productData.variants.length > 0) {
+    if (productData.hasVariants && (productData as any).variants?.length > 0) {
       await prisma.productVariant.createMany({
-        data: productData.variants.map((v, index) => ({
+        data: (productData as any).variants.map((v: any, index: number) => ({
           productId: product.id,
-          sku: `${sku}-V${index + 1}`, // Generate unique SKU for each variant
+          sku: `${sku}-V${index + 1}`,
           name: v.name,
-          nameAr: v.nameAr || null, // Arabic name
+          nameAr: v.nameAr || null,
           attributes: JSON.stringify(v.attributes),
           price: v.price,
           discountPrice: v.discountPrice || null,
@@ -255,7 +259,6 @@ export const createVendorProduct = async (req: AuthRequest, res: Response) => {
         })),
       });
 
-      // Fetch updated product with variants
       const updatedProduct = await prisma.product.findUnique({
         where: { id: product.id },
         include: {
@@ -294,65 +297,78 @@ export const updateVendorProduct = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const vendor = await prisma.vendor.findUnique({
-      where: { userId: req.user.id },
-    });
-
-    if (!vendor) {
-      return res.status(404).json({ error: 'Vendor not found' });
-    }
-
     const { id } = req.params;
-    const updateData = productSchema.partial().parse(req.body);
+    const parsed = productSchema.partial().parse(req.body);
 
-    // Verify product belongs to vendor
-    const product = await prisma.product.findFirst({
-      where: {
-        id,
-        vendorId: vendor.id,
-      },
-    });
+    // FIX: Extract only the scalar fields that Prisma accepts directly
+    // Never pass vendorId/categoryId/brandId as plain strings — Prisma treats them as relation updates
+    const {
+      vendorId: _vendorId,   // strip — can't reassign vendor via update
+      categoryId,
+      brandId,
+      name,
+      nameAr,
+      description,
+      descriptionAr,
+      price,
+      discountPrice,
+      discountType,
+      discountValue,
+      stock,
+      images,
+      featured,
+      status,
+      hasVariants,
+    } = parsed;
 
-    if (!product) {
-      throw new NotFoundError('Product not found');
-    }
+    const product = await prisma.product.findUnique({ where: { id } });
+    if (!product) throw new NotFoundError('Product not found');
 
-    // Handle slug update if name changes
-    if (updateData.name && updateData.name !== product.name) {
-      const newSlug = slugify(updateData.name);
-      const existingSlug = await prisma.product.findUnique({
-        where: { slug: newSlug },
+    if (req.user.role !== 'ADMIN') {
+      const vendor = await prisma.vendor.findUnique({
+        where: { userId: req.user.id },
       });
-
-      if (existingSlug && existingSlug.id !== id) {
-        return res.status(400).json({ error: 'Product name is already taken' });
+      if (!vendor || product.vendorId !== vendor.id) {
+        return res.status(403).json({ error: 'Unauthorized to update this product' });
       }
-
-      (updateData as any).slug = newSlug;
     }
 
-    // Handle images
-    if (updateData.images) {
-      (updateData as any).images = JSON.stringify(updateData.images);
+    // Build update data explicitly — only include fields that were actually sent
+    const updateData: any = {};
+
+    if (categoryId !== undefined) updateData.categoryId = categoryId;
+    if (brandId !== undefined) updateData.brandId = brandId ?? null;
+    if (name !== undefined) {
+      updateData.name = name;
+      // Handle slug if name changed
+      if (name !== product.name) {
+        const newSlug = slugify(name);
+        const existingSlug = await prisma.product.findUnique({ where: { slug: newSlug } });
+        if (existingSlug && existingSlug.id !== id) {
+          return res.status(400).json({ error: 'Product name is already taken' });
+        }
+        updateData.slug = newSlug;
+      }
     }
+    if (nameAr !== undefined) updateData.nameAr = nameAr ?? null;
+    if (description !== undefined) updateData.description = description;
+    if (descriptionAr !== undefined) updateData.descriptionAr = descriptionAr ?? null;
+    if (price !== undefined) updateData.price = price;
+    if (discountPrice !== undefined) updateData.discountPrice = discountPrice ?? null;
+    if (discountType !== undefined) updateData.discountType = discountType ?? null;
+    if (discountValue !== undefined) updateData.discountValue = discountValue ?? null;
+    if (stock !== undefined) updateData.stock = stock;
+    if (images !== undefined) updateData.images = JSON.stringify(images);
+    if (featured !== undefined) updateData.featured = featured;
+    if (status !== undefined) updateData.status = status;
+    if (hasVariants !== undefined) updateData.hasVariants = hasVariants;
 
     const updated = await prisma.product.update({
       where: { id },
       data: updateData,
       include: {
-        category: {
-          select: {
-            name: true,
-            nameAr: true,
-            slug: true,
-          },
-        },
-        brand: {
-          select: {
-            name: true,
-            nameAr: true,
-          },
-        },
+        category: { select: { name: true, nameAr: true, slug: true } },
+        brand: { select: { name: true, nameAr: true } },
       },
     });
 
@@ -378,31 +394,21 @@ export const deleteVendorProduct = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const vendor = await prisma.vendor.findUnique({
-      where: { userId: req.user.id },
-    });
-
-    if (!vendor) {
-      return res.status(404).json({ error: 'Vendor not found' });
-    }
-
     const { id } = req.params;
 
-    // Verify product belongs to vendor
-    const product = await prisma.product.findFirst({
-      where: {
-        id,
-        vendorId: vendor.id,
-      },
-    });
+    const product = await prisma.product.findUnique({ where: { id } });
+    if (!product) throw new NotFoundError('Product not found');
 
-    if (!product) {
-      throw new NotFoundError('Product not found');
+    if (req.user.role !== 'ADMIN') {
+      const vendor = await prisma.vendor.findUnique({
+        where: { userId: req.user.id },
+      });
+      if (!vendor || product.vendorId !== vendor.id) {
+        return res.status(403).json({ error: 'Unauthorized to delete this product' });
+      }
     }
 
-    await prisma.product.delete({
-      where: { id },
-    });
+    await prisma.product.delete({ where: { id } });
 
     res.json({ message: 'Product deleted successfully' });
   } catch (error) {
@@ -422,23 +428,18 @@ export const getProductVariants = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const vendor = await prisma.vendor.findUnique({
-      where: { userId: req.user.id },
-    });
-
-    if (!vendor) {
-      return res.status(404).json({ error: 'Vendor not found' });
-    }
-
     const { productId } = req.params;
 
-    // Verify product belongs to vendor
-    const product = await prisma.product.findFirst({
-      where: { id: productId, vendorId: vendor.id },
-    });
+    const product = await prisma.product.findUnique({ where: { id: productId } });
+    if (!product) throw new NotFoundError('Product not found');
 
-    if (!product) {
-      throw new NotFoundError('Product not found');
+    if (req.user.role !== 'ADMIN') {
+      const vendor = await prisma.vendor.findUnique({
+        where: { userId: req.user.id },
+      });
+      if (!vendor || product.vendorId !== vendor.id) {
+        return res.status(403).json({ error: 'Unauthorized to access this product' });
+      }
     }
 
     const variants = await prisma.productVariant.findMany({
@@ -467,30 +468,23 @@ export const createProductVariant = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const vendor = await prisma.vendor.findUnique({
-      where: { userId: req.user.id },
-    });
-
-    if (!vendor) {
-      return res.status(404).json({ error: 'Vendor not found' });
-    }
-
     const { productId } = req.params;
     const variantData = variantSchema.parse(req.body);
 
-    // Verify product belongs to vendor
-    const product = await prisma.product.findFirst({
-      where: { id: productId, vendorId: vendor.id },
-    });
+    const product = await prisma.product.findUnique({ where: { id: productId } });
+    if (!product) throw new NotFoundError('Product not found');
 
-    if (!product) {
-      throw new NotFoundError('Product not found');
+    if (req.user.role !== 'ADMIN') {
+      const vendor = await prisma.vendor.findUnique({
+        where: { userId: req.user.id },
+      });
+      if (!vendor || product.vendorId !== vendor.id) {
+        return res.status(403).json({ error: 'Unauthorized to add variants to this product' });
+      }
     }
 
-    // Generate unique SKU for variant
     const variantSku = `${product.sku}-V${Date.now().toString(36).toUpperCase()}`;
 
-    // If this is default variant, unset other defaults
     if (variantData.isDefault) {
       await prisma.productVariant.updateMany({
         where: { productId, isDefault: true },
@@ -503,7 +497,7 @@ export const createProductVariant = async (req: AuthRequest, res: Response) => {
         productId,
         sku: variantSku,
         name: variantData.name,
-        nameAr: variantData.nameAr || null, // Arabic name
+        nameAr: variantData.nameAr || null,
         price: variantData.price,
         discountPrice: variantData.discountPrice || null,
         stock: variantData.stock,
@@ -514,7 +508,6 @@ export const createProductVariant = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    // Update product to indicate it has variants
     await prisma.product.update({
       where: { id: productId },
       data: { hasVariants: true },
@@ -542,36 +535,27 @@ export const updateProductVariant = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const vendor = await prisma.vendor.findUnique({
-      where: { userId: req.user.id },
-    });
-
-    if (!vendor) {
-      return res.status(404).json({ error: 'Vendor not found' });
-    }
-
     const { productId, variantId } = req.params;
     const variantData = variantSchema.partial().parse(req.body);
 
-    // Verify product belongs to vendor
-    const product = await prisma.product.findFirst({
-      where: { id: productId, vendorId: vendor.id },
-    });
+    const product = await prisma.product.findUnique({ where: { id: productId } });
+    if (!product) throw new NotFoundError('Product not found');
 
-    if (!product) {
-      throw new NotFoundError('Product not found');
+    if (req.user.role !== 'ADMIN') {
+      const vendor = await prisma.vendor.findUnique({
+        where: { userId: req.user.id },
+      });
+      if (!vendor || product.vendorId !== vendor.id) {
+        return res.status(403).json({ error: 'Unauthorized to update this variant' });
+      }
     }
 
-    // Verify variant exists
     const existingVariant = await prisma.productVariant.findFirst({
       where: { id: variantId, productId },
     });
 
-    if (!existingVariant) {
-      throw new NotFoundError('Variant not found');
-    }
+    if (!existingVariant) throw new NotFoundError('Variant not found');
 
-    // If setting as default, unset other defaults
     if (variantData.isDefault) {
       await prisma.productVariant.updateMany({
         where: { productId, isDefault: true, id: { not: variantId } },
@@ -611,42 +595,29 @@ export const deleteProductVariant = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const vendor = await prisma.vendor.findUnique({
-      where: { userId: req.user.id },
-    });
-
-    if (!vendor) {
-      return res.status(404).json({ error: 'Vendor not found' });
-    }
-
     const { productId, variantId } = req.params;
 
-    // Verify product belongs to vendor
-    const product = await prisma.product.findFirst({
-      where: { id: productId, vendorId: vendor.id },
-    });
+    const product = await prisma.product.findUnique({ where: { id: productId } });
+    if (!product) throw new NotFoundError('Product not found');
 
-    if (!product) {
-      throw new NotFoundError('Product not found');
+    if (req.user.role !== 'ADMIN') {
+      const vendor = await prisma.vendor.findUnique({
+        where: { userId: req.user.id },
+      });
+      if (!vendor || product.vendorId !== vendor.id) {
+        return res.status(403).json({ error: 'Unauthorized to access this product' });
+      }
     }
 
-    // Verify variant exists
     const variant = await prisma.productVariant.findFirst({
       where: { id: variantId, productId },
     });
 
-    if (!variant) {
-      throw new NotFoundError('Variant not found');
-    }
+    if (!variant) throw new NotFoundError('Variant not found');
 
-    await prisma.productVariant.delete({
-      where: { id: variantId },
-    });
+    await prisma.productVariant.delete({ where: { id: variantId } });
 
-    // Check if product still has variants
-    const remainingVariants = await prisma.productVariant.count({
-      where: { productId },
-    });
+    const remainingVariants = await prisma.productVariant.count({ where: { productId } });
 
     if (remainingVariants === 0) {
       await prisma.product.update({
@@ -664,4 +635,3 @@ export const deleteProductVariant = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ error: 'Failed to delete variant' });
   }
 };
-
