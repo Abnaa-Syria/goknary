@@ -12,6 +12,7 @@ import ProductCard from '../components/product/ProductCard';
 import { SEO } from '../components/common/SEO';
 import Breadcrumbs from '../components/common/Breadcrumbs';
 import api from '../lib/api';
+import { getImageUrl } from '../utils/image';
 
 // Compare Icon (GitCompare style)
 const CompareIcon: React.FC<{ className?: string }> = ({ className = "w-5 h-5" }) => (
@@ -278,7 +279,7 @@ const ProductPage: React.FC = () => {
               onMouseLeave={() => setImageZoom(false)}
             >
               <img
-                src={mainImage}
+                src={getImageUrl(mainImage)}
                 alt={product.name}
                 className={`w-full h-full object-cover transition-transform duration-300 ${
                   imageZoom ? 'scale-150' : 'scale-100'
@@ -308,7 +309,7 @@ const ProductPage: React.FC = () => {
                     }`}
                   >
                     <img
-                      src={img}
+                      src={getImageUrl(img)}
                       alt={`${product.name} ${index + 1}`}
                       className="w-full h-full object-cover"
                     />

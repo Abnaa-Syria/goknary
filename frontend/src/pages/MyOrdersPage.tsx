@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { formatPrice } from '../lib/utils';
 import api from '../lib/api';
+import { getImageUrl } from '../utils/image';
 import format from 'date-fns/format';
 import { arEG } from 'date-fns/locale';
 import i18n from 'i18n';
@@ -116,7 +117,7 @@ const MyOrdersPage: React.FC = () => {
                     {order.items.slice(0, 4).map((item, idx) => (
                       <img 
                         key={item.id} 
-                        src={item.product.images[0] || '/imgs/default-product.jpg'} 
+                        src={getImageUrl(item.product.images[0])} 
                         alt={item.product.name}
                         className="w-16 h-16 rounded-xl border-4 border-white object-cover shadow-sm bg-gray-100 flex-shrink-0"
                         title={`${item.product.name} (x${item.quantity})`}

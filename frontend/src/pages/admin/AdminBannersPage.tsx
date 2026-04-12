@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { FiPlusCircle, FiEdit2, FiTrash } from 'react-icons/fi';
+import ImageUploader from '../../components/common/ImageUploader';
+import { uploadImages } from '../../utils/upload';
+import { getImageUrl } from '../../utils/image';
 
 interface Banner {
   id: string;
@@ -20,7 +23,7 @@ const AdminBannersPage: React.FC = () => {
   const [editingBanner, setEditingBanner] = useState<Banner | null>(null);
   const [formData, setFormData] = useState({
     title: '',
-    imageUrl: '',
+    imageUrl: [] as (File | string)[],
     linkUrl: '',
     type: 'PROMO',
     orderIndex: 0,
@@ -45,11 +48,19 @@ const AdminBannersPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // 1. Process images (Local Files -> URLs)
+      const [finalUrl] = await uploadImages(formData.imageUrl);
+      
+      const payload = {
+        ...formData,
+        imageUrl: finalUrl || ''
+      };
+
       if (editingBanner) {
-        await api.patch(`/admin/banners/${editingBanner.id}`, formData);
+        await api.patch(`/admin/banners/${editingBanner.id}`, payload);
         toast.success('Banner updated successfully');
       } else {
-        await api.post('/admin/banners', formData);
+        await api.post('/admin/banners', payload);
         toast.success('Banner created successfully');
       }
       fetchBanners();
@@ -74,7 +85,7 @@ const AdminBannersPage: React.FC = () => {
   const resetForm = () => {
     setFormData({
       title: '',
-      imageUrl: '',
+      imageUrl: [],
       linkUrl: '',
       type: 'PROMO',
       orderIndex: 0,
@@ -88,7 +99,7 @@ const AdminBannersPage: React.FC = () => {
     setEditingBanner(banner);
     setFormData({
       title: banner.title || '',
-      imageUrl: banner.imageUrl,
+      imageUrl: banner.imageUrl ? [banner.imageUrl] : [],
       linkUrl: banner.linkUrl || '',
       type: banner.type,
       orderIndex: banner.orderIndex,
@@ -133,14 +144,12 @@ const AdminBannersPage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">Image URL *</label>
-              <input
-                type="text"
+              <ImageUploader 
+                label="Banner Visual Asset *"
                 value={formData.imageUrl}
-                onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                className="input-field"
-                placeholder="/imgs/banner.jpg"
-                required
+                onChange={(val) => setFormData({ ...formData, imageUrl: val })}
+                multiple={false}
+                helperText="Optimal size: 1920x450px. Supports drag-and-drop or external link."
               />
             </div>
             <div>
@@ -201,7 +210,7 @@ const AdminBannersPage: React.FC = () => {
           <div key={banner.id} className="card p-4">
             <div className="relative mb-4 aspect-video rounded-lg overflow-hidden bg-gray-100">
               <img
-                src={banner.imageUrl}
+                src={getImageUrl(banner.imageUrl)}
                 alt={banner.title || 'Banner'}
                 className="w-full h-full object-cover"
               />

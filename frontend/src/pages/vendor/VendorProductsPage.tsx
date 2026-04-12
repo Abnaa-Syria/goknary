@@ -17,6 +17,7 @@ import api from '../../lib/api';
 import { formatPrice } from '../../lib/utils';
 import { EmptyState } from '../admin/DashboardComponents';
 import { motion } from 'framer-motion';
+import { getImageUrl } from '../../utils/image';
 interface Product {
   id: string;
   name: string;
@@ -170,7 +171,7 @@ const VendorProductsPage: React.FC = () => {
                 {/* Image Container */}
                 <div className="relative h-56 overflow-hidden">
                   <img
-                    src={mainImage}
+                    src={getImageUrl(mainImage)}
                     alt={product.name}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />

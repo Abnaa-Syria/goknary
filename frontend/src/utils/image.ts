@@ -1,16 +1,29 @@
-export const getImageUrl = (path: string): string => {
-  if (!path) return '';
+/**
+ * Resolves an image path to a full URL.
+ * Handles:
+ * 1. Full URLs (starting with http)
+ * 2. Data URLs (starting with data:)
+ * 3. Paths starting with 'uploads/' (automatically prepends backend URL)
+ * 4. General relative paths
+ * 5. Fallback to a placeholder image
+ */
+export const getImageUrl = (path: string | undefined | null): string => {
+  const placeholder = '/imgs/placeholder.png';
 
-  // لو URL كامل
-  if (path.startsWith('http')) {
+  if (!path) return placeholder;
+
+  // If already a full URL or base64 data
+  if (path.startsWith('http') || path.startsWith('data:')) {
     return path;
   }
 
-  const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
-  const assetBaseUrl = baseUrl.replace(/\/api$/, '');
+  // Detect and clean API base URL (e.g., http://localhost:5000/api -> http://localhost:5000)
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+  const assetBaseUrl = apiUrl.endsWith('/api') ? apiUrl.slice(0, -4) : apiUrl;
 
-  // تأكد إن فيه slash في النص
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  // Cleanup: strip leading slash if present for normalized check
+  const cleanPath = path.startsWith('/') ? path.slice(1) : path;
 
-  return `${assetBaseUrl}${normalizedPath}`;
+  // Resolve to full backend URL
+  return `${assetBaseUrl}/${cleanPath}`;
 };

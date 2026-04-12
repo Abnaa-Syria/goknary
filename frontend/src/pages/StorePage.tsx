@@ -5,6 +5,7 @@ import { fetchProducts } from '../store/slices/productSlice';
 import ProductCard from '../components/product/ProductCard';
 import api from '../lib/api';
 import { FiStar } from 'react-icons/fi';
+import { getImageUrl } from '../utils/image';
 
 interface Vendor {
   id: string;
@@ -83,7 +84,7 @@ const StorePage: React.FC = () => {
       {vendor.banner && (
         <div className="w-full h-64 mb-8 relative overflow-hidden">
           <img
-            src={vendor.banner}
+            src={getImageUrl(vendor.banner)}
             alt={vendor.storeName}
             className="w-full h-full object-cover"
           />
@@ -96,7 +97,7 @@ const StorePage: React.FC = () => {
         <div className="flex items-start space-x-6 mb-8">
           {vendor.logo && (
             <img
-              src={vendor.logo}
+              src={getImageUrl(vendor.logo)}
               alt={vendor.storeName}
               className="w-24 h-24 rounded-full border-4 border-white shadow-lg object-cover"
             />

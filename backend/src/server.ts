@@ -53,7 +53,7 @@ import adminVendorRoutes from './routes/admin-vendors';
 import adminCategoryRoutes from './routes/admin-categories';
 import adminBrandRoutes from './routes/admin-brands';
 import adminBannerRoutes from './routes/admin-banners';
-import uploadRoutes from './routes/uploads';
+import uploadRoutes from './routes/upload';
 import shippingRoutes from './routes/shipping';
 import reviewRoutes from './routes/reviews';
 import { authenticate, authorize } from './middleware/auth';

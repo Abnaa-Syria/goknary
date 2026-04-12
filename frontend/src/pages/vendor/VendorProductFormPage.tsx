@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import api from '../../lib/api';
-import ImageUpload from '../../components/common/ImageUpload';
+import ImageUploader from '../../components/common/ImageUploader';
+import { uploadImages } from '../../utils/upload';
 
 interface Category {
   id: string;
@@ -30,7 +31,7 @@ interface ProductVariant {
   price: number;
   discountPrice?: number | null;
   stock: number;
-  image?: string | null;
+  image?: File | string | null;
   attributes: VariantAttribute[];
   isDefault: boolean;
   status: boolean;
@@ -58,7 +59,7 @@ const VendorProductFormPage: React.FC = () => {
     discountType: '',
     discountValue: '',
     stock: '',
-    images: [''] as string[],
+    images: [] as (File | string)[],
     featured: false,
     status: 'ACTIVE', // Default to ACTIVE so product appears immediately
     hasVariants: false,
@@ -116,7 +117,7 @@ const VendorProductFormPage: React.FC = () => {
       // Parse images if string
       const images = typeof product.images === 'string'
         ? JSON.parse(product.images)
-        : product.images || [''];
+        : product.images || [];
 
       setFormData({
         categoryId: product.categoryId || '',
@@ -130,7 +131,7 @@ const VendorProductFormPage: React.FC = () => {
         discountType: product.discountType || '',
         discountValue: product.discountValue?.toString() || '',
         stock: product.stock?.toString() || '',
-        images: images.length > 0 ? images : [''],
+        images: images,
         featured: product.featured || false,
         status: product.status || 'DRAFT',
         hasVariants: product.hasVariants || false,
@@ -180,8 +181,8 @@ const VendorProductFormPage: React.FC = () => {
     }
   }, [formData.price, formData.discountType, formData.discountValue]);
 
-  const handleImagesChange = (urls: string | string[]) => {
-    setFormData({ ...formData, images: Array.isArray(urls) ? urls : [urls] });
+  const handleImagesChange = (items: (File | string)[]) => {
+    setFormData({ ...formData, images: items });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -198,9 +199,10 @@ const VendorProductFormPage: React.FC = () => {
         return;
       }
 
-      // Filter out empty image URLs
-      const validImages = formData.images.filter(img => img.trim() !== '');
-      if (validImages.length === 0) {
+      // 1. Process Main Images (Local Files -> URLs)
+      const finalImageUrls = await uploadImages(formData.images);
+      
+      if (finalImageUrls.length === 0) {
         setError('Please add at least one product image');
         setLoading(false);
         return;
@@ -218,7 +220,7 @@ const VendorProductFormPage: React.FC = () => {
         discountType: formData.discountType || undefined,
         discountValue: formData.discountValue ? parseFloat(formData.discountValue) : undefined,
         stock: parseInt(formData.stock, 10),
-        images: validImages,
+        images: finalImageUrls,
         featured: formData.featured,
         status: formData.status, // Include status in payload
       };
@@ -226,17 +228,28 @@ const VendorProductFormPage: React.FC = () => {
       // Include variants if creating a new product with variants
       if (!isEdit && variants.length > 0) {
         payload.hasVariants = true;
-        payload.variants = variants.map(v => ({
-          name: v.name,
-          nameAr: v.nameAr || undefined, // Arabic name
-          price: v.price,
-          discountPrice: v.discountPrice,
-          stock: v.stock,
-          imageUrl: v.image || undefined,
-          attributes: v.attributes,
-          isDefault: v.isDefault,
-          status: v.status,
+        // Upload images for all variants that have local File objects
+        const variantPayloads = await Promise.all(variants.map(async (v) => {
+          let variantImageUrl = v.image as string | undefined;
+          
+          if (v.image instanceof File) {
+            const uploaded = await uploadImages([v.image]);
+            variantImageUrl = uploaded[0];
+          }
+          
+          return {
+            name: v.name,
+            nameAr: v.nameAr || undefined,
+            price: v.price,
+            discountPrice: v.discountPrice,
+            stock: v.stock,
+            imageUrl: variantImageUrl || undefined,
+            attributes: v.attributes,
+            isDefault: v.isDefault,
+            status: v.status,
+          };
         }));
+        payload.variants = variantPayloads;
       }
 
       if (isEdit) {
@@ -517,13 +530,13 @@ const VendorProductFormPage: React.FC = () => {
         </div>
 
         {/* Images */}
-        <div className="md:col-span-2">dddd
-          <ImageUpload
+        <div className="md:col-span-2">
+          <ImageUploader
             label="Product Images"
             multiple={true}
             value={formData.images}
             onChange={handleImagesChange}
-            helperText="Upload high-quality images of your product (max 5MB each). The first image will be the primary thumbnail."
+            helperText="Upload high-quality images of your product (max 10MB each). The first image will be the primary thumbnail."
           />
         </div>
 
@@ -721,12 +734,12 @@ const VendorProductFormPage: React.FC = () => {
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <ImageUpload
+                  <ImageUploader
                     label="Variant Image"
                     multiple={false}
-                    value={variantForm.image || ''}
-                    onChange={(url) => setVariantForm({ ...variantForm, image: url as string })}
-                    helperText="Optional specific image for this variant."
+                    value={variantForm.image ? [variantForm.image] : []}
+                    onChange={(items) => setVariantForm({ ...variantForm, image: items[0] || null })}
+                    helperText="Optional specific asset for this variant."
                   />
                 </div>
                 <div className="flex items-center gap-4">
@@ -767,11 +780,23 @@ const VendorProductFormPage: React.FC = () => {
                       };
 
                       if (isEdit) {
-                        // Edit mode: save via API
+                        // Edit mode: upload image immediately if it's a File
+                        let finalVariantImageUrl = variantForm.image as string | null;
+                        if (variantForm.image instanceof File) {
+                          const uploaded = await uploadImages([variantForm.image]);
+                          finalVariantImageUrl = uploaded[0];
+                        }
+
+                        const apiPayload = {
+                          ...payload,
+                          image: finalVariantImageUrl,
+                        };
+
+                        // Save via API
                         if (editingVariant?.id) {
-                          await api.patch(`/vendor/products/${id}/variants/${editingVariant.id}`, payload);
+                          await api.patch(`/vendor/products/${id}/variants/${editingVariant.id}`, apiPayload);
                         } else {
-                          await api.post(`/vendor/products/${id}/variants`, payload);
+                          await api.post(`/vendor/products/${id}/variants`, apiPayload);
                         }
                         // Refresh variants from server
                         const res = await api.get(`/vendor/products/${id}/variants`);

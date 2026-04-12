@@ -10,6 +10,7 @@ import { SEO } from '../components/common/SEO';
 import EmptyState from '../components/common/EmptyState';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
+import { getImageUrl } from '../utils/image';
 
 const CartPage: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -107,7 +108,7 @@ const CartPage: React.FC = () => {
                     className="flex-shrink-0 w-full sm:w-28 md:w-32 h-28 sm:h-28 md:h-32 rounded-lg overflow-hidden bg-gray-100"
                   >
                     <img
-                      src={mainImage}
+                      src={getImageUrl(mainImage)}
                       alt={productName}
                       className="w-full h-full object-cover"
                     />

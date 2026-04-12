@@ -4,6 +4,7 @@ import api from '../../lib/api';
 import { formatPrice } from '../../lib/utils';
 import { Clock, CheckCircle2, Package, Truck, XCircle, RotateCcw, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { getImageUrl } from '../../utils/image';
 
 interface OrderItem {
   id: string;
@@ -303,7 +304,7 @@ const VendorOrderDetailsPage: React.FC = () => {
             return (
               <div key={item.id} className="group flex items-center gap-6 p-4 rounded-2xl border border-gray-100 hover:border-primary-100 hover:bg-primary-50/5 transition-all">
                 <div className="w-20 h-20 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-100 group-hover:scale-105 transition-transform">
-                  <img src={mainImage} alt={item.product.name} className="w-full h-full object-cover" />
+                  <img src={getImageUrl(mainImage)} alt={item.product.name} className="w-full h-full object-cover" />
                 </div>
                 <div className="flex-grow min-w-0">
                   <p className="font-black text-gray-900 truncate tracking-tight">{item.product.name}</p>

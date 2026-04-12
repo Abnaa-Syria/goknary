@@ -11,6 +11,7 @@ import { SEO } from '../components/common/SEO';
 import { FiChevronRight, FiStar } from 'react-icons/fi';
 import { formatPrice } from '../lib/utils';
 import api from '../lib/api';
+import { getImageUrl } from '../utils/image';
 
 // Custom arrow/chevron icons since they may not be in react-icons v4
 const ArrowRightIcon: React.FC<{ className?: string }> = ({ className = "w-4 h-4" }) => (
@@ -106,7 +107,7 @@ const HomePage: React.FC = () => {
                       >
                         <div className="relative w-full h-full">
                           <img
-                            src={banner.imageUrl}
+                            src={getImageUrl(banner.imageUrl)}
                             alt={banner.title || 'Banner'}
                             className="w-full h-full object-cover"
                             onError={(e) => {
@@ -219,7 +220,7 @@ const HomePage: React.FC = () => {
                         >
                           <div className="relative w-full h-full">
                             <img
-                              src={banner.imageUrl}
+                              src={getImageUrl(banner.imageUrl)}
                               alt={banner.title || 'Promo'}
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                               onError={(e) => {
@@ -285,7 +286,7 @@ const HomePage: React.FC = () => {
                               </span>
                             )}
                             <img
-                              src={product.images?.[0] || '/imgs/default-product.jpg'}
+                              src={getImageUrl(product.images?.[0])}
                               alt={product.name}
                               className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                             />
@@ -418,7 +419,7 @@ const HomePage: React.FC = () => {
                         className="relative overflow-hidden rounded-xl aspect-[4/3] group"
                       >
                         <img
-                          src={banner.imageUrl}
+                          src={getImageUrl(banner.imageUrl)}
                           alt={banner.title || 'Promo'}
                           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                         />

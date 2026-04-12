@@ -16,6 +16,9 @@ import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { useAppDispatch } from '../../store/hooks';
 import { getCurrentUser } from '../../store/slices/authSlice';
+import ImageUploader from '../../components/common/ImageUploader';
+import { uploadImages } from '../../utils/upload';
+import { getImageUrl } from '../../utils/image';
 
 interface Vendor {
   id: string;
@@ -35,8 +38,8 @@ const VendorSettingsPage: React.FC = () => {
   const [formData, setFormData] = useState({
     storeName: '',
     description: '',
-    logo: '',
-    banner: '',
+    logo: [] as (File | string)[],
+    banner: [] as (File | string)[],
   });
 
   // Password Form State
@@ -59,8 +62,8 @@ const VendorSettingsPage: React.FC = () => {
       setFormData({
         storeName: vendorData.storeName || '',
         description: vendorData.description || '',
-        logo: vendorData.logo || '',
-        banner: vendorData.banner || '',
+        logo: vendorData.logo ? [vendorData.logo] : [],
+        banner: vendorData.banner ? [vendorData.banner] : [],
       });
     } catch (error: any) {
       toast.error('Failed to load store profile');
@@ -76,11 +79,16 @@ const VendorSettingsPage: React.FC = () => {
 
     setProfileLoading(true);
     try {
+      // 1. Process images (Local Files -> URLs)
+      const [logoUrl] = await uploadImages(formData.logo);
+      const [bannerUrl] = await uploadImages(formData.banner);
+
+      // 2. Submit to API
       await api.patch('/vendor/me', {
         storeName: formData.storeName,
         description: formData.description,
-        logo: formData.logo,
-        banner: formData.banner,
+        logo: logoUrl || '',
+        banner: bannerUrl || '',
       });
       toast.success('Storefront updated successfully');
       fetchVendorProfile();
@@ -185,63 +193,26 @@ const VendorSettingsPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Logo & Banner URLs */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="relative group">
-                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ms-1 group-focus-within:text-purple-600 transition-colors">
-                    Logo URL
-                  </label>
-                  <div className="relative">
-                    <Camera className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-purple-600 transition-colors" size={18} />
-                    <input
-                      type="text"
-                      value={formData.logo}
-                      onChange={(e) => setFormData({ ...formData, logo: e.target.value })}
-                      className="w-full pl-12 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all font-mono text-[10px]"
-                      placeholder="https://..."
-                    />
-                  </div>
-                </div>
-                <div className="relative group">
-                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ms-1 group-focus-within:text-purple-600 transition-colors">
-                    Banner URL
-                  </label>
-                  <div className="relative">
-                    <ImageIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-purple-600 transition-colors" size={18} />
-                    <input
-                      type="text"
-                      value={formData.banner}
-                      onChange={(e) => setFormData({ ...formData, banner: e.target.value })}
-                      className="w-full pl-12 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all font-mono text-[10px]"
-                      placeholder="https://..."
-                    />
-                  </div>
-                </div>
+              {/* Logo & Banner Uploaders */}
+              <div className="space-y-6">
+                <ImageUploader
+                  label="Store Logo"
+                  value={formData.logo}
+                  onChange={(val) => setFormData({ ...formData, logo: val })}
+                  multiple={false}
+                  helperText="Recommended: 512x512px SVG or PNG"
+                />
+                
+                <ImageUploader
+                  label="Store Banner"
+                  value={formData.banner}
+                  onChange={(val) => setFormData({ ...formData, banner: val })}
+                  multiple={false}
+                  helperText="Recommended: 1920x400px high-resolution banner"
+                />
               </div>
 
-              {/* Previews */}
-              <div className="flex flex-col sm:flex-row gap-6 mt-2">
-                <div className="space-y-2">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Avatar Preview</p>
-                  <div className="w-20 h-20 rounded-full border-2 border-gray-100 overflow-hidden bg-gray-50 flex items-center justify-center">
-                    {formData.logo ? (
-                      <img src={formData.logo} alt="Preview" className="w-full h-full object-cover" />
-                    ) : (
-                      <Store size={24} className="text-gray-200" />
-                    )}
-                  </div>
-                </div>
-                <div className="space-y-2 flex-1">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Cover Preview</p>
-                  <div className="w-full h-20 rounded-2xl border-2 border-gray-100 overflow-hidden bg-gray-50 flex items-center justify-center">
-                    {formData.banner ? (
-                      <img src={formData.banner} alt="Preview" className="w-full h-full object-cover" />
-                    ) : (
-                      <ImageIcon size={24} className="text-gray-200" />
-                    )}
-                  </div>
-                </div>
-              </div>
+              {/* Legacy Previews Removed in favor of ImageUploader local previews */}
             </div>
 
             <div className="pt-4">

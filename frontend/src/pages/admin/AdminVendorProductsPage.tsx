@@ -12,10 +12,11 @@ import {
 } from 'react-icons/fi';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
-import api from '../../lib/api';
-import { formatPrice } from '../../lib/utils';
-import ImageUploader from '../../components/common/ImageUploader';
-import { uploadImages } from '../../utils/upload';
+import api from 'lib/api';
+import { formatPrice } from 'lib/utils';
+import ImageUploader from 'components/common/ImageUploader';
+import { uploadImages } from 'utils/upload';
+import { getImageUrl } from 'utils/image';
 
 interface Product {
   id: string;
@@ -308,7 +309,7 @@ const AdminVendorProductsPage: React.FC = () => {
                       <td className="px-8 py-6">
                         <div className="flex items-center gap-5">
                           <div className="w-14 h-14 rounded-2xl overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-100 shadow-sm">
-                            <img src={`http://localhost:5000${mainImage}`} alt={product.name} className="w-full h-full object-cover" />
+                            <img src={getImageUrl(mainImage)} alt={product.name} className="w-full h-full object-cover" />
                           </div>
                           <div>
                             <p className="text-sm font-black text-gray-900 leading-tight group-hover:text-primary-600 transition-colors">{product.name}</p>
@@ -547,7 +548,7 @@ const AdminVendorProductsPage: React.FC = () => {
                     <ImageUploader
                       multiple={true}
                       value={formData.images}
-                      onChange={(items) => setFormData({ ...formData, images: items })}
+                      onChange={(items: (File | string)[]) => setFormData({ ...formData, images: items })}
                       label={t('common.images', 'Visual Assets')}
                       helperText={t('admin.vendorProducts.imageHelper', 'Upload high-quality local files or link external assets')}
                     />

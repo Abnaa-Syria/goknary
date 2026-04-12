@@ -7,6 +7,7 @@ import { formatPrice } from '../lib/utils';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 import { Plus, Truck } from 'lucide-react';
+import { getImageUrl } from '../utils/image';
 
 interface Address {
   id?: string;
@@ -444,7 +445,7 @@ const CheckoutPage: React.FC = () => {
                     <div key={item.id} className="flex gap-5 p-4 rounded-2xl hover:bg-gray-50 transition-colors">
                       <div className="relative flex-shrink-0">
                         <img 
-                          src={item.product.images?.[0] || '/imgs/default-product.jpg'} 
+                          src={getImageUrl(item.product.images?.[0])} 
                           alt={item.product.name} 
                           className="w-20 h-20 rounded-2xl object-cover shadow-sm bg-white" 
                         />

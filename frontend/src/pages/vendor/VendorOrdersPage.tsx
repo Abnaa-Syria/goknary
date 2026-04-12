@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../lib/api';
 import { formatPrice } from '../../lib/utils';
+import { getImageUrl } from '../../utils/image';
 
 interface Order {
   id: string;
@@ -107,7 +108,7 @@ const VendorOrdersPage: React.FC = () => {
                 <div className="flex flex-col md:flex-row gap-4">
                   <div className="flex-shrink-0 w-full md:w-32 h-32 rounded-lg overflow-hidden bg-gray-100">
                     <img
-                      src={mainImage}
+                      src={getImageUrl(mainImage)}
                       alt={firstItem?.product?.name || 'Product'}
                       className="w-full h-full object-cover"
                     />
