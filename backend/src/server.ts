@@ -53,10 +53,11 @@ import adminVendorRoutes from './routes/admin-vendors';
 import adminCategoryRoutes from './routes/admin-categories';
 import adminBrandRoutes from './routes/admin-brands';
 import adminBannerRoutes from './routes/admin-banners';
+import roleRoutes from './routes/roles';
 import uploadRoutes from './routes/upload';
 import shippingRoutes from './routes/shipping';
 import reviewRoutes from './routes/reviews';
-import { authenticate, authorize } from './middleware/auth';
+import { authenticate, authorize, requirePermission } from './middleware/auth';
 import { getAdminVendorProducts } from './controllers/admin';
 
 // ─── WhatsApp / Twilio (OTP delivery) ───────────────────────────────────────
@@ -129,7 +130,7 @@ app.use('/api/vendor/analytics', vendorAnalyticsRoutes);
 app.use('/api/vendor', vendorProfileRoutes); // parent LAST
 
 // ─── Admin Governance Direct Routes (H-03 Route Prioritization) ───────────────
-app.get('/api/admin/vendors/:vendorId/products', authenticate, authorize('ADMIN'), getAdminVendorProducts);
+app.get('/api/admin/vendors/:vendorId/products', authenticate, authorize('ADMIN', 'STAFF'), requirePermission('READ_PRODUCTS'), getAdminVendorProducts);
 
 // ─── Admin Routes (specific subroutes BEFORE parent) ─────────────────────────
 app.use('/api/admin/vendors', adminVendorRoutes);
@@ -137,6 +138,7 @@ app.use('/api/admin/categories', adminCategoryRoutes);
 app.use('/api/admin/brands', adminBrandRoutes);
 app.use('/api/admin/banners', adminBannerRoutes);
 app.use('/api/admin/announcements', adminAnnouncementRoutes);
+app.use('/api/admin/roles', roleRoutes);
 app.use('/api/admin', adminRoutes); // parent LAST
 
 // ─── 404 Handler ─────────────────────────────────────────────────────────────

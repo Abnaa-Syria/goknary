@@ -51,7 +51,7 @@ const HomePage: React.FC = () => {
       .then(res => setNewArrivals(res.data.products || []))
       .catch(err => console.error("Failed to load generic matrix: ", err));
 
-    if (isAuthenticated && user?.role === 'ADMIN') {
+    if (isAuthenticated && (user?.role === 'ADMIN' || user?.role === 'STAFF')) {
       navigate('/admin', { replace: true });
       return;
     }

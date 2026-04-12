@@ -87,7 +87,7 @@ const AccountPage: React.FC = () => {
                   </Link>
                 </li>
               )}
-              {user?.role === 'ADMIN' && (
+              {(user?.role === 'ADMIN' || user?.role === 'STAFF') && (
                 <li>
                   <Link
                     to="/admin"

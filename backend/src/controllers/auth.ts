@@ -337,7 +337,14 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password } = loginSchema.parse(req.body);
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: {
+        customRole: {
+          select: { id: true, name: true, permissions: true },
+        },
+      },
+    });
 
     if (!user) {
       res.status(401).json({ error: 'Invalid email or password.' });
@@ -389,6 +396,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       passwordResetExpires,
       passwordResetOtp,
       passwordResetOtpExpires,
+      customRoleId: _crid,
       ...safeUser
     } = user as any;
 
@@ -518,6 +526,13 @@ export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
             storeName: true,
             slug: true,
             status: true,
+          },
+        },
+        customRole: {
+          select: {
+            id: true,
+            name: true,
+            permissions: true,
           },
         },
       },

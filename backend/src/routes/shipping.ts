@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { getActiveRates, getAllRates, createRate, updateRate, deleteRate } from '../controllers/shipping';
-import { authenticate, authorize } from '../middleware/auth';
+import { authenticate, authorize, requirePermission } from '../middleware/auth';
 
 const router = Router();
 
@@ -8,9 +8,9 @@ const router = Router();
 router.get('/active', getActiveRates);
 
 // Admin routes
-router.get('/', authenticate, authorize('ADMIN'), getAllRates);
-router.post('/', authenticate, authorize('ADMIN'), createRate);
-router.patch('/:id', authenticate, authorize('ADMIN'), updateRate);
-router.delete('/:id', authenticate, authorize('ADMIN'), deleteRate);
+router.get('/', authenticate, authorize('ADMIN', 'STAFF'), requirePermission('READ_SHIPPING'), getAllRates);
+router.post('/', authenticate, authorize('ADMIN', 'STAFF'), requirePermission('CREATE_SHIPPING'), createRate);
+router.patch('/:id', authenticate, authorize('ADMIN', 'STAFF'), requirePermission('UPDATE_SHIPPING'), updateRate);
+router.delete('/:id', authenticate, authorize('ADMIN', 'STAFF'), requirePermission('DELETE_SHIPPING'), deleteRate);
 
 export default router;

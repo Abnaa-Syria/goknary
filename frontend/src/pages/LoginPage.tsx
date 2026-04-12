@@ -42,8 +42,14 @@ const LoginPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await dispatch(login(formData)).unwrap();
-      navigate(from, { replace: true });
+      const result = await dispatch(login(formData)).unwrap();
+      // Route admin/staff users to admin dashboard
+      const role = result?.user?.role;
+      if (role === 'ADMIN' || role === 'STAFF') {
+        navigate('/admin', { replace: true });
+      } else {
+        navigate(from, { replace: true });
+      }
     } catch (err: any) {
       if (err?.verifyEmail && err.userId) {
         sessionStorage.setItem(

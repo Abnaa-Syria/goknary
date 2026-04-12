@@ -21,7 +21,10 @@ import {
   ExternalLink,
   ShieldCheck,
   UserCheck,
-  Lock as LockIcon
+  Lock as LockIcon,
+  Plus,
+  Shield,
+  UserPlus
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
@@ -29,8 +32,13 @@ import { EmptyState } from './DashboardComponents';
 
 // --- Types ---
 
-type UserRole = 'CUSTOMER' | 'VENDOR' | 'ADMIN';
+type UserRole = 'CUSTOMER' | 'VENDOR' | 'STAFF' | 'ADMIN';
 type VendorStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
+
+interface CustomRoleRef {
+  id: string;
+  name: string;
+}
 
 interface User {
   id: string;
@@ -43,6 +51,7 @@ interface User {
     storeName: string;
     status: VendorStatus;
   } | null;
+  customRole?: CustomRoleRef | null;
 }
 
 // --- Sub-components ---
@@ -79,12 +88,27 @@ const StatusBadge: React.FC<{ status?: VendorStatus; role: UserRole }> = ({ stat
   );
 };
 
-const RoleBadge: React.FC<{ role: UserRole }> = ({ role }) => {
-  const styles = {
+const RoleBadge: React.FC<{ role: UserRole; customRoleName?: string }> = ({ role, customRoleName }) => {
+  const styles: Record<UserRole, string> = {
     ADMIN: 'bg-red-50 text-red-600 border-red-100',
+    STAFF: 'bg-amber-50 text-amber-700 border-amber-100',
     VENDOR: 'bg-purple-50 text-purple-600 border-purple-100',
     CUSTOMER: 'bg-blue-50 text-blue-600 border-blue-100',
   };
+
+  if (role === 'STAFF' && customRoleName) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tighter border ${styles.STAFF}`}>
+          <Shield size={10} />
+          STAFF
+        </span>
+        <span className="inline-flex items-center px-2 py-0.5 rounded bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-100">
+          {customRoleName}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tighter border ${styles[role]}`}>
@@ -106,6 +130,7 @@ const AdminUsersPage: React.FC = () => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -117,7 +142,7 @@ const AdminUsersPage: React.FC = () => {
       const response = await api.get('/admin/users');
       setUsers(response.data.users);
     } catch (error: any) {
-      toast.error('Failed to sync user ecos  ystem');
+      toast.error('Failed to sync user ecosystem');
     } finally {
       setLoading(false);
     }
@@ -167,6 +192,7 @@ const AdminUsersPage: React.FC = () => {
             >
               <option value="all">All Roles</option>
               <option value="ADMIN">Admins Only</option>
+              <option value="STAFF">Staff Only</option>
               <option value="VENDOR">Vendors Only</option>
               <option value="CUSTOMER">Customers Only</option>
             </select>
@@ -190,6 +216,14 @@ const AdminUsersPage: React.FC = () => {
             title="Refresh Data"
           >
             <Loader2 className={loading ? 'animate-spin' : ''} size={18} />
+          </button>
+
+          <button 
+            onClick={() => setIsCreateModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white font-bold text-sm rounded-xl hover:bg-primary-700 transition-all shadow-md shadow-primary-200"
+          >
+            <UserPlus size={16} />
+            Create User
           </button>
         </div>
       </div>
@@ -230,6 +264,7 @@ const AdminUsersPage: React.FC = () => {
                         <div className="flex items-center gap-3">
                           <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border shadow-sm ${
                             user.role === 'ADMIN' ? 'bg-red-50 text-red-600 border-red-100' : 
+                            user.role === 'STAFF' ? 'bg-amber-50 text-amber-700 border-amber-100' :
                             user.role === 'VENDOR' ? 'bg-purple-50 text-purple-600 border-purple-100' : 
                             'bg-blue-50 text-blue-600 border-blue-100'
                           }`}>
@@ -242,7 +277,7 @@ const AdminUsersPage: React.FC = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <RoleBadge role={user.role} />
+                        <RoleBadge role={user.role} customRoleName={user.customRole?.name} />
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <StatusBadge status={user.vendor?.status} role={user.role} />
@@ -285,6 +320,12 @@ const AdminUsersPage: React.FC = () => {
         isOpen={isPasswordModalOpen}
         onClose={() => setIsPasswordModalOpen(false)}
         user={selectedUser}
+      />
+
+      <CreateUserModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSuccess={fetchUsers}
       />
     </div>
   );
@@ -404,13 +445,234 @@ const UsersTableSkeleton = () => (
   </div>
 );
 
-// --- Attribute Modals ---
+// --- Create User Modal ---
+
+const CreateUserModal: React.FC<{ isOpen: boolean; onClose: () => void; onSuccess: () => void }> = ({
+  isOpen, onClose, onSuccess
+}) => {
+  const [loading, setLoading] = useState(false);
+  const [availableRoles, setAvailableRoles] = useState<{ id: string; name: string }[]>([]);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    role: 'CUSTOMER' as UserRole,
+    customRoleId: '',
+  });
+
+  // Fetch custom roles when STAFF is selected
+  useEffect(() => {
+    if (formData.role === 'STAFF') {
+      api.get('/admin/roles').then((res) => {
+        setAvailableRoles(res.data.roles || []);
+      }).catch(() => {
+        toast.error('Failed to load custom roles');
+      });
+    }
+  }, [formData.role]);
+
+  const resetForm = () => {
+    setFormData({ name: '', email: '', password: '', role: 'CUSTOMER', customRoleId: '' });
+  };
+
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.name || !formData.email || !formData.password) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+    if (formData.role === 'STAFF' && !formData.customRoleId) {
+      toast.error('Please select a custom role for the staff member');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const payload: any = {
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        role: formData.role,
+      };
+      if (formData.role === 'STAFF') {
+        payload.customRoleId = formData.customRoleId;
+      }
+
+      await api.post('/admin/users', payload);
+      toast.success(`User "${formData.name}" created successfully`);
+      handleClose();
+      onSuccess();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Failed to create user');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm" onClick={handleClose} 
+          />
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.95, opacity: 0, y: 20 }}
+            className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden z-10"
+          >
+            <div className="p-6 border-b border-gray-50 flex items-center justify-between bg-primary-50/30">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary-100 text-primary-600 rounded-xl"><UserPlus size={20} /></div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 leading-tight">Create New User</h3>
+                  <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Provision Account Identity</p>
+                </div>
+              </div>
+              <button onClick={handleClose} className="p-2 hover:bg-gray-100 rounded-xl transition-colors"><X size={20} /></button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="p-8 space-y-5">
+              {/* Name */}
+              <div className="group">
+                <label className="block text-xs font-bold text-gray-400 mb-1.5 uppercase tracking-widest ms-1 group-focus-within:text-primary-600 transition-colors">Full Name *</label>
+                <div className="relative">
+                  <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-600 transition-colors" size={18} />
+                  <input 
+                    type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    placeholder="John Smith"
+                    className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Email */}
+              <div className="group">
+                <label className="block text-xs font-bold text-gray-400 mb-1.5 uppercase tracking-widest ms-1 group-focus-within:text-primary-600 transition-colors">Email Address *</label>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-600 transition-colors" size={18} />
+                  <input 
+                    type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    placeholder="user@goknary.com"
+                    className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all font-medium"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Password */}
+              <div className="group">
+                <label className="block text-xs font-bold text-gray-400 mb-1.5 uppercase tracking-widest ms-1 group-focus-within:text-primary-600 transition-colors">Initial Password *</label>
+                <div className="relative">
+                  <LockIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-600 transition-colors" size={18} />
+                  <input 
+                    type="password" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})}
+                    placeholder="••••••••"
+                    minLength={8}
+                    className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all font-mono"
+                    required
+                  />
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1 ms-1 font-medium">Minimum 8 characters. User will skip phone verification.</p>
+              </div>
+
+              {/* Role + Custom Role */}
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 mb-1.5 uppercase tracking-widest ms-1">Platform Role *</label>
+                  <select 
+                    value={formData.role} 
+                    onChange={(e) => setFormData({...formData, role: e.target.value as UserRole, customRoleId: ''})}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all cursor-pointer"
+                  >
+                    <option value="CUSTOMER">Customer</option>
+                    <option value="VENDOR">Vendor</option>
+                    <option value="STAFF">Staff (Custom Role)</option>
+                    <option value="ADMIN">Super Admin</option>
+                  </select>
+                </div>
+
+                <AnimatePresence>
+                  {formData.role === 'STAFF' && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <label className="block text-xs font-bold text-amber-600 mb-1.5 uppercase tracking-widest ms-1 flex items-center gap-1.5">
+                        <Shield size={12} />
+                        Assign Custom Role *
+                      </label>
+                      {availableRoles.length === 0 ? (
+                        <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-100 rounded-2xl text-xs text-amber-700 font-medium">
+                          <Loader2 className="animate-spin" size={14} />
+                          Loading available roles...
+                        </div>
+                      ) : (
+                        <select 
+                          value={formData.customRoleId}
+                          onChange={(e) => setFormData({...formData, customRoleId: e.target.value})}
+                          className="w-full px-4 py-3 bg-amber-50 border border-amber-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all cursor-pointer text-amber-800"
+                          required
+                        >
+                          <option value="">— Select a role —</option>
+                          {availableRoles.map((role) => (
+                            <option key={role.id} value={role.id}>{role.name}</option>
+                          ))}
+                        </select>
+                      )}
+                      <p className="text-[10px] text-amber-500 mt-1.5 ms-1 font-bold">
+                        This determines the user's granular CRUD permissions in the admin panel.
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <AnimatePresence>
+                  {formData.role === 'ADMIN' && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-100 rounded-2xl">
+                        <ShieldAlert className="text-red-500 shrink-0 mt-0.5" size={16} />
+                        <p className="text-xs text-red-700 font-medium leading-relaxed">
+                          <strong className="font-black">Super Admin</strong> bypasses all permission checks and has unrestricted access to every resource. Use this role sparingly.
+                        </p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              <button 
+                type="submit" disabled={loading}
+                className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-gray-900 text-white font-bold rounded-2xl hover:bg-gray-800 disabled:opacity-50 transition-all shadow-xl shadow-gray-200 group"
+              >
+                {loading ? <Loader2 className="animate-spin" size={20} /> : <UserPlus size={20} className="group-hover:scale-110 transition-transform" />}
+                <span>Provision User Account</span>
+              </button>
+            </form>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+  );
+};
+
+// --- Edit User Modal ---
 
 const EditUserModal: React.FC<{ isOpen: boolean; onClose: () => void; user: User | null; onSuccess: () => void }> = ({ 
   isOpen, onClose, user, onSuccess 
 }) => {
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({ name: '', email: '', role: 'CUSTOMER' as UserRole, status: 'PENDING' as VendorStatus });
+  const [availableRoles, setAvailableRoles] = useState<{ id: string; name: string }[]>([]);
+  const [formData, setFormData] = useState({ name: '', email: '', role: 'CUSTOMER' as UserRole, status: 'PENDING' as VendorStatus, customRoleId: '' });
 
   useEffect(() => {
     if (user) {
@@ -418,10 +680,20 @@ const EditUserModal: React.FC<{ isOpen: boolean; onClose: () => void; user: User
         name: user.name || '',
         email: user.email || '',
         role: user.role,
-        status: user.vendor?.status || 'PENDING'
+        status: user.vendor?.status || 'PENDING',
+        customRoleId: user.customRole?.id || '',
       });
     }
   }, [user]);
+
+  // Fetch custom roles when STAFF is selected
+  useEffect(() => {
+    if (formData.role === 'STAFF') {
+      api.get('/admin/roles').then((res) => {
+        setAvailableRoles(res.data.roles || []);
+      }).catch(() => {});
+    }
+  }, [formData.role]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -429,8 +701,13 @@ const EditUserModal: React.FC<{ isOpen: boolean; onClose: () => void; user: User
 
     setLoading(true);
     try {
+      const payload: any = { name: formData.name, email: formData.email, role: formData.role };
+      if (formData.role === 'STAFF') {
+        payload.customRoleId = formData.customRoleId;
+      }
+      
       // 1. Update general user profile
-      await api.patch(`/admin/users/${user.id}`, { name: formData.name, email: formData.email, role: formData.role });
+      await api.patch(`/admin/users/${user.id}`, payload);
       
       // 2. If it's a vendor, update status
       if (formData.role === 'VENDOR' && user.vendor?.id) {
@@ -498,11 +775,12 @@ const EditUserModal: React.FC<{ isOpen: boolean; onClose: () => void; user: User
                   <div>
                     <label className="block text-xs font-bold text-gray-400 mb-1.5 uppercase tracking-widest ms-1">Ecosystem Role</label>
                     <select 
-                      value={formData.role} onChange={(e) => setFormData({...formData, role: e.target.value as any})}
+                      value={formData.role} onChange={(e) => setFormData({...formData, role: e.target.value as any, customRoleId: ''})}
                       className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all cursor-pointer"
                     >
                       <option value="CUSTOMER">Customer</option>
                       <option value="VENDOR">Vendor</option>
+                      <option value="STAFF">Staff</option>
                       <option value="ADMIN">Administrator</option>
                     </select>
                   </div>
@@ -524,6 +802,35 @@ const EditUserModal: React.FC<{ isOpen: boolean; onClose: () => void; user: User
                     )}
                   </AnimatePresence>
                 </div>
+
+                {/* Dynamic Custom Role dropdown for STAFF */}
+                <AnimatePresence>
+                  {formData.role === 'STAFF' && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                      <label className="block text-xs font-bold text-amber-600 mb-1.5 uppercase tracking-widest ms-1 flex items-center gap-1.5">
+                        <Shield size={12} />
+                        Custom Role Assignment
+                      </label>
+                      {availableRoles.length === 0 ? (
+                        <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-100 rounded-2xl text-xs text-amber-700 font-medium">
+                          <Loader2 className="animate-spin" size={14} />
+                          Loading roles...
+                        </div>
+                      ) : (
+                        <select 
+                          value={formData.customRoleId}
+                          onChange={(e) => setFormData({...formData, customRoleId: e.target.value})}
+                          className="w-full px-4 py-3 bg-amber-50 border border-amber-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all cursor-pointer text-amber-800"
+                        >
+                          <option value="">— Select a role —</option>
+                          {availableRoles.map((role) => (
+                            <option key={role.id} value={role.id}>{role.name}</option>
+                          ))}
+                        </select>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
               <button 

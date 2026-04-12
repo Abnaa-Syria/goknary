@@ -1,8 +1,10 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
+import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { NotFoundError } from '../lib/errors';
 import { ProductStatus } from '@prisma/client';
+import { AuthRequest } from '../middleware/auth';
 
 /**
  * Fetch all orders across the ecosystem (Admin Paginated View)
@@ -98,6 +100,12 @@ export const getUsers = async (req: Request, res: Response) => {
               status: true,
             },
           },
+          customRole: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -127,19 +135,34 @@ export const getUsers = async (req: Request, res: Response) => {
 export const updateUser = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, email, role } = req.body;
+    const { name, email, role, customRoleId } = req.body;
 
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundError('User not found');
 
+    const data: any = {};
+    if (name !== undefined) data.name = name;
+    if (email !== undefined) data.email = email;
+    if (role !== undefined) data.role = role;
+
+    // Handle customRoleId based on role
+    if (role === 'STAFF' && customRoleId) {
+      data.customRoleId = customRoleId;
+    } else if (role && role !== 'STAFF') {
+      data.customRoleId = null; // Clear role assignment when leaving STAFF
+    }
+
     const updated = await prisma.user.update({
       where: { id },
-      data: { name, email, role },
+      data,
       select: {
         id: true,
         name: true,
         email: true,
         role: true,
+        customRole: {
+          select: { id: true, name: true },
+        },
       },
     });
 
@@ -148,6 +171,72 @@ export const updateUser = async (req: Request, res: Response) => {
     if (error instanceof NotFoundError) return res.status(404).json({ error: error.message });
     console.error('Error updating user:', error);
     res.status(500).json({ error: 'Failed to update user identity' });
+  }
+};
+
+/**
+ * Admin-created user (skips phone verification)
+ */
+const createUserSchema = z.object({
+  name: z.string().min(2).max(100),
+  email: z.string().email(),
+  password: z.string().min(8).max(128),
+  role: z.enum(['CUSTOMER', 'VENDOR', 'STAFF', 'ADMIN']),
+  customRoleId: z.string().optional(),
+});
+
+export const createUser = async (req: AuthRequest, res: Response) => {
+  try {
+    const { name, email, password, role, customRoleId } = createUserSchema.parse(req.body);
+
+    // Check for existing email
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      return res.status(409).json({ error: 'An account with this email already exists.' });
+    }
+
+    // Validate customRoleId if role is STAFF
+    if (role === 'STAFF') {
+      if (!customRoleId) {
+        return res.status(400).json({ error: 'Staff users must have a custom role assigned.' });
+      }
+      const roleExists = await prisma.customRole.findUnique({ where: { id: customRoleId } });
+      if (!roleExists) {
+        return res.status(404).json({ error: 'Custom role not found.' });
+      }
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email,
+        passwordHash,
+        role,
+        customRoleId: role === 'STAFF' ? customRoleId : null,
+        phoneVerified: true,   // Admin-created users skip verification
+        emailVerified: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        createdAt: true,
+        customRole: {
+          select: { id: true, name: true },
+        },
+      },
+    });
+
+    res.status(201).json({ message: 'User created successfully', user });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid user data', details: error.errors });
+    }
+    console.error('Error creating user:', error);
+    res.status(500).json({ error: 'Failed to create user' });
   }
 };
 

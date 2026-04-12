@@ -201,9 +201,6 @@ export const deleteReview = async (req: AuthRequest, res: Response) => {
 
 export const getAdminReviews = async (req: AuthRequest, res: Response) => {
   try {
-    if (req.user?.role !== 'ADMIN') {
-      return res.status(403).json({ error: 'Admin access only' });
-    }
 
     const { page = '1', limit = '20' } = req.query;
     const pageNum = parseInt(page as string, 10);
@@ -240,10 +237,6 @@ export const getAdminReviews = async (req: AuthRequest, res: Response) => {
 
 export const deleteAdminReview = async (req: AuthRequest, res: Response) => {
   try {
-    if (req.user?.role !== 'ADMIN') {
-      return res.status(403).json({ error: 'Admin access only' });
-    }
-
     const { id } = req.params;
 
     const review = await prisma.review.findUnique({ where: { id } });

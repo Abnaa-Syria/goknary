@@ -10,6 +10,11 @@ export interface User {
   role: string;
   emailVerified: boolean;
   phoneVerified: boolean;
+  customRole?: {
+    id: string;
+    name: string;
+    permissions: string; // JSON string — parse before use
+  };
 }
 
 interface AuthState {

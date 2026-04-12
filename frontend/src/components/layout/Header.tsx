@@ -254,7 +254,7 @@ const Header: React.FC = () => {
                         >
                           {t('nav.myOrders')}
                         </Link>
-                        {(user?.role === 'VENDOR' || user?.role === 'ADMIN') && (
+                        {(user?.role === 'VENDOR' || user?.role === 'ADMIN' || user?.role === 'STAFF') && (
                           <>
                             <div className="border-t my-1"></div>
                             {user.role === 'VENDOR' && (
@@ -266,7 +266,7 @@ const Header: React.FC = () => {
                                 {t('nav.vendorDashboard')}
                               </Link>
                             )}
-                            {user.role === 'ADMIN' && (
+                            {(user.role === 'ADMIN' || user.role === 'STAFF') && (
                               <Link
                                 to="/admin"
                                 className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"

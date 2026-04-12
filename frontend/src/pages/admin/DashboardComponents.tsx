@@ -128,7 +128,8 @@ export const DashboardTopNav: React.FC<{
   userName?: string;
   role: 'Admin' | 'Vendor';
   title?: string;
-}> = ({ sidebarOpen, toggleSidebar, onLogout, userName = "User", role, title }) => {
+  roleTheme?: any;
+}> = ({ sidebarOpen, toggleSidebar, onLogout, userName = "User", role, title, roleTheme }) => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -144,22 +145,28 @@ export const DashboardTopNav: React.FC<{
   const settingsPath = role === 'Admin' ? '/admin/settings' : '/vendor/settings';
 
   return (
-    <header className="h-16 bg-white border-b border-gray-200 z-40">
+    <header className="h-16 border-b border-gray-200 z-40 transition-colors duration-300" style={roleTheme ? { backgroundColor: roleTheme.navbarBg, color: '#fff' } : { backgroundColor: '#ffffff' }}>
       <div className="h-full px-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button 
             onClick={toggleSidebar}
-            className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-600 transition-colors"
+            className="p-2 rounded-lg transition-colors"
+            style={roleTheme ? { color: '#fff' } : { color: '#9ca3af' }}
             aria-label="Toggle Sidebar"
           >
             <Menu size={20} />
           </button>
-          <div className="hidden md:flex items-center text-sm text-gray-500 font-medium tracking-wide">
-            <span className={`${role === 'Admin' ? 'text-primary-600 bg-primary-50' : 'text-purple-600 bg-purple-50'} px-2 py-0.5 rounded-md text-[10px] uppercase font-bold me-2`}>
-              {role}
+          <div className="hidden md:flex items-center text-sm font-medium tracking-wide">
+            <span 
+              className={`px-2 py-0.5 rounded-md text-[10px] uppercase font-bold me-2`}
+              style={roleTheme ? { backgroundColor: roleTheme.badgeBg, color: roleTheme.badgeText } : { backgroundColor: '#f3e8ff', color: '#9333ea' }}
+            >
+              {roleTheme ? roleTheme.label : role}
             </span>
-            <ChevronRight size={14} className="mx-2 text-gray-300 rtl:rotate-180" />
-            <span className="text-gray-900 font-semibold">{title || `${role} Dashboard`}</span>
+            <ChevronRight size={14} className="mx-2 rtl:rotate-180" style={roleTheme ? { color: 'rgba(255,255,255,0.5)' } : { color: '#d1d5db' }} />
+            <span className="font-semibold" style={roleTheme ? { color: '#fff' } : { color: '#111827' }}>
+              {title || `${role} Dashboard`}
+            </span>
           </div>
         </div>
 
@@ -169,13 +176,13 @@ export const DashboardTopNav: React.FC<{
             <input 
               type="text" 
               placeholder="Search analytics..." 
-              className="pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all w-64 rtl:pr-10 rtl:pl-4"
+              className={`pl-10 pr-4 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all w-64 rtl:pr-10 rtl:pl-4 ${roleTheme ? 'bg-white/10 border-white/20 text-white placeholder-white/50 focus:ring-white/30' : 'bg-gray-50 border-gray-200 focus:ring-primary-500'}`}
             />
           </div>
           
-          <button className="p-2 text-gray-400 hover:text-gray-600 relative">
+          <button className="p-2 relative" style={roleTheme ? { color: '#fff' } : { color: '#9ca3af' }}>
             <Bell size={20} />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-primary-600 rounded-full border-2 border-white rtl:left-2 rtl:right-auto"></span>
+            <span className="absolute top-2 right-2 w-2 h-2 rounded-full border-2" style={roleTheme ? { backgroundColor: roleTheme.accent, borderColor: roleTheme.navbarBg } : { backgroundColor: '#2563EB', borderColor: '#ffffff' }}></span>
           </button>
           
           <div className="h-8 w-px bg-gray-200 mx-1"></div>
@@ -196,20 +203,20 @@ export const DashboardTopNav: React.FC<{
           <div className="relative">
             <button 
               onClick={() => setShowProfileMenu(!showProfileMenu)}
-              className="flex items-center gap-2 ps-2 cursor-pointer group hover:bg-gray-50 p-1 rounded-xl transition-all border border-transparent hover:border-gray-100"
+              className="flex items-center gap-2 ps-2 cursor-pointer group p-1 rounded-xl transition-all border border-transparent shadow-sm hover:shadow-md"
+              style={roleTheme ? { backgroundColor: 'rgba(255,255,255,0.1)' } : {}}
             >
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold border shadow-sm transition-transform group-hover:scale-105 ${
-                role === 'Admin' 
-                  ? 'bg-primary-50 text-primary-600 border-primary-100' 
-                  : 'bg-purple-50 text-purple-600 border-purple-100'
-              }`}>
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold border shadow-sm transition-transform group-hover:scale-105`}
+                   style={roleTheme ? { backgroundColor: roleTheme.badgeBg, color: roleTheme.badgeText, borderColor: roleTheme.badgeBg } : { backgroundColor: '#f3e8ff', color: '#9333ea', borderColor: '#e9d5ff' }}>
                 {userName.charAt(0)}
               </div>
               <div className="hidden lg:flex flex-col items-start leading-tight">
-                <span className="text-sm font-bold text-gray-800">{userName}</span>
-                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{role} Mode</span>
+                <span className="text-sm font-bold" style={roleTheme ? { color: '#fff' } : { color: '#1f2937' }}>{userName}</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider" style={roleTheme ? { color: roleTheme.badgeText } : { color: '#9ca3af' }}>
+                  {roleTheme ? roleTheme.label : `${role} Mode`}
+                </span>
               </div>
-              <ChevronDown size={14} className={`text-gray-400 transition-transform duration-300 ${showProfileMenu ? 'rotate-180' : ''}`} />
+              <ChevronDown size={14} className={`transition-transform duration-300 ${showProfileMenu ? 'rotate-180' : ''}`} style={roleTheme ? { color: '#fff' } : { color: '#9ca3af' }} />
             </button>
 
             <AnimatePresence>

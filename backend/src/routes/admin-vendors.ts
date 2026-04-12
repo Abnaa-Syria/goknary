@@ -8,19 +8,19 @@ import {
   updateVendorStatus
 } from '../controllers/admin-vendors';
 import { getAdminVendorProducts } from '../controllers/admin';
-import { authenticate, authorize } from '../middleware/auth';
+import { authenticate, authorize, requirePermission } from '../middleware/auth';
 
 const router = Router();
 
 router.use(authenticate);
-router.use(authorize('ADMIN'));
+router.use(authorize('ADMIN', 'STAFF'));
 
-router.get('/', getVendors);
-router.get('/:id', getVendorById);
-router.patch('/:id/approve', approveVendor);
-router.patch('/:id/reject', rejectVendor);
-router.patch('/:id/suspend', suspendVendor);
-router.patch('/:id/status', updateVendorStatus);
+router.get('/', requirePermission('READ_VENDORS'), getVendors);
+router.get('/:id', requirePermission('READ_VENDORS'), getVendorById);
+router.patch('/:id/approve', requirePermission('UPDATE_VENDORS'), approveVendor);
+router.patch('/:id/reject', requirePermission('UPDATE_VENDORS'), rejectVendor);
+router.patch('/:id/suspend', requirePermission('UPDATE_VENDORS'), suspendVendor);
+router.patch('/:id/status', requirePermission('UPDATE_VENDORS'), updateVendorStatus);
 
 export default router;
 

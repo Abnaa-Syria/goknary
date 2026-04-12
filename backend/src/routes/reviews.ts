@@ -6,7 +6,7 @@ import {
   getAdminReviews, 
   deleteAdminReview 
 } from '../controllers/reviews';
-import { authenticate } from '../middleware/auth';
+import { authenticate, requirePermission } from '../middleware/auth';
 
 const router = Router();
 
@@ -16,7 +16,7 @@ router.patch('/:id', authenticate, updateReview);
 router.delete('/:id', authenticate, deleteReview);
 
 // Admin routes
-router.get('/admin', authenticate, getAdminReviews);
-router.delete('/admin/:id', authenticate, deleteAdminReview);
+router.get('/admin', authenticate, requirePermission('READ_REVIEWS'), getAdminReviews);
+router.delete('/admin/:id', authenticate, requirePermission('DELETE_REVIEWS'), deleteAdminReview);
 
 export default router;

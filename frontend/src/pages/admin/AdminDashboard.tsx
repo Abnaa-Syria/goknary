@@ -7,7 +7,7 @@ import {
   Image as ImageIcon, Tag, Briefcase, LogOut,
   DollarSign, X, Store, MessageSquare, Percent,
   TrendingUp, ShoppingCart, RefreshCw, ArrowUpRight,
-  Truck, Megaphone
+  Truck, Megaphone, Shield
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -22,11 +22,15 @@ import AdminBannersPage from './AdminBannersPage';
 import AdminOrdersPage from './AdminOrdersPage';
 import AdminSettingsPage from './AdminSettingsPage';
 import AdminReviewsPage from './AdminReviewsPage';
+import AdminProductsPage from './AdminProductsPage';
 import AdminVendorProductsPage from './AdminVendorProductsPage';
 import AdminCouponsPage from './AdminCouponsPage';
 import AdminOrderDetailPage from './AdminOrderDetailPage';
 import AdminShippingPage from './AdminShippingPage';
 import AdminAnnouncementPage from './AdminAnnouncementPage';
+import AdminRolesPage from './AdminRolesPage';
+
+import { hasPermission, getRoleTheme } from '../../utils/permissions';
 
 import {
   StatCard, ChartCard, DashboardSkeleton, EmptyState,
@@ -38,7 +42,7 @@ import {
   ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie, Legend
 } from 'recharts';
 
-// ─── Types ──────────────────────────────────────────────────────────────────
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 interface DashboardStats {
   totalUsers: number;
@@ -59,7 +63,7 @@ interface DashboardData {
   recentOrders: any[];
 }
 
-// ─── Status Badge ────────────────────────────────────────────────────────────
+// ─── Status Badge ─────────────────────────────────────────────────────────────
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   const colors: Record<string, string> = {
     PENDING:    'bg-yellow-100 text-yellow-800',
@@ -77,8 +81,34 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   );
 };
 
-// ─── Sidebar Content ─────────────────────────────────────────────────────────
+// ─── Forbidden 403 ────────────────────────────────────────────────────────────
+const Forbidden403: React.FC<{ user: any }> = ({ user }) => {
+  const roleTheme = getRoleTheme(user);
 
+  return (
+    <div className="flex flex-col items-center justify-center py-20">
+      <div
+        className="w-24 h-24 rounded-full flex items-center justify-center mb-6"
+        style={{ backgroundColor: roleTheme.badgeBg }}
+      >
+        <Shield size={48} style={{ color: roleTheme.accent }} />
+      </div>
+      <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
+      <p className="text-gray-500 max-w-md text-center mb-6">
+        You don't have permission to view this page.
+      </p>
+      <Link
+        to="/admin"
+        className="px-6 py-2 rounded-xl text-white font-semibold transition-opacity hover:opacity-90"
+        style={{ backgroundColor: roleTheme.accent }}
+      >
+        Back to Dashboard
+      </Link>
+    </div>
+  );
+};
+
+// ─── Sidebar Content ──────────────────────────────────────────────────────────
 const SidebarContent: React.FC<{
   menuItems: any[];
   location: any;
@@ -86,22 +116,35 @@ const SidebarContent: React.FC<{
   stats: DashboardStats | null;
   onLogout: () => void;
   t: any;
-}> = ({ menuItems, location, sidebarOpen, stats, onLogout, t }) => {
+  user: any;
+}> = ({ menuItems, location, sidebarOpen, stats, onLogout, t, user }) => {
+  const isRTL = document.documentElement.dir === 'rtl';
+  const roleTheme = getRoleTheme(user);
+
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div
+      className="flex flex-col h-full overflow-hidden"
+      style={{ backgroundColor: roleTheme.sidebarBg, color: roleTheme.sidebarText }}
+    >
       {!sidebarOpen && (
-        <div className="h-16 flex items-center justify-center border-b border-gray-50">
-          <LayoutDashboard size={24} className="text-primary-600" />
+        <div className="h-16 flex items-center justify-center border-b border-white/10">
+          <LayoutDashboard size={24} style={{ color: roleTheme.accent }} />
         </div>
       )}
 
       {sidebarOpen && (
-        <div className="h-16 hidden lg:flex items-center px-6 border-b border-gray-50">
-          <span className="text-xl font-black text-gray-900 uppercase tracking-tighter">
-            Go<span className="text-primary-600">Knary</span>
+        <div className="h-16 hidden lg:flex items-center px-6 border-b border-white/10">
+          <span
+            className="text-xl font-black uppercase tracking-tighter"
+            style={{ color: roleTheme.sidebarText }}
+          >
+            Go<span style={{ color: roleTheme.accent }}>Knary</span>
           </span>
-          <span className="ms-2 text-[9px] font-bold bg-primary-100 text-primary-700 rounded-full px-2 py-0.5 uppercase tracking-widest">
-            Admin
+          <span
+            className="ms-2 text-[9px] font-bold rounded-full px-2 py-0.5 uppercase tracking-widest truncate max-w-[120px]"
+            style={{ backgroundColor: roleTheme.badgeBg, color: roleTheme.badgeText }}
+          >
+            {roleTheme.label}
           </span>
         </div>
       )}
@@ -109,21 +152,32 @@ const SidebarContent: React.FC<{
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto custom-scrollbar">
         {menuItems.map((item) => {
           const Icon = item.icon;
-          const isActive = location.pathname === item.path || (item.path !== '/admin' && location.pathname.startsWith(item.path));
+          const isActive =
+            location.pathname === item.path ||
+            (item.path !== '/admin' && location.pathname.startsWith(item.path));
           const badgeCount = item.countKey ? (stats as any)?.[item.countKey] : 0;
 
           return (
             <Link
               key={item.path}
               to={item.path}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all relative group ${
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all relative group"
+              style={
                 isActive
-                  ? 'bg-primary-50 text-primary-600 font-bold'
-                  : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
-              }`}
+                  ? { backgroundColor: `${roleTheme.accent}30`, color: roleTheme.sidebarText, fontWeight: 'bold' }
+                  : { color: 'rgba(255,255,255,0.7)' }
+              }
             >
-              <Icon size={20} className={isActive ? 'text-primary-600' : 'text-gray-400 group-hover:text-gray-900'} />
-              {sidebarOpen && <span className="text-sm whitespace-nowrap overflow-hidden transition-all duration-300">{item.name}</span>}
+              <Icon
+                size={20}
+                style={{ color: isActive ? roleTheme.sidebarText : 'rgba(255,255,255,0.5)' }}
+                className="group-hover:text-white transition-colors"
+              />
+              {sidebarOpen && (
+                <span className="text-sm whitespace-nowrap overflow-hidden transition-all duration-300">
+                  {item.name}
+                </span>
+              )}
 
               {badgeCount > 0 && sidebarOpen && (
                 <span className="ms-auto bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ring-2 ring-white">
@@ -134,12 +188,15 @@ const SidebarContent: React.FC<{
               {isActive && (
                 <motion.div
                   layoutId="adminActiveNav"
-                  className="absolute start-0 w-1 h-6 bg-primary-600 rounded-full"
+                  className={`absolute ${isRTL ? 'end-0' : 'start-0'} w-1 h-6 rounded-full`}
+                  style={{ backgroundColor: roleTheme.accent }}
                 />
               )}
 
               {!sidebarOpen && (
-                <div className="absolute start-full ms-2 px-2 py-1 bg-gray-900 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
+                <div
+                  className={`absolute ${isRTL ? 'end-full mr-2' : 'start-full ms-2'} px-2 py-1 bg-gray-900 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50`}
+                >
                   {item.name}
                 </div>
               )}
@@ -148,27 +205,32 @@ const SidebarContent: React.FC<{
         })}
       </nav>
 
-      <div className="p-4 mt-auto border-t border-gray-50 bg-gray-50/10">
+      <div className="p-4 mt-auto border-t border-white/10">
         <button
           onClick={onLogout}
-          className={`w-full flex items-center gap-3 px-3 py-2.5 text-red-500 hover:bg-red-50 rounded-xl transition-all group ${!sidebarOpen && 'justify-center'}`}
+          className={`w-full flex items-center gap-3 px-3 py-2.5 text-red-400 hover:bg-white/10 rounded-xl transition-all group ${!sidebarOpen && 'justify-center'}`}
         >
           <LogOut size={20} className="group-hover:-translate-x-1 transition-transform rtl:group-hover:translate-x-1" />
-          {sidebarOpen && <span className="text-sm font-medium">{t('common.logout', 'Logout')}</span>}
+          {sidebarOpen && (
+            <span className="text-sm font-medium">{t('common.logout', 'Logout')}</span>
+          )}
         </button>
       </div>
     </div>
   );
 };
 
-// ─── Dashboard Home ──────────────────────────────────────────────────────────
-
+// ─── Dashboard Home ───────────────────────────────────────────────────────────
 const AdminDashboardHome: React.FC<{
   data: DashboardData | null;
   onRefresh: () => void;
   refreshing: boolean;
 }> = ({ data, onRefresh, refreshing }) => {
   const { t } = useTranslation();
+  const { user } = useAppSelector((state) => state.auth);
+
+  const checkPerm = (perm: string) => hasPermission(user, perm);
+  const roleTheme = getRoleTheme(user);
 
   const trendData = useMemo(
     () => (data?.revenueTrends?.length ? data.revenueTrends : getMockTrends()),
@@ -181,23 +243,67 @@ const AdminDashboardHome: React.FC<{
 
   const { stats, recentOrders = [], topVendors = [], ordersByStatus = [] } = data;
 
-  const avgOrderValue = stats.totalOrders > 0 ? Math.round(stats.totalSales / stats.totalOrders) : 0;
-  const periodAvgOrders = trendData.length > 0
-    ? Math.round(trendData.reduce((sum, d) => sum + d.orders, 0) / trendData.length)
-    : 0;
+  const avgOrderValue =
+    stats.totalOrders > 0 ? Math.round(stats.totalSales / stats.totalOrders) : 0;
+  const periodAvgOrders =
+    trendData.length > 0
+      ? Math.round(trendData.reduce((sum, d) => sum + d.orders, 0) / trendData.length)
+      : 0;
+
+  // ── Check all visible permissions ──
+  const hasDashboard    = checkPerm('READ_DASHBOARD');
+  const hasOrders       = checkPerm('READ_ORDERS');
+  const hasVendors      = checkPerm('READ_VENDORS');
+  const hasUsers        = checkPerm('READ_USERS');
+  const hasProducts     = checkPerm('READ_PRODUCTS');
+  const hasManageVendors = checkPerm('MANAGE_VENDORS');
+
+  const hasAnyWidget =
+    hasDashboard || hasOrders || hasVendors || hasUsers || hasProducts || hasManageVendors;
+
+  // ── Empty state for STAFF with zero visible widgets ──
+  if (user?.role === 'STAFF' && !hasAnyWidget) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 animate-in fade-in zoom-in duration-500">
+        <div className="bg-white p-10 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center max-w-lg">
+          <div
+            className="w-20 h-20 rounded-full flex items-center justify-center mb-6"
+            style={{ backgroundColor: `${roleTheme.accent}20` }}
+          >
+            <LayoutDashboard size={40} style={{ color: roleTheme.accent }} />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome, {user?.name}</h2>
+          <p className="text-gray-500 mb-4">
+            Use the sidebar to navigate to your permitted sections.
+          </p>
+          <span
+            className="px-3 py-1 text-xs font-bold rounded-full"
+            style={{ backgroundColor: roleTheme.badgeBg, color: roleTheme.badgeText }}
+          >
+            {user?.customRole?.name || 'STAFF'}
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 pb-12">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">{t('admin.overview', 'Overview')}</h1>
-          <p className="text-gray-500 mt-1 text-sm">Real-time marketplace performance &amp; analytics</p>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+            {t('admin.overview', 'Overview')}
+          </h1>
+          <p className="text-gray-500 mt-1 text-sm">
+            Real-time marketplace performance &amp; analytics
+          </p>
         </div>
         <button
           onClick={onRefresh}
           disabled={refreshing}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-semibold rounded-xl hover:bg-primary-700 transition-all shadow-md shadow-primary-200 disabled:opacity-60"
+          className="flex items-center gap-2 px-4 py-2 text-white text-sm font-semibold rounded-xl transition-all shadow-md disabled:opacity-60"
+          style={{ backgroundColor: roleTheme.accent }}
         >
           <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />
           {t('common.refresh', 'Refresh')}
@@ -206,204 +312,316 @@ const AdminDashboardHome: React.FC<{
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 text-start">
-        <StatCard
-          title={t('admin.totalRevenue', 'Total Revenue')}
-          value={`EGP ${stats.totalSales.toLocaleString()}`}
-          icon={DollarSign}
-          trend={{ value: 14.2, isPositive: true }}
-          color="success"
-        />
-        <StatCard
-          title={t('admin.totalOrders', 'Total Orders')}
-          value={stats.totalOrders.toLocaleString()}
-          icon={ShoppingBag}
-          trend={{ value: 5.6, isPositive: true }}
-          color="primary"
-        />
-        <StatCard
-          title={t('admin.avgOrderValue', 'Avg. Order Value')}
-          value={`EGP ${avgOrderValue.toLocaleString()}`}
-          icon={TrendingUp}
-          color="info"
-        />
-        <StatCard
-          title={t('admin.pendingVendors', 'Pending Vendors')}
-          value={stats.pendingVendors}
-          icon={Briefcase}
-          trend={{ value: stats.pendingVendors, isPositive: false }}
-          color="warning"
-        />
-        <StatCard
-          title={t('admin.customers', 'Customers')}
-          value={stats.totalUsers.toLocaleString()}
-          icon={Users}
-          color="info"
-        />
-        <StatCard
-          title={t('admin.totalVendors', 'Approved Vendors')}
-          value={stats.approvedVendors || stats.totalVendors}
-          icon={Store}
-          color="primary"
-        />
-        <StatCard
-          title={t('admin.totalProducts', 'Active Products')}
-          value={(stats.activeProducts || stats.totalProducts).toLocaleString()}
-          icon={Package}
-          color="info"
-        />
-        <StatCard
-          title={t('admin.totalProducts', 'Total Products')}
-          value={stats.totalProducts.toLocaleString()}
-          icon={ShoppingCart}
-          color="primary"
-        />
+        {checkPerm('READ_DASHBOARD') && (
+          <StatCard
+            title={t('admin.totalRevenue', 'Total Revenue')}
+            value={`EGP ${stats.totalSales.toLocaleString()}`}
+            icon={DollarSign}
+            trend={{ value: 14.2, isPositive: true }}
+            color="success"
+          />
+        )}
+        {checkPerm('READ_ORDERS') && (
+          <StatCard
+            title={t('admin.totalOrders', 'Total Orders')}
+            value={stats.totalOrders.toLocaleString()}
+            icon={ShoppingBag}
+            trend={{ value: 5.6, isPositive: true }}
+            color="primary"
+          />
+        )}
+        {checkPerm('READ_DASHBOARD') && (
+          <StatCard
+            title={t('admin.avgOrderValue', 'Avg. Order Value')}
+            value={`EGP ${avgOrderValue.toLocaleString()}`}
+            icon={TrendingUp}
+            color="info"
+          />
+        )}
+        {checkPerm('MANAGE_VENDORS') && (
+          <StatCard
+            title={t('admin.pendingVendors', 'Pending Vendors')}
+            value={stats.pendingVendors}
+            icon={Briefcase}
+            trend={{ value: stats.pendingVendors, isPositive: false }}
+            color="warning"
+          />
+        )}
+        {checkPerm('READ_VENDORS') && (
+          <StatCard
+            title={t('admin.totalVendors', 'Approved Vendors')}
+            value={stats.approvedVendors || stats.totalVendors}
+            icon={Store}
+            color="primary"
+          />
+        )}
+        {checkPerm('READ_USERS') && (
+          <StatCard
+            title={t('admin.customers', 'Customers')}
+            value={stats.totalUsers.toLocaleString()}
+            icon={Users}
+            color="info"
+          />
+        )}
+        {checkPerm('READ_PRODUCTS') && (
+          <StatCard
+            title={t('admin.activeProducts', 'Active Products')}
+            value={(stats.activeProducts || stats.totalProducts).toLocaleString()}
+            icon={Package}
+            color="info"
+          />
+        )}
+        {checkPerm('READ_PRODUCTS') && (
+          <StatCard
+            title={t('admin.totalProducts', 'Total Products')}
+            value={stats.totalProducts.toLocaleString()}
+            icon={ShoppingCart}
+            color="primary"
+          />
+        )}
       </div>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        {/* Revenue Area Chart */}
-        <ChartCard
-          title={t('admin.revenueTrend', 'Revenue Trend')}
-          subtitle={t('admin.revenueTrendSubtitle', 'Last {{count}} months gross sales', { count: trendData.length })}
-        >
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={trendData}>
-              <defs>
-                <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.18} />
-                  <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} dy={10} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }}
-                tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v} />
-              <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)' }}
-                formatter={(val: any) => [`EGP ${Number(val).toLocaleString()}`, 'Revenue']} />
-              <Area type="monotone" dataKey="revenue" stroke="#0ea5e9" strokeWidth={3} fillOpacity={1} fill="url(#revGrad)" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </ChartCard>
-
-        {/* Order Volume Bar Chart */}
-        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col gap-4">
-          <div>
-            <h3 className="text-base font-bold text-gray-900">{t('admin.orderVolume', 'Order Volume')}</h3>
-            <p className="text-xs text-gray-500 mt-0.5">{t('admin.orderVolumeSubtitle', 'Monthly transaction count')}</p>
-          </div>
-          <div className="flex-1 h-[260px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={trendData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
-                <Tooltip cursor={{ fill: '#f8fafc' }}
-                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)' }} />
-                <Bar dataKey="orders" radius={[6, 6, 0, 0]}>
-                  {trendData.map((_, i) => (
-                    <Cell key={i} fill={i === trendData.length - 1 ? '#0ea5e9' : '#e2e8f0'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="pt-3 border-t border-gray-50 flex items-center justify-between text-sm">
-            <span className="text-gray-500 font-medium">{t('admin.monthlyAvg', 'Monthly Avg.')}</span>
-            <span className="text-gray-900 font-bold">{t('admin.ordersCount', '{{count}} orders', { count: periodAvgOrders })}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom Row: Top Vendors + Status Breakdown + Recent Orders */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Top Vendors */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="text-base font-bold text-gray-900">{t('admin.topVendors', 'Top Vendors')}</h3>
-            <Link to="/admin/vendors" className="text-xs text-primary-600 hover:underline font-semibold flex items-center gap-1">
-              {t('common.viewAll', 'View all')} <ArrowUpRight size={12} className="rtl:rotate-270" />
-            </Link>
-          </div>
-          <div className="space-y-3">
-            {topVendors.length === 0 ? (
-              <p className="text-gray-400 text-sm text-center py-4">{t('admin.noVendorData', 'No vendor data yet')}</p>
-            ) : (
-              topVendors.map((vendor, i) => (
-                <div key={vendor.id} className="flex items-center gap-3">
-                  <div className="w-7 h-7 rounded-full bg-primary-50 text-primary-700 text-xs font-black flex items-center justify-center flex-shrink-0">
-                    {i + 1}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 truncate">{vendor.storeName}</p>
-                    <p className="text-xs text-gray-400">{vendor.orders} orders</p>
-                  </div>
-                  <span className="text-sm font-bold text-green-600 whitespace-nowrap">
-                    EGP {vendor.revenue.toLocaleString()}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Order Status Breakdown */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-          <h3 className="text-base font-bold text-gray-900 mb-4">{t('admin.orderStatus', 'Order Status')}</h3>
-          {ordersByStatus.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-8">{t('admin.noOrders', 'No orders yet')}</p>
-          ) : (
-            <div className="h-[220px]">
+      {(checkPerm('READ_DASHBOARD') || checkPerm('READ_ORDERS')) && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+          {checkPerm('READ_DASHBOARD') && (
+            <ChartCard
+              title={t('admin.revenueTrend', 'Revenue Trend')}
+              subtitle={t('admin.revenueTrendSubtitle', 'Last {{count}} months gross sales', {
+                count: trendData.length,
+              })}
+            >
               <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={ordersByStatus} dataKey="count" nameKey="status" cx="50%" cy="50%" outerRadius={80} paddingAngle={3}>
-                    {ordersByStatus.map((_, i) => (
-                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(v: any, name: any) => [v, name]} />
-                  <Legend formatter={(v) => v} iconType="circle" iconSize={8} />
-                </PieChart>
+                <AreaChart data={trendData}>
+                  <defs>
+                    <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={roleTheme.accent} stopOpacity={0.18} />
+                      <stop offset="95%" stopColor={roleTheme.accent} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis
+                    dataKey="name"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#94a3b8', fontSize: 12 }}
+                    dy={10}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#94a3b8', fontSize: 12 }}
+                    tickFormatter={(v) => (v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v)}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: '16px',
+                      border: 'none',
+                      boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)',
+                    }}
+                    formatter={(val: any) => [`EGP ${Number(val).toLocaleString()}`, 'Revenue']}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="revenue"
+                    stroke={roleTheme.accent}
+                    strokeWidth={3}
+                    fillOpacity={1}
+                    fill="url(#revGrad)"
+                  />
+                </AreaChart>
               </ResponsiveContainer>
+            </ChartCard>
+          )}
+
+          {checkPerm('READ_ORDERS') && (
+            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col gap-4">
+              <div>
+                <h3 className="text-base font-bold text-gray-900">
+                  {t('admin.orderVolume', 'Order Volume')}
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {t('admin.orderVolumeSubtitle', 'Monthly transaction count')}
+                </p>
+              </div>
+              <div className="flex-1 h-[260px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={trendData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis
+                      dataKey="name"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#94a3b8', fontSize: 12 }}
+                    />
+                    <Tooltip
+                      cursor={{ fill: '#f8fafc' }}
+                      contentStyle={{
+                        borderRadius: '16px',
+                        border: 'none',
+                        boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)',
+                      }}
+                    />
+                    <Bar dataKey="orders" radius={[6, 6, 0, 0]}>
+                      {trendData.map((_, i) => (
+                        <Cell
+                          key={i}
+                          fill={i === trendData.length - 1 ? roleTheme.accent : '#e2e8f0'}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="pt-3 border-t border-gray-50 flex items-center justify-between text-sm">
+                <span className="text-gray-500 font-medium">
+                  {t('admin.monthlyAvg', 'Monthly Avg.')}
+                </span>
+                <span className="text-gray-900 font-bold">
+                  {t('admin.ordersCount', '{{count}} orders', { count: periodAvgOrders })}
+                </span>
+              </div>
             </div>
           )}
         </div>
+      )}
 
-        {/* Recent Orders Feed */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="text-base font-bold text-gray-900">{t('admin.recentOrders', 'Recent Orders')}</h3>
-            <Link to="/admin/orders" className="text-xs text-primary-600 hover:underline font-semibold flex items-center gap-1">
-              {t('common.viewAll', 'View all')} <ArrowUpRight size={12} className="rtl:rotate-270" />
-            </Link>
+      {/* Bottom Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {checkPerm('READ_VENDORS') && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-base font-bold text-gray-900">
+                {t('admin.topVendors', 'Top Vendors')}
+              </h3>
+              <Link
+                to="/admin/vendors"
+                className="text-xs hover:underline font-semibold flex items-center gap-1"
+                style={{ color: roleTheme.accent }}
+              >
+                {t('common.viewAll', 'View all')} <ArrowUpRight size={12} />
+              </Link>
+            </div>
+            <div className="space-y-3">
+              {topVendors.length === 0 ? (
+                <p className="text-gray-400 text-sm text-center py-4">
+                  {t('admin.noVendorData', 'No vendor data yet')}
+                </p>
+              ) : (
+                topVendors.map((vendor, i) => (
+                  <div key={vendor.id} className="flex items-center gap-3">
+                    <div
+                      className="w-7 h-7 rounded-full text-xs font-black flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: `${roleTheme.accent}20`, color: roleTheme.accent }}
+                    >
+                      {i + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">
+                        {vendor.storeName}
+                      </p>
+                      <p className="text-xs text-gray-400">{vendor.orders} orders</p>
+                    </div>
+                    <span className="text-sm font-bold text-green-600 whitespace-nowrap">
+                      EGP {vendor.revenue.toLocaleString()}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
-          <div className="space-y-3">
-            {recentOrders.length === 0 ? (
-              <p className="text-gray-400 text-sm text-center py-4">{t('admin.noOrders', 'No orders yet')}</p>
+        )}
+
+        {checkPerm('READ_ORDERS') && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+            <h3 className="text-base font-bold text-gray-900 mb-4">
+              {t('admin.orderStatus', 'Order Status')}
+            </h3>
+            {ordersByStatus.length === 0 ? (
+              <p className="text-gray-400 text-sm text-center py-8">
+                {t('admin.noOrders', 'No orders yet')}
+              </p>
             ) : (
-              recentOrders.slice(0, 6).map((order: any) => (
-                <div key={order.id} className="flex items-start gap-3 pb-3 border-b border-gray-50 last:border-0 last:pb-0">
-                  <div className="w-8 h-8 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center flex-shrink-0">
-                    <ShoppingBag size={14} className="text-gray-400" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-gray-800 truncate">{order.user?.name || 'Guest'}</p>
-                    <p className="text-[10px] text-gray-400">{order.vendor?.storeName || '—'}</p>
-                  </div>
-                  <div className="text-end flex-shrink-0">
-                    <p className="text-xs font-bold text-gray-900">{t('common.currency', 'EGP')} {order.total?.toLocaleString()}</p>
-                    <StatusBadge status={order.status} />
-                  </div>
-                </div>
-              ))
+              <div className="h-[220px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={ordersByStatus}
+                      dataKey="count"
+                      nameKey="status"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      paddingAngle={3}
+                    >
+                      {ordersByStatus.map((_, i) => (
+                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(v: any, name: any) => [v, name]} />
+                    <Legend formatter={(v) => v} iconType="circle" iconSize={8} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             )}
           </div>
-        </div>
+        )}
+
+        {checkPerm('READ_ORDERS') && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-base font-bold text-gray-900">
+                {t('admin.recentOrders', 'Recent Orders')}
+              </h3>
+              <Link
+                to="/admin/orders"
+                className="text-xs hover:underline font-semibold flex items-center gap-1"
+                style={{ color: roleTheme.accent }}
+              >
+                {t('common.viewAll', 'View all')} <ArrowUpRight size={12} />
+              </Link>
+            </div>
+            <div className="space-y-3">
+              {recentOrders.length === 0 ? (
+                <p className="text-gray-400 text-sm text-center py-4">
+                  {t('admin.noOrders', 'No orders yet')}
+                </p>
+              ) : (
+                recentOrders.slice(0, 6).map((order: any) => (
+                  <div
+                    key={order.id}
+                    className="flex items-start gap-3 pb-3 border-b border-gray-50 last:border-0 last:pb-0"
+                  >
+                    <div className="w-8 h-8 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center flex-shrink-0">
+                      <ShoppingBag size={14} className="text-gray-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-gray-800 truncate">
+                        {order.user?.name || 'Guest'}
+                      </p>
+                      <p className="text-[10px] text-gray-400">{order.vendor?.storeName || '—'}</p>
+                    </div>
+                    <div className="text-end flex-shrink-0">
+                      <p className="text-xs font-bold text-gray-900">
+                        {t('common.currency', 'EGP')} {order.total?.toLocaleString()}
+                      </p>
+                      <StatusBadge status={order.status} />
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Empty State */}
       {stats.totalSales === 0 && (
         <EmptyState
           title={t('admin.awaitingActivity', 'Marketplace Awaiting Activity')}
-          message={t('admin.awaitingActivityDesc', 'Once vendors register products and customers place orders, your performance metrics will appear here.')}
+          message={t(
+            'admin.awaitingActivityDesc',
+            'Once vendors register products and customers place orders, your performance metrics will appear here.'
+          )}
         />
       )}
     </div>
@@ -411,7 +629,6 @@ const AdminDashboardHome: React.FC<{
 };
 
 // ─── Root AdminDashboard ──────────────────────────────────────────────────────
-
 const AdminDashboard: React.FC = () => {
   const { t, i18n } = useTranslation();
   const isRTL = i18n.language === 'ar';
@@ -426,14 +643,16 @@ const AdminDashboard: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  // Auth guard
+  // ── Compute roleTheme ONCE here — single source of truth ──
+  const roleTheme = getRoleTheme(user);
+
   useEffect(() => {
     if (!isInitialized) return;
     if (!isAuthenticated) {
       navigate('/login', { state: { from: { pathname: '/admin' } } });
       return;
     }
-    if (user?.role !== 'ADMIN') {
+    if (user?.role !== 'ADMIN' && user?.role !== 'STAFF') {
       navigate('/');
       return;
     }
@@ -445,7 +664,6 @@ const AdminDashboard: React.FC = () => {
     else setRefreshing(true);
     try {
       const response = await api.get('/admin/dashboard');
-      // API returns { stats: {...}, revenueTrends, ordersByStatus, topVendors, recentOrders }
       setDashData({
         stats: response.data.stats,
         revenueTrends: response.data.revenueTrends || [],
@@ -465,19 +683,28 @@ const AdminDashboard: React.FC = () => {
   const handleRefresh = () => fetchStats(true);
 
   const menuItems = [
-    { path: '/admin', name: t('admin.overview', 'Overview'), icon: LayoutDashboard },
-    { path: '/admin/users', name: t('admin.users', 'Users'), icon: Users },
-    { path: '/admin/vendors', name: t('admin.vendors', 'Vendors'), icon: Briefcase, countKey: 'pendingVendors' },
-    { path: '/admin/categories', name: t('admin.categories', 'Categories'), icon: Tag },
-    { path: '/admin/brands', name: t('admin.brands', 'Brands'), icon: ShoppingBag },
-    { path: '/admin/banners', name: t('admin.banners', 'Banners'), icon: ImageIcon },
-    { path: '/admin/orders', name: t('admin.orders', 'Orders'), icon: Package },
-    { path: '/admin/reviews', name: t('admin.reviews', 'Reviews'), icon: MessageSquare },
-    { path: '/admin/coupons', name: t('admin.coupons', 'Coupons'), icon: Percent },
-    { path: '/admin/shipping', name: t('admin.shipping', 'Shipping Rates'), icon: Truck },
-    { path: '/admin/announcements', name: t('admin.broadcast', 'Site Broadcast'), icon: Megaphone },
-    { path: '/admin/settings', name: t('admin.settings', 'Settings'), icon: Settings },
+    { path: '/admin',               name: t('admin.overview',   'Overview'),       icon: LayoutDashboard, permission: 'READ_DASHBOARD'    },
+    { path: '/admin/users',         name: t('admin.users',      'Users'),           icon: Users,           permission: 'READ_USERS'         },
+    { path: '/admin/vendors',       name: t('admin.vendors',    'Vendors'),         icon: Briefcase,       permission: 'READ_VENDORS',  countKey: 'pendingVendors' },
+    { path: '/admin/products',      name: t('admin.products',   'Products'),        icon: Package,         permission: 'READ_PRODUCTS'      },
+    { path: '/admin/categories',    name: t('admin.categories', 'Categories'),      icon: Tag,             permission: 'READ_CATEGORIES'    },
+    { path: '/admin/brands',        name: t('admin.brands',     'Brands'),          icon: ShoppingBag,     permission: 'READ_BRANDS'        },
+    { path: '/admin/banners',       name: t('admin.banners',    'Banners'),         icon: ImageIcon,       permission: 'READ_BANNERS'       },
+    { path: '/admin/orders',        name: t('admin.orders',     'Orders'),          icon: Package,         permission: 'READ_ORDERS'        },
+    { path: '/admin/reviews',       name: t('admin.reviews',    'Reviews'),         icon: MessageSquare,   permission: 'READ_REVIEWS'       },
+    { path: '/admin/coupons',       name: t('admin.coupons',    'Coupons'),         icon: Percent,         permission: 'READ_COUPONS'       },
+    { path: '/admin/shipping',      name: t('admin.shipping',   'Shipping Rates'),  icon: Truck,           permission: 'READ_SHIPPING'      },
+    { path: '/admin/announcements', name: t('admin.broadcast',  'Site Broadcast'),  icon: Megaphone,       permission: 'READ_ANNOUNCEMENTS' },
+    { path: '/admin/settings',      name: t('admin.settings',   'Settings'),        icon: Settings,        permission: 'MANAGE_ROLES'       },
+    { path: '/admin/roles',         name: t('admin.roles',      'Roles & Access'),  icon: Shield,          permission: 'MANAGE_ROLES'       },
   ];
+
+  const visibleMenuItems = menuItems.filter((item) => hasPermission(user, item.permission));
+
+  const Guard = ({ perm, children }: { perm: string; children: JSX.Element }) => {
+    if (!hasPermission(user, perm)) return <Forbidden403 user={user} />;
+    return children;
+  };
 
   const handleLogout = async () => {
     try {
@@ -493,29 +720,34 @@ const AdminDashboard: React.FC = () => {
     return (
       <div className="min-h-screen bg-gray-50 flex">
         <div className="w-64 bg-white border-r border-gray-100 animate-pulse" />
-        <div className="flex-1 p-8"><DashboardSkeleton /></div>
+        <div className="flex-1 p-8">
+          <DashboardSkeleton />
+        </div>
       </div>
     );
   }
 
-  if (!isAuthenticated || user?.role !== 'ADMIN') {
+  if (!isAuthenticated || (user?.role !== 'ADMIN' && user?.role !== 'STAFF')) {
     return <Navigate to="/login" replace />;
   }
 
   const sidebarW = sidebarOpen ? 'lg:w-64' : 'lg:w-16';
   const sidebarProps = {
-    menuItems,
+    menuItems: visibleMenuItems,
     location,
     sidebarOpen,
     stats: dashData?.stats ?? null,
     onLogout: handleLogout,
     t,
+    user,
   };
 
   return (
     <div className={`min-h-screen bg-gray-50 flex font-sans antialiased ${isRTL ? 'rtl' : 'ltr'}`}>
       {/* Sidebar – Desktop */}
-      <aside className={`hidden lg:flex flex-col bg-white border-e border-gray-100 shadow-sm flex-shrink-0 transition-all duration-300 ${sidebarW} overflow-hidden`}>
+      <aside
+        className={`hidden lg:flex flex-col border-e border-gray-100 shadow-sm flex-shrink-0 transition-all duration-300 ${sidebarW} overflow-hidden`}
+      >
         <SidebarContent {...sidebarProps} />
       </aside>
 
@@ -524,7 +756,9 @@ const AdminDashboard: React.FC = () => {
         {drawerOpen && (
           <>
             <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               className="fixed inset-0 bg-black/30 z-40 lg:hidden"
               onClick={() => setDrawerOpen(false)}
             />
@@ -533,14 +767,20 @@ const AdminDashboard: React.FC = () => {
               animate={{ x: 0 }}
               exit={{ x: isRTL ? '100%' : '-100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 250 }}
-              className="fixed top-0 start-0 h-full w-72 bg-white shadow-2xl z-50 lg:hidden"
+              className="fixed top-0 start-0 h-full w-72 shadow-2xl z-50 lg:hidden"
+              style={{ backgroundColor: roleTheme.sidebarBg }}
             >
-              <div className="flex items-center justify-between px-5 h-16 border-b border-gray-100">
-                <span className="text-lg font-black text-gray-900 tracking-tighter">
-                  Go<span className="text-primary-600">Knary</span>
+              <div
+                className="flex items-center justify-between px-5 h-16 border-b border-white/10"
+              >
+                <span className="text-lg font-black tracking-tighter" style={{ color: roleTheme.sidebarText }}>
+                  Go<span style={{ color: roleTheme.accent }}>Knary</span>
                 </span>
-                <button onClick={() => setDrawerOpen(false)} className="p-2 rounded-lg hover:bg-gray-100">
-                  <X size={18} className="text-gray-500" />
+                <button
+                  onClick={() => setDrawerOpen(false)}
+                  className="p-2 rounded-lg hover:bg-white/10"
+                >
+                  <X size={18} style={{ color: roleTheme.sidebarText }} />
                 </button>
               </div>
               <SidebarContent {...sidebarProps} />
@@ -551,6 +791,11 @@ const AdminDashboard: React.FC = () => {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/*
+          ── KEY FIX ──
+          Pass roleTheme as a resolved object (not the function itself).
+          Also pass role as roleTheme.label (dynamic) not hardcoded "Admin".
+        */}
         <DashboardTopNav
           sidebarOpen={sidebarOpen}
           toggleSidebar={() => {
@@ -559,7 +804,8 @@ const AdminDashboard: React.FC = () => {
           }}
           onLogout={handleLogout}
           userName={user?.name || 'Admin'}
-          role="Admin"
+          role={roleTheme.label}
+          roleTheme={roleTheme}
         />
 
         <main className="flex-1 overflow-y-auto p-6 lg:p-8">
@@ -574,20 +820,22 @@ const AdminDashboard: React.FC = () => {
                 />
               }
             />
-            <Route path="users" element={<AdminUsersPage />} />
-            <Route path="vendors" element={<AdminVendorsPage />} />
-            <Route path="vendors/:vendorId/products" element={<AdminVendorProductsPage />} />
-            <Route path="categories" element={<AdminCategoriesPage />} />
-            <Route path="brands" element={<AdminBrandsPage />} />
-            <Route path="banners" element={<AdminBannersPage />} />
-            <Route path="orders" element={<AdminOrdersPage />} />
-            <Route path="orders/:id" element={<AdminOrderDetailPage />} />
-            <Route path="reviews" element={<AdminReviewsPage />} />
-            <Route path="coupons" element={<AdminCouponsPage />} />
-            <Route path="shipping" element={<AdminShippingPage />} />
-            <Route path="announcements" element={<AdminAnnouncementPage />} />
-            <Route path="settings" element={<AdminSettingsPage />} />
-            <Route path="*" element={<Navigate to="/admin" replace />} />
+            <Route path="users" element={<Guard perm="READ_USERS"><AdminUsersPage /></Guard>} />
+            <Route path="vendors" element={<Guard perm="READ_VENDORS"><AdminVendorsPage /></Guard>} />
+            <Route path="vendors/:vendorId/products" element={<Guard perm="READ_VENDORS"><AdminVendorProductsPage /></Guard>} />
+            <Route path="products" element={<Guard perm="READ_PRODUCTS"><AdminProductsPage /></Guard>} />
+            <Route path="categories" element={<Guard perm="READ_CATEGORIES"><AdminCategoriesPage /></Guard>} />
+            <Route path="brands" element={<Guard perm="READ_BRANDS"><AdminBrandsPage /></Guard>} />
+            <Route path="banners" element={<Guard perm="READ_BANNERS"><AdminBannersPage /></Guard>} />
+            <Route path="orders" element={<Guard perm="READ_ORDERS"><AdminOrdersPage /></Guard>} />
+            <Route path="orders/:id" element={<Guard perm="READ_ORDERS"><AdminOrderDetailPage /></Guard>} />
+            <Route path="reviews" element={<Guard perm="READ_REVIEWS"><AdminReviewsPage /></Guard>} />
+            <Route path="coupons" element={<Guard perm="READ_COUPONS"><AdminCouponsPage /></Guard>} />
+            <Route path="shipping" element={<Guard perm="READ_SHIPPING"><AdminShippingPage /></Guard>} />
+            <Route path="announcements" element={<Guard perm="READ_ANNOUNCEMENTS"><AdminAnnouncementPage /></Guard>} />
+            <Route path="roles" element={<Guard perm="MANAGE_ROLES"><AdminRolesPage /></Guard>} />
+            <Route path="settings" element={<Guard perm="MANAGE_ROLES"><AdminSettingsPage /></Guard>} />
+            <Route path="*"                        element={<Navigate to="/admin" replace />} />
           </Routes>
         </main>
       </div>

@@ -27,13 +27,17 @@ model User {
   passwordResetToken   String?   @map("password_reset_token") @db.VarChar(255)
   passwordResetExpires DateTime? @map("password_reset_expires") @db.DateTime(0)
 
+  customRoleId  String?     @map("custom_role_id")
+
   vendor        Vendor?
   reviews       Review[]
   orders        Order[]
   addresses     Address[]
   notifications Notification[]
   wishlistItems WishlistItem[]
+  customRole    CustomRole? @relation(fields: [customRoleId], references: [id])
 
+  @@index([customRoleId])
   @@map("users")
 }
 
@@ -432,7 +436,21 @@ model Announcement {
 enum UserRole {
   CUSTOMER
   VENDOR
+  STAFF
   ADMIN
+}
+
+model CustomRole {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?  @db.Text
+  permissions String   @db.Text // JSON array: ["CREATE_USERS","READ_ORDERS",...]
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  users User[]
+
+  @@map("custom_roles")
 }
 
 enum VendorStatus {
