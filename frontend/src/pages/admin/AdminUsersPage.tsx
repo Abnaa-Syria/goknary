@@ -27,8 +27,10 @@ import {
   UserPlus
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import api from '../../lib/api';
 import { EmptyState } from './DashboardComponents';
+import { mapEnum, vendorStatusMap, roleMap } from '../../utils/localization';
 
 // --- Types ---
 
@@ -61,7 +63,7 @@ const StatusBadge: React.FC<{ status?: VendorStatus; role: UserRole }> = ({ stat
     return (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-gray-500">
         <UserCheck size={12} />
-        Active
+        {mapEnum(vendorStatusMap, 'APPROVED')}
       </span>
     );
   }
@@ -83,7 +85,7 @@ const StatusBadge: React.FC<{ status?: VendorStatus; role: UserRole }> = ({ stat
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${styles[status]}`}>
       {icons[status]}
-      {status}
+      {mapEnum(vendorStatusMap, status)}
     </span>
   );
 };
@@ -112,7 +114,7 @@ const RoleBadge: React.FC<{ role: UserRole; customRoleName?: string }> = ({ role
 
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tighter border ${styles[role]}`}>
-      {role}
+      {mapEnum(roleMap, role)}
     </span>
   );
 };
@@ -120,6 +122,7 @@ const RoleBadge: React.FC<{ role: UserRole; customRoleName?: string }> = ({ role
 // --- Page Component ---
 
 const AdminUsersPage: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -172,13 +175,13 @@ const AdminUsersPage: React.FC = () => {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
         <div className="flex-1 relative group">
           <label className="sr-only">Search users</label>
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-500 transition-colors" size={18} />
+          <Search className="absolute start- top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-500 transition-colors" size={18} />
           <input 
             type="text" 
-            placeholder="Search by identity or email..." 
+            placeholder={t('admin.usersPage.search', 'Search by identity or email...')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all"
+            className="w-full ps- pe- py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all"
           />
         </div>
 
@@ -190,11 +193,11 @@ const AdminUsersPage: React.FC = () => {
               onChange={(e) => setRoleFilter(e.target.value as any)}
               className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
-              <option value="all">All Roles</option>
-              <option value="ADMIN">Admins Only</option>
-              <option value="STAFF">Staff Only</option>
-              <option value="VENDOR">Vendors Only</option>
-              <option value="CUSTOMER">Customers Only</option>
+              <option value="all">{t('admin.usersPage.allRoles', 'All Roles')}</option>
+              <option value="ADMIN">{t('admin.usersPage.adminsOnly', 'Admins Only')}</option>
+              <option value="STAFF">{t('admin.usersPage.staffOnly', 'Staff Only')}</option>
+              <option value="VENDOR">{t('admin.usersPage.vendorsOnly', 'Vendors Only')}</option>
+              <option value="CUSTOMER">{t('admin.usersPage.customersOnly', 'Customers Only')}</option>
             </select>
           </div>
 
@@ -203,11 +206,11 @@ const AdminUsersPage: React.FC = () => {
             onChange={(e) => setStatusFilter(e.target.value as any)}
             className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
-            <option value="all">All Statuses</option>
-            <option value="PENDING">Pending Approval</option>
-            <option value="APPROVED">Approved</option>
-            <option value="SUSPENDED">Suspended</option>
-            <option value="REJECTED">Rejected</option>
+            <option value="all">{t('admin.usersPage.allStatuses', 'All Statuses')}</option>
+            <option value="PENDING">{t('common.pending', 'Pending Approval')}</option>
+            <option value="APPROVED">{t('common.approved', 'Approved')}</option>
+            <option value="SUSPENDED">{t('common.suspended', 'Suspended')}</option>
+            <option value="REJECTED">{t('common.rejected', 'Rejected')}</option>
           </select>
 
           <button 
@@ -223,7 +226,7 @@ const AdminUsersPage: React.FC = () => {
             className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white font-bold text-sm rounded-xl hover:bg-primary-700 transition-all shadow-md shadow-primary-200"
           >
             <UserPlus size={16} />
-            Create User
+            {t('admin.usersPage.createUser', 'Create User')}
           </button>
         </div>
       </div>
@@ -231,14 +234,14 @@ const AdminUsersPage: React.FC = () => {
       {/* Modern Data Table */}
       <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-start border-collapse">
             <thead>
               <tr className="bg-gray-50/50 border-b border-gray-100">
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">User Identity</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Role</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Status</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Joined On</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-right">Settings</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">{t('admin.usersPage.userIdentity', 'User Identity')}</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">{t('common.role', 'Role')}</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">{t('common.status', 'Status')}</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">{t('admin.usersPage.joinedOn', 'Joined On')}</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-end">{t('common.settings', 'Settings')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -283,9 +286,9 @@ const AdminUsersPage: React.FC = () => {
                         <StatusBadge status={user.vendor?.status} role={user.role} />
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-medium">
-                        {new Date(user.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                        {new Date(user.createdAt).toLocaleDateString(i18n.language === 'ar' ? 'ar-EG' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                      <td className="px-6 py-4 whitespace-nowrap text-end">
                         <div className="flex justify-end">
                           <ActionMenu 
                             onEdit={() => { setSelectedUser(user); setIsEditModalOpen(true); }}
@@ -542,11 +545,11 @@ const CreateUserModal: React.FC<{ isOpen: boolean; onClose: () => void; onSucces
               <div className="group">
                 <label className="block text-xs font-bold text-gray-400 mb-1.5 uppercase tracking-widest ms-1 group-focus-within:text-primary-600 transition-colors">Full Name *</label>
                 <div className="relative">
-                  <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-600 transition-colors" size={18} />
+                  <UserIcon className="absolute start- top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-600 transition-colors" size={18} />
                   <input 
                     type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})}
                     placeholder="John Smith"
-                    className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
+                    className="w-full ps- pe- py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
                     required
                   />
                 </div>
@@ -556,11 +559,11 @@ const CreateUserModal: React.FC<{ isOpen: boolean; onClose: () => void; onSucces
               <div className="group">
                 <label className="block text-xs font-bold text-gray-400 mb-1.5 uppercase tracking-widest ms-1 group-focus-within:text-primary-600 transition-colors">Email Address *</label>
                 <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-600 transition-colors" size={18} />
+                  <Mail className="absolute start- top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-600 transition-colors" size={18} />
                   <input 
                     type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})}
                     placeholder="user@goknary.com"
-                    className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all font-medium"
+                    className="w-full ps- pe- py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all font-medium"
                     required
                   />
                 </div>
@@ -570,12 +573,12 @@ const CreateUserModal: React.FC<{ isOpen: boolean; onClose: () => void; onSucces
               <div className="group">
                 <label className="block text-xs font-bold text-gray-400 mb-1.5 uppercase tracking-widest ms-1 group-focus-within:text-primary-600 transition-colors">Initial Password *</label>
                 <div className="relative">
-                  <LockIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-600 transition-colors" size={18} />
+                  <LockIcon className="absolute start- top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-600 transition-colors" size={18} />
                   <input 
                     type="password" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})}
                     placeholder="••••••••"
                     minLength={8}
-                    className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all font-mono"
+                    className="w-full ps- pe- py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all font-mono"
                     required
                   />
                 </div>
@@ -752,10 +755,10 @@ const EditUserModal: React.FC<{ isOpen: boolean; onClose: () => void; user: User
                 <div className="group">
                   <label className="block text-xs font-bold text-gray-400 mb-1.5 uppercase tracking-widest ms-1 group-focus-within:text-primary-600 transition-colors">Identification Name</label>
                   <div className="relative">
-                    <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-600 transition-colors" size={18} />
+                    <UserIcon className="absolute start- top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-600 transition-colors" size={18} />
                     <input 
                       type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})}
-                      className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
+                      className="w-full ps- pe- py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
                     />
                   </div>
                 </div>
@@ -763,10 +766,10 @@ const EditUserModal: React.FC<{ isOpen: boolean; onClose: () => void; user: User
                 <div className="group">
                   <label className="block text-xs font-bold text-gray-400 mb-1.5 uppercase tracking-widest ms-1 group-focus-within:text-primary-600 transition-colors">Primary Email</label>
                   <div className="relative">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-600 transition-colors" size={18} />
+                    <Mail className="absolute start- top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-600 transition-colors" size={18} />
                     <input 
                       type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})}
-                      className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all font-medium"
+                      className="w-full ps- pe- py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all font-medium"
                     />
                   </div>
                 </div>
@@ -902,10 +905,10 @@ const ResetPasswordModal: React.FC<{ isOpen: boolean; onClose: () => void; user:
               <div className="group">
                 <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-[0.1em] ms-1">New System Credentials</label>
                 <div className="relative">
-                  <LockIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-red-600 transition-colors" size={18} />
+                  <LockIcon className="absolute start- top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-red-600 transition-colors" size={18} />
                   <input 
                     type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required placeholder="••••••••"
-                    className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white transition-all font-mono"
+                    className="w-full ps- pe- py-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white transition-all font-mono"
                   />
                 </div>
               </div>

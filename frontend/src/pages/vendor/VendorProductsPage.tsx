@@ -18,6 +18,8 @@ import { formatPrice } from '../../lib/utils';
 import { EmptyState } from '../admin/DashboardComponents';
 import { motion } from 'framer-motion';
 import { getImageUrl } from '../../utils/image';
+import { useTranslation } from 'react-i18next';
+import { mapEnum, productStatusMap } from '../../utils/localization';  
 interface Product {
   id: string;
   name: string;
@@ -33,6 +35,7 @@ interface Product {
 }
 
 const VendorProductsPage: React.FC = () => {
+  const { t } = useTranslation();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -99,15 +102,15 @@ const VendorProductsPage: React.FC = () => {
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Product Catalog</h1>
-          <p className="text-gray-500 mt-1 text-sm">Manage your inventory, pricing, and visibility.</p>
+          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">{t('vendor.productsPage.title', 'Product Catalog')}</h1>
+          <p className="text-gray-500 mt-1 text-sm">{t('vendor.productsPage.subtitle', 'Manage your inventory, pricing, and visibility.')}</p>
         </div>
         <Link 
           to="/vendor/products/new" 
           className="flex items-center justify-center gap-2 px-6 py-2.5 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 transition-all shadow-lg shadow-purple-100"
         >
           <Plus size={20} />
-          <span>Add New Product</span>
+          <span>{t('vendor.productsPage.addNewProduct', 'Add New Product')}</span>
         </Link>
       </div>
 
@@ -118,29 +121,29 @@ const VendorProductsPage: React.FC = () => {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-transparent text-sm font-medium focus:outline-none pr-4"
+            className="bg-transparent text-sm font-medium focus:outline-none pe-8"
           >
-            <option value="all">All Statuses</option>
-            <option value="DRAFT">Draft</option>
-            <option value="ACTIVE">Active</option>
-            <option value="INACTIVE">Inactive</option>
+            <option value="all">{t('vendor.productsPage.allStatuses', 'All Statuses')}</option>
+            <option value="DRAFT">{t('common.draft', 'Draft')}</option>
+            <option value="ACTIVE">{t('common.active', 'Active')}</option>
+            <option value="INACTIVE">{t('common.inactive', 'Inactive')}</option>
           </select>
         </div>
         
         <div className="relative flex-1 max-w-xs hidden sm:block">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+          <Search className="absolute start-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
           <input 
             type="text" 
-            placeholder="Search my products..." 
-            className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+            placeholder={t('vendor.productsPage.searchPlaceholder', 'Search my products...')}
+            className="w-full ps-10 pe-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
           />
         </div>
       </div>
 
       {products.length === 0 ? (
         <EmptyState 
-          title="No Products Found" 
-          message="Your catalog is currently empty. Start adding products to showcase them to customers." 
+          title={t('vendor.productsPage.noProductsFound', 'No Products Found')} 
+          message={t('vendor.productsPage.emptyCatalog', 'Your catalog is currently empty. Start adding products to showcase them to customers.')} 
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -177,7 +180,7 @@ const VendorProductsPage: React.FC = () => {
                   />
                   
                   {/* Status Badge */}
-                  <div className="absolute top-4 left-4 flex gap-2">
+                  <div className="absolute top-4 start- flex gap-2">
                     <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur-md ${
                       product.status === 'ACTIVE'
                         ? 'bg-green-500/90 text-white'
@@ -185,12 +188,12 @@ const VendorProductsPage: React.FC = () => {
                         ? 'bg-yellow-500/90 text-white'
                         : 'bg-gray-500/90 text-white'
                     }`}>
-                      {product.status}
+                      {mapEnum(productStatusMap, product.status)}
                     </span>
                     
                     {hasDiscount && (
                       <span className="bg-red-500/90 text-white px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur-md">
-                        {discountPercentage}% OFF
+                        {t('common.discountPercent', { percent: discountPercentage })}
                       </span>
                     )}
                   </div>
@@ -224,7 +227,7 @@ const VendorProductsPage: React.FC = () => {
 
                   <div className="flex items-end justify-between mt-4">
                     <div className="space-y-1">
-                      <p className="text-xs text-gray-400 font-bold uppercase tracking-tighter">Current Price</p>
+                      <p className="text-xs text-gray-400 font-bold uppercase tracking-tighter">{t('vendor.productsPage.currentPrice', 'Current Price')}</p>
                       <div className="flex items-center gap-2">
                         <span className="text-xl font-black text-gray-900">
                           {formatPrice(hasDiscount ? product.discountPrice! : product.price)}
@@ -237,11 +240,11 @@ const VendorProductsPage: React.FC = () => {
                       </div>
                     </div>
                     
-                    <div className="text-right">
-                      <p className="text-xs text-gray-400 font-bold uppercase tracking-tighter">Availability</p>
+                    <div className="text-end">
+                      <p className="text-xs text-gray-400 font-bold uppercase tracking-tighter">{t('vendor.productsPage.availability', 'Availability')}</p>
                       <div className={`flex items-center gap-1.5 mt-1 font-bold text-sm ${product.stock > 0 ? 'text-green-600' : 'text-red-500'}`}>
                         <Package size={14} />
-                        {product.stock} in stock
+                        {product.stock} {t('vendor.productsPage.inStock', 'in stock')}
                       </div>
                     </div>
                   </div>
@@ -252,14 +255,14 @@ const VendorProductsPage: React.FC = () => {
                       onClick={() => handleDelete(product.id)}
                     >
                       <Trash2 size={14} />
-                      Remove
+                      {t('common.remove', 'Remove')}
                     </button>
                     
                     <Link 
                       to={`/vendor/products/${product.id}/edit`}
                       className="text-xs font-bold text-purple-600 flex items-center gap-1 hover:gap-2 transition-all"
                     >
-                      Management Details
+                      {t('vendor.productsPage.managementDetails', 'Management Details')}
                       <ArrowRight size={14} />
                     </Link>
                   </div>

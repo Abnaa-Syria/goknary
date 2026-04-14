@@ -51,10 +51,10 @@ const AdminSettingsPage: React.FC = () => {
         name: profileData.name,
         email: profileData.email,
       });
-      toast.success('Identity updated successfully');
+      toast.success(t('admin.settingsPage.profileUpdateSuccess'));
       dispatch(getCurrentUser());
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to update identity');
+      toast.error(error.response?.data?.error || t('admin.settingsPage.profileUpdateFailed'));
     } finally {
       setProfileLoading(false);
     }
@@ -63,7 +63,7 @@ const AdminSettingsPage: React.FC = () => {
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      toast.error('New passwords do not match');
+      toast.error(t('admin.settingsPage.passwordMismatch'));
       return;
     }
 
@@ -73,14 +73,14 @@ const AdminSettingsPage: React.FC = () => {
         currentPassword: passwordData.currentPassword,
         newPassword: passwordData.newPassword,
       });
-      toast.success('Password changed successfully');
+      toast.success(t('admin.settingsPage.passwordChangeSuccess'));
       setPasswordData({
         currentPassword: '',
         newPassword: '',
         confirmPassword: '',
       });
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to change password');
+      toast.error(error.response?.data?.error || t('admin.settingsPage.passwordChangeFailed'));
     } finally {
       setPasswordLoading(false);
     }
@@ -90,8 +90,8 @@ const AdminSettingsPage: React.FC = () => {
     <div className="space-y-8 pb-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Page Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Account Settings</h1>
-        <p className="text-gray-500 mt-1 text-sm tracking-wide">Manage your administrative identity and security preferences</p>
+        <h1 className="text-3xl font-bold text-gray-900 tracking-tight">{t('admin.settingsPage.title')}</h1>
+        <p className="text-gray-500 mt-1 text-sm tracking-wide">{t('admin.settingsPage.subtitle')}</p>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 items-start">
@@ -102,8 +102,8 @@ const AdminSettingsPage: React.FC = () => {
               <User size={20} />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-gray-900">General Information</h2>
-              <p className="text-xs text-gray-400 font-medium uppercase tracking-tighter">Your public administrative profile</p>
+              <h2 className="text-lg font-bold text-gray-900">{t('admin.settingsPage.generalInfo')}</h2>
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-tighter">{t('admin.settingsPage.generalInfoDesc')}</p>
             </div>
           </div>
 
@@ -111,16 +111,16 @@ const AdminSettingsPage: React.FC = () => {
             <div className="space-y-4">
               <div className="relative group">
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ms-1 group-focus-within:text-primary-600 transition-colors">
-                  Full Name
+                  {t('admin.settingsPage.fullName')}
                 </label>
                 <div className="relative">
-                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-600 transition-colors" size={18} />
+                  <User className="absolute start-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-600 transition-colors" size={18} />
                   <input
                     type="text"
                     value={profileData.name}
                     onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
-                    className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
-                    placeholder="Enter your name"
+                    className="w-full ps-12 pe-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
+                    placeholder={t('admin.settingsPage.fullNamePlaceholder')}
                     required
                   />
                 </div>
@@ -128,15 +128,15 @@ const AdminSettingsPage: React.FC = () => {
 
               <div className="relative group">
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ms-1 group-focus-within:text-primary-600 transition-colors">
-                  Email Address
+                  {t('admin.settingsPage.email')}
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-600 transition-colors" size={18} />
+                  <Mail className="absolute start-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-600 transition-colors" size={18} />
                   <input
                     type="email"
                     value={profileData.email}
                     onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
-                    className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
+                    className="w-full ps-12 pe-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
                     placeholder="name@goknary.com"
                     required
                   />
@@ -146,7 +146,7 @@ const AdminSettingsPage: React.FC = () => {
               <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100 flex gap-3">
                 <Shield className="text-blue-500 shrink-0" size={18} />
                 <p className="text-xs text-blue-700 leading-relaxed font-medium">
-                  <strong>Verification Notice:</strong> Changing your primary email will require a one-time verification code to ensure account integrity.
+                  {t('admin.settingsPage.emailNotice')}
                 </p>
               </div>
             </div>
@@ -158,7 +158,7 @@ const AdminSettingsPage: React.FC = () => {
                 className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-gray-900 text-white font-bold rounded-2xl hover:bg-gray-800 disabled:opacity-50 transition-all shadow-lg shadow-gray-200"
               >
                 {profileLoading ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
-                <span>Save Identity Changes</span>
+                <span>{t('admin.settingsPage.saveChanges')}</span>
               </button>
             </div>
           </form>
@@ -171,8 +171,8 @@ const AdminSettingsPage: React.FC = () => {
               <Key size={20} />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-gray-900">Security Credentials</h2>
-              <p className="text-xs text-gray-400 font-medium uppercase tracking-tighter">Maintain a strong access protection</p>
+              <h2 className="text-lg font-bold text-gray-900">{t('admin.settingsPage.security')}</h2>
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-tighter">{t('admin.settingsPage.securityDesc')}</p>
             </div>
           </div>
 
@@ -180,15 +180,15 @@ const AdminSettingsPage: React.FC = () => {
             <div className="space-y-4">
               <div className="relative group">
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ms-1 group-focus-within:text-red-500 transition-colors">
-                  Current Password
+                  {t('admin.settingsPage.currentPassword')}
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-red-500 transition-colors" size={18} />
+                  <Lock className="absolute start-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-red-500 transition-colors" size={18} />
                   <input
                     type="password"
                     value={passwordData.currentPassword}
                     onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                    className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white transition-all"
+                    className="w-full ps-12 pe-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white transition-all"
                     placeholder="••••••••"
                     required
                   />
@@ -199,16 +199,16 @@ const AdminSettingsPage: React.FC = () => {
 
               <div className="relative group">
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ms-1 group-focus-within:text-primary-600 transition-colors">
-                  New Password
+                  {t('admin.settingsPage.newPassword')}
                 </label>
                 <div className="relative">
-                  <Shield className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-600 transition-colors" size={18} />
+                  <Shield className="absolute start-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-600 transition-colors" size={18} />
                   <input
                     type="password"
                     value={passwordData.newPassword}
                     onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                    className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
-                    placeholder="Minimum 8 characters"
+                    className="w-full ps-12 pe-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
+                    placeholder={t('admin.settingsPage.newPasswordPlaceholder')}
                     required
                   />
                 </div>
@@ -216,16 +216,16 @@ const AdminSettingsPage: React.FC = () => {
 
               <div className="relative group">
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ms-1 group-focus-within:text-primary-600 transition-colors">
-                  Confirm New Password
+                  {t('admin.settingsPage.confirmPassword')}
                 </label>
                 <div className="relative">
-                  <Shield className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-600 transition-colors" size={18} />
+                  <Shield className="absolute start-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-600 transition-colors" size={18} />
                   <input
                     type="password"
                     value={passwordData.confirmPassword}
                     onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                    className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
-                    placeholder="Repeat new password"
+                    className="w-full ps-12 pe-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
+                    placeholder={t('admin.settingsPage.confirmPasswordPlaceholder')}
                     required
                   />
                 </div>
@@ -239,7 +239,7 @@ const AdminSettingsPage: React.FC = () => {
                 className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-red-600 text-white font-bold rounded-2xl hover:bg-red-700 disabled:opacity-50 transition-all shadow-lg shadow-red-200"
               >
                 {passwordLoading ? <Loader2 className="animate-spin" size={20} /> : <Shield size={20} />}
-                <span>Update Access Credentials</span>
+                <span>{t('admin.settingsPage.updatePassword')}</span>
               </button>
             </div>
           </form>

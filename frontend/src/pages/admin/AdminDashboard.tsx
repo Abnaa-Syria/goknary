@@ -34,8 +34,10 @@ import { hasPermission, getRoleTheme } from '../../utils/permissions';
 
 import {
   StatCard, ChartCard, DashboardSkeleton, EmptyState,
-  getMockTrends, DashboardTopNav
+  DashboardTopNav
 } from './DashboardComponents';
+import { formatPrice } from '../../lib/utils';
+import { mapEnum, orderStatusMap } from '../../utils/localization';
 
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -188,14 +190,14 @@ const SidebarContent: React.FC<{
               {isActive && (
                 <motion.div
                   layoutId="adminActiveNav"
-                  className={`absolute ${isRTL ? 'end-0' : 'start-0'} w-1 h-6 rounded-full`}
+                  className="absolute start-0 w-1 h-6 rounded-full"
                   style={{ backgroundColor: roleTheme.accent }}
                 />
               )}
 
               {!sidebarOpen && (
                 <div
-                  className={`absolute ${isRTL ? 'end-full mr-2' : 'start-full ms-2'} px-2 py-1 bg-gray-900 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50`}
+                  className="absolute start-full ms-2 px-2 py-1 bg-gray-900 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50"
                 >
                   {item.name}
                 </div>
@@ -233,7 +235,7 @@ const AdminDashboardHome: React.FC<{
   const roleTheme = getRoleTheme(user);
 
   const trendData = useMemo(
-    () => (data?.revenueTrends?.length ? data.revenueTrends : getMockTrends()),
+    () => (data?.revenueTrends || []),
     [data]
   );
 
@@ -315,7 +317,7 @@ const AdminDashboardHome: React.FC<{
         {checkPerm('READ_DASHBOARD') && (
           <StatCard
             title={t('admin.totalRevenue', 'Total Revenue')}
-            value={`EGP ${stats.totalSales.toLocaleString()}`}
+            value={formatPrice(stats.totalSales)}
             icon={DollarSign}
             trend={{ value: 14.2, isPositive: true }}
             color="success"
@@ -333,7 +335,7 @@ const AdminDashboardHome: React.FC<{
         {checkPerm('READ_DASHBOARD') && (
           <StatCard
             title={t('admin.avgOrderValue', 'Avg. Order Value')}
-            value={`EGP ${avgOrderValue.toLocaleString()}`}
+            value={formatPrice(avgOrderValue)}
             icon={TrendingUp}
             color="info"
           />
@@ -419,7 +421,7 @@ const AdminDashboardHome: React.FC<{
                       border: 'none',
                       boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)',
                     }}
-                    formatter={(val: any) => [`EGP ${Number(val).toLocaleString()}`, 'Revenue']}
+                    formatter={(val: any) => [formatPrice(Number(val)), t('admin.dashboard.revenue', 'Revenue')]}
                   />
                   <Area
                     type="monotone"
@@ -461,6 +463,7 @@ const AdminDashboardHome: React.FC<{
                         border: 'none',
                         boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)',
                       }}
+                      formatter={(val: any) => [val, t('admin.dashboard.orders', 'Orders')]}
                     />
                     <Bar dataKey="orders" radius={[6, 6, 0, 0]}>
                       {trendData.map((_, i) => (
@@ -523,7 +526,7 @@ const AdminDashboardHome: React.FC<{
                       <p className="text-xs text-gray-400">{vendor.orders} orders</p>
                     </div>
                     <span className="text-sm font-bold text-green-600 whitespace-nowrap">
-                      EGP {vendor.revenue.toLocaleString()}
+                      {formatPrice(vendor.revenue)}
                     </span>
                   </div>
                 ))
@@ -558,8 +561,8 @@ const AdminDashboardHome: React.FC<{
                         <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(v: any, name: any) => [v, name]} />
-                    <Legend formatter={(v) => v} iconType="circle" iconSize={8} />
+                    <Tooltip formatter={(v: any, name: any) => [v, mapEnum(orderStatusMap, name)]} />
+                    <Legend formatter={(v) => mapEnum(orderStatusMap, v)} iconType="circle" iconSize={8} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -603,7 +606,7 @@ const AdminDashboardHome: React.FC<{
                     </div>
                     <div className="text-end flex-shrink-0">
                       <p className="text-xs font-bold text-gray-900">
-                        {t('common.currency', 'EGP')} {order.total?.toLocaleString()}
+                        {formatPrice(order.total)}
                       </p>
                       <StatusBadge status={order.status} />
                     </div>

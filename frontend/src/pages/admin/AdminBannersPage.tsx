@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { FiPlusCircle, FiEdit2, FiTrash } from 'react-icons/fi';
@@ -17,6 +18,7 @@ interface Banner {
 }
 
 const AdminBannersPage: React.FC = () => {
+  const { t } = useTranslation();
   const [banners, setBanners] = useState<Banner[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -58,27 +60,27 @@ const AdminBannersPage: React.FC = () => {
 
       if (editingBanner) {
         await api.patch(`/admin/banners/${editingBanner.id}`, payload);
-        toast.success('Banner updated successfully');
+        toast.success(t('admin.bannersPage.updateSuccess'));
       } else {
         await api.post('/admin/banners', payload);
-        toast.success('Banner created successfully');
+        toast.success(t('admin.bannersPage.createSuccess'));
       }
       fetchBanners();
       resetForm();
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to save banner');
+      toast.error(error.response?.data?.error || t('admin.bannersPage.saveFailed'));
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this banner?')) return;
+    if (!window.confirm(t('admin.bannersPage.deleteConfirm'))) return;
 
     try {
       await api.delete(`/admin/banners/${id}`);
-      toast.success('Banner deleted');
+      toast.success(t('admin.bannersPage.deleteSuccess'));
       fetchBanners();
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to delete banner');
+      toast.error(error.response?.data?.error || t('admin.bannersPage.deleteFailed'));
     }
   };
 
@@ -109,33 +111,33 @@ const AdminBannersPage: React.FC = () => {
   };
 
   if (loading) {
-    return <div className="text-center py-8">Loading banners...</div>;
+    return <div className="text-center py-8">{t('admin.bannersPage.loading')}</div>;
   }
 
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">Banners</h2>
+        <h2 className="text-2xl font-bold">{t('admin.bannersPage.title')}</h2>
         <button
           onClick={() => {
             resetForm();
             setShowForm(true);
           }}
-          className="btn-primary flex items-center space-x-2"
+          className="btn-primary flex items-center gap-2"
         >
           <FiPlusCircle className="w-5 h-5" />
-          <span>Add Banner</span>
+          <span>{t('admin.bannersPage.addBanner')}</span>
         </button>
       </div>
 
       {showForm && (
         <div className="card p-6 mb-6">
           <h3 className="text-xl font-bold mb-4">
-            {editingBanner ? 'Edit Banner' : 'Add New Banner'}
+            {editingBanner ? t('admin.bannersPage.editBanner') : t('admin.bannersPage.addNewBanner')}
           </h3>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-2">Title</label>
+              <label className="block text-sm font-medium mb-2">{t('admin.bannersPage.titleLabel')}</label>
               <input
                 type="text"
                 value={formData.title}
@@ -145,37 +147,37 @@ const AdminBannersPage: React.FC = () => {
             </div>
             <div>
               <ImageUploader 
-                label="Banner Visual Asset *"
+                label={t('admin.bannersPage.imageAsset')}
                 value={formData.imageUrl}
                 onChange={(val) => setFormData({ ...formData, imageUrl: val })}
                 multiple={false}
-                helperText="Optimal size: 1920x450px. Supports drag-and-drop or external link."
+                helperText={t('admin.bannersPage.imageHelperText')}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">Link URL</label>
+              <label className="block text-sm font-medium mb-2">{t('admin.bannersPage.linkUrl')}</label>
               <input
                 type="text"
                 value={formData.linkUrl}
                 onChange={(e) => setFormData({ ...formData, linkUrl: e.target.value })}
                 className="input-field"
-                placeholder="/category/electronics"
+                placeholder={t('admin.bannersPage.linkUrlPlaceholder')}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Type</label>
+                <label className="block text-sm font-medium mb-2">{t('admin.bannersPage.typeLabel')}</label>
                 <select
                   value={formData.type}
                   onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                   className="input-field"
                 >
-                  <option value="HERO">Hero</option>
-                  <option value="PROMO">Promo</option>
+                  <option value="HERO">{t('admin.bannersPage.typeHero')}</option>
+                  <option value="PROMO">{t('admin.bannersPage.typePromo')}</option>
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">Order Index</label>
+                <label className="block text-sm font-medium mb-2">{t('admin.bannersPage.orderIndex')}</label>
                 <input
                   type="number"
                   value={formData.orderIndex}
@@ -184,21 +186,21 @@ const AdminBannersPage: React.FC = () => {
                 />
               </div>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center gap-2">
               <input
                 type="checkbox"
                 checked={formData.status}
                 onChange={(e) => setFormData({ ...formData, status: e.target.checked })}
                 className="w-4 h-4"
               />
-              <label className="text-sm font-medium">Active</label>
+              <label className="text-sm font-medium">{t('admin.bannersPage.activeLabel')}</label>
             </div>
-            <div className="flex space-x-4">
+            <div className="flex gap-4">
               <button type="submit" className="btn-primary">
-                {editingBanner ? 'Update' : 'Create'}
+                {editingBanner ? t('common.save') : t('common.add')}
               </button>
               <button type="button" onClick={resetForm} className="btn-outline">
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
           </form>
@@ -211,33 +213,37 @@ const AdminBannersPage: React.FC = () => {
             <div className="relative mb-4 aspect-video rounded-lg overflow-hidden bg-gray-100">
               <img
                 src={getImageUrl(banner.imageUrl)}
-                alt={banner.title || 'Banner'}
+                alt={banner.title || t('admin.bannersPage.untitled')}
                 className="w-full h-full object-cover"
               />
               {!banner.status && (
                 <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-                  <span className="text-white font-medium">Inactive</span>
+                  <span className="text-white font-medium">{t('admin.bannersPage.inactiveOverlay')}</span>
                 </div>
               )}
             </div>
             <div className="flex items-center justify-between mb-2">
-              <h3 className="font-medium">{banner.title || 'Untitled Banner'}</h3>
-              <div className="flex space-x-2">
+              <h3 className="font-medium">{banner.title || t('admin.bannersPage.untitled')}</h3>
+              <div className="flex gap-2">
                 <button
                   onClick={() => startEdit(banner)}
                   className="p-1 text-primary-500 hover:bg-primary-50 rounded"
+                  title={t('common.edit')}
                 >
                   <FiEdit2 className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => handleDelete(banner.id)}
                   className="p-1 text-red-500 hover:bg-red-50 rounded"
+                  title={t('common.delete')}
                 >
                   <FiTrash className="w-4 h-4" />
                 </button>
               </div>
             </div>
-            <p className="text-xs text-gray-500">{banner.type} • Order: {banner.orderIndex}</p>
+            <p className="text-xs text-gray-500">
+              {banner.type === 'HERO' ? t('admin.bannersPage.typeHero') : t('admin.bannersPage.typePromo')} • {t('admin.bannersPage.orderLabel', { index: banner.orderIndex })}
+            </p>
           </div>
         ))}
       </div>
@@ -246,4 +252,3 @@ const AdminBannersPage: React.FC = () => {
 };
 
 export default AdminBannersPage;
-

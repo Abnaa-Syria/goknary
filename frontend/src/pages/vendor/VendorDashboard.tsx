@@ -12,6 +12,8 @@ import toast from 'react-hot-toast';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { logout } from '../../store/slices/authSlice';
 import api from '../../lib/api';
+import { formatPrice } from '../../lib/utils';
+import { mapEnum, orderStatusMap } from '../../utils/localization';
 import VendorProductsPage from './VendorProductsPage';
 import VendorProductFormPage from './VendorProductFormPage';
 import VendorOrdersPage from './VendorOrdersPage';
@@ -21,7 +23,7 @@ import VendorApplyPage from './VendorApplyPage';
 import VendorSettingsPage from './VendorSettingsPage';
 
 import {
-  StatCard, ChartCard, DashboardSkeleton, EmptyState, getMockTrends, DashboardTopNav
+  StatCard, ChartCard, DashboardSkeleton, EmptyState, DashboardTopNav
 } from '../admin/DashboardComponents';
 
 import {
@@ -69,7 +71,7 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   };
   return (
     <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${colors[status] ?? 'bg-gray-100 text-gray-700'}`}>
-      {status}
+      {mapEnum(orderStatusMap, status)}
     </span>
   );
 };
@@ -130,7 +132,7 @@ const SidebarContent: React.FC<{
               )}
 
               {!sidebarOpen && (
-                <div className="absolute left-full ms-2 px-2 py-1 bg-gray-900 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
+                <div className="absolute start-full ms-2 px-2 py-1 bg-gray-900 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
                   {item.name}
                 </div>
               )}
@@ -164,7 +166,7 @@ const VendorDashboardHome: React.FC<{
   const navigate = useNavigate();
 
   const trendData = useMemo(
-    () => (data?.revenueTrends?.length ? data.revenueTrends : getMockTrends()),
+    () => (data?.revenueTrends || []),
     [data]
   );
 
@@ -191,7 +193,7 @@ const VendorDashboardHome: React.FC<{
             className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white text-sm font-semibold rounded-xl hover:bg-purple-700 transition-all shadow-md shadow-purple-200"
           >
             <Plus size={16} />
-            Add Product
+            {t('vendor.addProduct', 'Add Product')}
           </button>
           <button
             onClick={onRefresh}
@@ -224,7 +226,7 @@ const VendorDashboardHome: React.FC<{
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         <StatCard
           title={t('vendor.totalSales', 'Total Sales')}
-          value={`EGP ${stats.totalSales.toLocaleString()}`}
+          value={formatPrice(stats.totalSales)}
           icon={DollarSign}
           trend={{ value: 12.4, isPositive: true }}
           color="success"
@@ -237,8 +239,8 @@ const VendorDashboardHome: React.FC<{
           color="primary"
         />
         <StatCard
-          title="Avg. Order Value"
-          value={`EGP ${avgOrderValue.toLocaleString()}`}
+          title={t('vendor.avgOrderValue', 'Avg. Order Value')}
+          value={formatPrice(avgOrderValue)}
           icon={TrendingUp}
           color="info"
         />
@@ -267,7 +269,7 @@ const VendorDashboardHome: React.FC<{
               <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }}
                 tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v} />
               <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)' }}
-                formatter={(val: any) => [`EGP ${Number(val).toLocaleString()}`, 'Revenue']} />
+                formatter={(val: any) => [formatPrice(Number(val)), t('vendor.revenue', 'Revenue')]} />
               <Area type="monotone" dataKey="revenue" stroke="#a855f7" strokeWidth={3} fillOpacity={1} fill="url(#vendorRev)" />
             </AreaChart>
           </ResponsiveContainer>
@@ -287,7 +289,7 @@ const VendorDashboardHome: React.FC<{
                 <Tooltip cursor={{ fill: '#f8fafc' }}
                   contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)' }} />
                 <Bar dataKey="orders" radius={[6, 6, 0, 0]}>
-                  {trendData.map((_, i) => (
+                  {trendData.map((_ : any, i: number  ) => (
                     <Cell key={i} fill={i === trendData.length - 1 ? '#a855f7' : '#e2e8f0'} />
                   ))}
                 </Bar>
@@ -302,9 +304,9 @@ const VendorDashboardHome: React.FC<{
         {/* Top Products */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
           <div className="flex items-center justify-between mb-5">
-            <h3 className="text-base font-bold text-gray-900">Top Products (30d)</h3>
+            <h3 className="text-base font-bold text-gray-900">{t('vendor.topProducts', 'Top Products (30d)')}</h3>
             <Link to="/vendor/products" className="text-xs text-purple-600 hover:underline font-semibold flex items-center gap-1">
-              All products <ArrowUpRight size={12} />
+              {t('vendor.allProducts', 'All products')} <ArrowUpRight size={12} />
             </Link>
           </div>
           <div className="space-y-3">
@@ -320,7 +322,7 @@ const VendorDashboardHome: React.FC<{
                     <p className="text-sm font-semibold text-gray-900 truncate">{item.product?.name || '—'}</p>
                   </div>
                   <span className="text-sm font-bold text-gray-700 whitespace-nowrap">
-                    {item.quantitySold} sold
+                    {item.quantitySold} {t('vendor.sold', 'sold')}
                   </span>
                 </div>
               ))
@@ -331,14 +333,14 @@ const VendorDashboardHome: React.FC<{
         {/* Recent Orders */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
           <div className="flex items-center justify-between mb-5">
-            <h3 className="text-base font-bold text-gray-900">Recent Orders</h3>
+            <h3 className="text-base font-bold text-gray-900">{t('vendor.recentOrders', 'Recent Orders')}</h3>
             <Link to="/vendor/orders" className="text-xs text-purple-600 hover:underline font-semibold flex items-center gap-1">
-              View all <ArrowUpRight size={12} />
+              {t('common.viewAll', 'View all')} <ArrowUpRight size={12} />
             </Link>
           </div>
           <div className="space-y-3">
             {recentOrders.length === 0 ? (
-              <p className="text-gray-400 text-sm text-center py-6">No orders received yet. Share your store to get started!</p>
+              <p className="text-gray-400 text-sm text-center py-6">{t('vendor.noOrdersReceived', 'No orders received yet. Share your store to get started!')}</p>
             ) : (
               recentOrders.slice(0, 5).map((order: any) => (
                 <Link
@@ -354,7 +356,7 @@ const VendorDashboardHome: React.FC<{
                     <p className="text-[10px] text-gray-400">{order.user?.name || 'Customer'}</p>
                   </div>
                   <div className="text-end flex-shrink-0">
-                    <p className="text-xs font-bold text-gray-900">EGP {order.total?.toLocaleString()}</p>
+                    <p className="text-xs font-bold text-gray-900">{formatPrice(order.total)}</p>
                     <StatusBadge status={order.status} />
                   </div>
                 </Link>
@@ -449,7 +451,7 @@ const VendorDashboard: React.FC = () => {
       });
     } catch (error) {
       console.error('Failed to fetch vendor stats:', error);
-      toast.error('Failed to load store analytics');
+      toast.error(t('vendor.dashboard.failedAnalytics', 'Failed to load store analytics'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -461,7 +463,7 @@ const VendorDashboard: React.FC = () => {
   const handleLogout = async () => {
     try {
       await dispatch(logout()).unwrap();
-      toast.success('Logged out successfully');
+      toast.success(t('common.logoutSuccess', 'Logged out successfully'));
       navigate('/login', { replace: true });
     } catch {
       navigate('/login', { replace: true });
@@ -497,12 +499,12 @@ const VendorDashboard: React.FC = () => {
           <div className="w-16 h-16 rounded-full bg-yellow-50 flex items-center justify-center mx-auto mb-4">
             <Clock size={28} className="text-yellow-600" />
           </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Application Under Review</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">{t('vendor.dashboard.reviewTitle', 'Application Under Review')}</h2>
           <p className="text-gray-500 text-sm mb-6">
-            Your vendor application is being reviewed by our team. You'll receive an email once it's approved. This process typically takes 1-2 business days.
+            {t('vendor.dashboard.reviewMessage', "Your vendor application is being reviewed by our team. You'll receive an email once it's approved. This process typically takes 1-2 business days.")}
           </p>
           <button onClick={handleLogout} className="w-full py-3 rounded-xl bg-gray-100 text-gray-700 font-semibold hover:bg-gray-200 transition-colors">
-            Sign Out
+            {t('common.logout', 'Sign Out')}
           </button>
         </div>
       </div>

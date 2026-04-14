@@ -13,10 +13,10 @@ interface ShippingRate {
 }
 
 const EGYPTIAN_GOVERNORATES = [
-  'Cairo', 'Alexandria', 'Giza', 'Qalyubia', 'Port Said', 'Suez', 
-  'Gharbia', 'Dakahlia', 'Ismaïlia', 'Asyut', 'Fayoum', 'Sharqia', 
-  'Aswan', 'Beheira', 'Minya', 'Damietta', 'Luxor', 'Qena', 
-  'Beni Suef', 'Sohag', 'Monufia', 'Red Sea', 'Wadi El-Jadid', 
+  'Cairo', 'Alexandria', 'Giza', 'Qalyubia', 'Port Said', 'Suez',
+  'Gharbia', 'Dakahlia', 'Ismaïlia', 'Asyut', 'Fayoum', 'Sharqia',
+  'Aswan', 'Beheira', 'Minya', 'Damietta', 'Luxor', 'Qena',
+  'Beni Suef', 'Sohag', 'Monufia', 'Red Sea', 'Wadi El-Jadid',
   'Matrouh', 'North Sinai', 'South Sinai', 'Kafr el-Sheikh',
   'Other Governorates'
 ];
@@ -28,7 +28,7 @@ const AdminShippingPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  
+
   const [formData, setFormData] = useState({
     governorate: '',
     cost: 0,
@@ -44,7 +44,7 @@ const AdminShippingPage: React.FC = () => {
       const response = await api.get('/shipping');
       setRates(response.data.rates);
     } catch (error) {
-      toast.error('Failed to sync shipping protocols');
+      toast.error(t('admin.shippingPage.fetchFailed'));
     } finally {
       setLoading(false);
     }
@@ -58,22 +58,22 @@ const AdminShippingPage: React.FC = () => {
 
   const handleOpenEditModal = (rate: ShippingRate) => {
     setEditingId(rate.id);
-    setFormData({ 
-      governorate: rate.governorate, 
-      cost: rate.cost, 
-      isActive: rate.isActive 
+    setFormData({
+      governorate: rate.governorate,
+      cost: rate.cost,
+      isActive: rate.isActive
     });
     setModalOpen(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // UI-level duplicate check
     if (!editingId) {
       const exists = rates.some(r => r.governorate.toLowerCase() === formData.governorate.toLowerCase());
       if (exists) {
-        toast.error(`A shipping rate for ${formData.governorate} already exists. Please edit the existing one.`);
+        toast.error(t('admin.shippingPage.duplicateError', { name: formData.governorate }));
         return;
       }
     }
@@ -82,28 +82,28 @@ const AdminShippingPage: React.FC = () => {
     try {
       if (editingId) {
         await api.patch(`/shipping/${editingId}`, formData);
-        toast.success('Logistics matrix updated');
+        toast.success(t('admin.shippingPage.updateSuccess'));
       } else {
         await api.post('/shipping', formData);
-        toast.success('New delivery node integrated');
+        toast.success(t('admin.shippingPage.createSuccess'));
       }
       setModalOpen(false);
       fetchRates();
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Transmission failure');
+      toast.error(error.response?.data?.error || t('admin.shippingPage.operationFailed'));
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!window.confirm(`Dissolve the shipping node for ${name}?`)) return;
+    if (!window.confirm(t('admin.shippingPage.deleteConfirm', { name }))) return;
     try {
       await api.delete(`/shipping/${id}`);
-      toast.success('Node dissolved from global grid');
+      toast.success(t('admin.shippingPage.deleteSuccess'));
       fetchRates();
     } catch (error) {
-      toast.error('Disintegration failure');
+      toast.error(t('admin.shippingPage.deleteFailed'));
     }
   };
 
@@ -114,31 +114,31 @@ const AdminShippingPage: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-3">
             <Truck className="text-primary-600" />
-            Logistics Governance
+            {t('admin.shippingPage.title')}
           </h1>
-          <p className="text-sm text-gray-500 mt-1">Manage regional delivery costs & grid nodes</p>
+          <p className="text-sm text-gray-500 mt-1">{t('admin.shippingPage.subtitle')}</p>
         </div>
         <button
           onClick={handleOpenAddModal}
           className="flex items-center gap-2 px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-xl transition-colors shadow-lg shadow-primary-200"
         >
           <Plus size={20} />
-          Add delivery Node
+          {t('admin.shippingPage.addZone')}
         </button>
       </div>
 
       {/* Data Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         {loading ? (
-          <div className="p-12 text-center text-gray-400">Syncing with global logistics grid...</div>
+          <div className="p-12 text-center text-gray-400">{t('admin.shippingPage.loading')}</div>
         ) : (
-          <table className="w-full text-sm text-left">
+          <table className="w-full text-sm text-start">
             <thead className="text-xs text-gray-500 uppercase bg-gray-50/50">
               <tr>
-                <th className="px-6 py-4 font-bold tracking-wider">Governorate / Region</th>
-                <th className="px-6 py-4 font-bold tracking-wider">Unit Cost (EGP)</th>
-                <th className="px-6 py-4 font-bold tracking-wider">Grid Status</th>
-                <th className="px-6 py-4 text-right font-bold tracking-wider">Actions</th>
+                <th className="px-6 py-4 font-bold tracking-wider text-start">{t('admin.shippingPage.governorate')}</th>
+                <th className="px-6 py-4 font-bold tracking-wider text-start">{t('admin.shippingPage.cost')}</th>
+                <th className="px-6 py-4 font-bold tracking-wider text-start">{t('admin.shippingPage.status')}</th>
+                <th className="px-6 py-4 text-end font-bold tracking-wider">{t('admin.shippingPage.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -154,36 +154,38 @@ const AdminShippingPage: React.FC = () => {
                     {rate.isActive ? (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-green-50 text-green-700 text-[10px] font-black uppercase tracking-wider border border-green-100">
                         <CheckCircle size={10} />
-                        Active Node
+                        {t('admin.shippingPage.active')}
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-red-50 text-red-700 text-[10px] font-black uppercase tracking-wider border border-red-100">
                         <XCircle size={10} />
-                        Deactivated
+                        {t('admin.shippingPage.disabled')}
                       </span>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-right space-x-2">
-                    <button 
-                      onClick={() => handleOpenEditModal(rate)}
-                      className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
-                      title="Adjust Parameters"
-                    >
-                      <Edit size={18} />
-                    </button>
-                    <button 
-                      onClick={() => handleDelete(rate.id, rate.governorate)} 
-                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Dissolve Node"
-                    >
-                      <Trash2 size={18} />
-                    </button>
+                  <td className="px-6 py-4 text-end">
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => handleOpenEditModal(rate)}
+                        className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                        title={t('common.edit')}
+                      >
+                        <Edit size={18} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(rate.id, rate.governorate)}
+                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title={t('common.delete')}
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
               {rates.length === 0 && (
                 <tr>
-                   <td colSpan={4} className="px-6 py-12 text-center text-gray-500">No regional delivery nodes detected in current grid.</td>
+                  <td colSpan={4} className="px-6 py-12 text-center text-gray-500">{t('admin.shippingPage.noZones')}</td>
                 </tr>
               )}
             </tbody>
@@ -195,12 +197,12 @@ const AdminShippingPage: React.FC = () => {
       <AnimatePresence>
         {modalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
               onClick={() => setModalOpen(false)}
             />
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -208,21 +210,21 @@ const AdminShippingPage: React.FC = () => {
             >
               <div className="p-6 border-b border-gray-50 bg-gray-50/50">
                 <h3 className="text-xl font-bold text-gray-900">
-                  {editingId ? 'Adjust Delivery Parameters' : 'Integrate Delivery Node'}
+                  {editingId ? t('admin.shippingPage.editZone') : t('admin.shippingPage.addNewZone')}
                 </h3>
-                <p className="text-xs text-gray-500 mt-1">Configure regional logistics yield and activation state</p>
+                <p className="text-xs text-gray-500 mt-1">{t('admin.shippingPage.modalSubtitle')}</p>
               </div>
-              
+
               <form onSubmit={handleSubmit} className="p-6 space-y-6">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1.5">Target Governorate</label>
+                  <label className="block text-sm font-bold text-gray-700 mb-1.5">{t('admin.shippingPage.targetGovernorate')}</label>
                   <select
                     required
                     value={formData.governorate}
                     onChange={e => setFormData({ ...formData, governorate: e.target.value })}
                     className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 transition-all bg-gray-50"
                   >
-                    <option value="">Select Region...</option>
+                    <option value="">{t('admin.shippingPage.selectGovernorate')}</option>
                     {EGYPTIAN_GOVERNORATES.map(gov => (
                       <option key={gov} value={gov}>{gov}</option>
                     ))}
@@ -230,7 +232,7 @@ const AdminShippingPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1.5">Shipping Yield (Cost in EGP)</label>
+                  <label className="block text-sm font-bold text-gray-700 mb-1.5">{t('admin.shippingPage.costLabel')}</label>
                   <div className="relative">
                     <input
                       type="number"
@@ -238,9 +240,9 @@ const AdminShippingPage: React.FC = () => {
                       min="0"
                       value={formData.cost}
                       onChange={e => setFormData({ ...formData, cost: parseFloat(e.target.value) })}
-                      className="w-full pl-4 pr-12 py-2.5 rounded-xl border border-gray-200 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 transition-all font-mono font-bold"
+                      className="w-full ps-4 pe-12 py-2.5 rounded-xl border border-gray-200 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 transition-all font-mono font-bold"
                     />
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-gray-400">EGP</div>
+                    <div className="absolute end-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-gray-400">EGP</div>
                   </div>
                 </div>
 
@@ -253,20 +255,20 @@ const AdminShippingPage: React.FC = () => {
                     className="w-5 h-5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
                   />
                   <label htmlFor="grid-active" className="text-sm font-bold text-gray-700 cursor-pointer">
-                    Node Active in Logistics Grid
+                    {t('admin.shippingPage.enableZone')}
                   </label>
                 </div>
 
                 <div className="pt-4 flex justify-end gap-3 border-t border-gray-50">
                   <button type="button" onClick={() => setModalOpen(false)} className="px-5 py-2.5 text-gray-600 font-medium hover:bg-gray-50 rounded-xl transition-colors">
-                    Abeyance
+                    {t('common.cancel')}
                   </button>
-                  <button 
-                    type="submit" 
-                    disabled={saving} 
+                  <button
+                    type="submit"
+                    disabled={saving}
                     className="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-black rounded-xl transition-all shadow-lg shadow-primary-200 disabled:opacity-50 flex items-center gap-2"
                   >
-                    {saving ? 'Processing...' : (editingId ? 'Update Node' : 'Initialize Node')}
+                    {saving ? t('admin.shippingPage.saving') : (editingId ? t('admin.shippingPage.update') : t('admin.shippingPage.create'))}
                   </button>
                 </div>
               </form>

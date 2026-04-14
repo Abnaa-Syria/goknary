@@ -56,7 +56,7 @@ const AdminCategoriesPage: React.FC = () => {
         ...formData,
         parentId: formData.parentId || null,
       };
-      
+
       if (editingCategory) {
         await api.patch(`/admin/categories/${editingCategory.id}`, dataToSend);
         toast.success(t('messages.updateSuccess'));
@@ -72,7 +72,7 @@ const AdminCategoriesPage: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this category?')) return;
+    if (!window.confirm(t('messages.confirmDelete', 'Are you sure you want to delete this category?'))) return;
 
     try {
       await api.delete(`/admin/categories/${id}`);
@@ -112,7 +112,7 @@ const AdminCategoriesPage: React.FC = () => {
   };
 
   if (loading) {
-    return <div className="text-center py-8">Loading categories...</div>;
+    return <div className="text-center py-8">{t('common.loading', 'Loading categories...')}</div>;
   }
 
   const topLevelCategories = categories.filter((c) => !c.parentId);
@@ -143,7 +143,7 @@ const AdminCategoriesPage: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-2">
-                  {t('admin.categoryName')} (English) *
+                  {t('admin.categoryName')} ({t('common.english', 'English')}) *
                 </label>
                 <input
                   type="text"
@@ -151,13 +151,13 @@ const AdminCategoriesPage: React.FC = () => {
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="input-field"
                   required
-                  placeholder="Category name in English"
+                  placeholder={t('admin.categoriesPage.placeholder.nameEn', 'Category name in English')}
                 />
               </div>
               {/* Arabic Name */}
               <div>
                 <label className="block text-sm font-medium mb-2">
-                  {t('admin.categoryName')} (العربية)
+                  {t('admin.categoryName')} ({t('common.arabic', 'العربية')})
                 </label>
                 <input
                   type="text"
@@ -165,7 +165,7 @@ const AdminCategoriesPage: React.FC = () => {
                   onChange={(e) => setFormData({ ...formData, nameAr: e.target.value })}
                   className="input-field"
                   dir="rtl"
-                  placeholder="اسم الفئة بالعربية"
+                  placeholder={t('admin.categoriesPage.placeholder.nameAr', 'اسم الفئة بالعربية')}
                 />
               </div>
             </div>
@@ -174,19 +174,19 @@ const AdminCategoriesPage: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-2">
-                  {t('admin.categoryDescription')} (English)
+                  {t('admin.categoryDescription')} ({t('common.english', 'English')})
                 </label>
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   className="input-field"
                   rows={3}
-                  placeholder="Description in English"
+                  placeholder={t('admin.categoriesPage.placeholder.descEn', 'Description in English')}
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">
-                  {t('admin.categoryDescription')} (العربية)
+                  {t('admin.categoryDescription')} ({t('common.arabic', 'العربية')})
                 </label>
                 <textarea
                   value={formData.descriptionAr}
@@ -194,7 +194,7 @@ const AdminCategoriesPage: React.FC = () => {
                   className="input-field"
                   rows={3}
                   dir="rtl"
-                  placeholder="الوصف بالعربية"
+                  placeholder={t('admin.categoriesPage.placeholder.descAr', 'الوصف بالعربية')}
                 />
               </div>
             </div>
@@ -206,7 +206,7 @@ const AdminCategoriesPage: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, parentId: e.target.value })}
                 className="input-field"
               >
-                <option value="">None (Top Level)</option>
+                <option value="">{t('admin.categoriesPage.noneLevel', 'None (Top Level)')}</option>
                 {topLevelCategories.map((cat) => (
                   <option key={cat.id} value={cat.id}>
                     {isRTL && cat.nameAr ? cat.nameAr : cat.name}
@@ -234,9 +234,9 @@ const AdminCategoriesPage: React.FC = () => {
                 {t('admin.categoryName')} (EN)
               </th>
               <th className="px-6 py-3 text-start text-xs font-medium text-gray-500 uppercase">
-                {t('admin.categoryName')} (AR)
+                {t('admin.categoryName')} ({t('common.arabic', 'AR')})
               </th>
-              <th className="px-6 py-3 text-start text-xs font-medium text-gray-500 uppercase">Slug</th>
+              <th className="px-6 py-3 text-start text-xs font-medium text-gray-500 uppercase">{t('admin.slug', 'Slug')}</th>
               <th className="px-6 py-3 text-start text-xs font-medium text-gray-500 uppercase">
                 {t('admin.parentCategory')}
               </th>

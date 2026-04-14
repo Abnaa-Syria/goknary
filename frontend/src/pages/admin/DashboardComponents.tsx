@@ -161,22 +161,22 @@ export const DashboardTopNav: React.FC<{
               className={`px-2 py-0.5 rounded-md text-[10px] uppercase font-bold me-2`}
               style={roleTheme ? { backgroundColor: roleTheme.badgeBg, color: roleTheme.badgeText } : { backgroundColor: '#f3e8ff', color: '#9333ea' }}
             >
-              {roleTheme ? roleTheme.label : role}
+              {roleTheme ? roleTheme.label : t(`common.${role.toLowerCase()}`, role)}
             </span>
             <ChevronRight size={14} className="mx-2 rtl:rotate-180" style={roleTheme ? { color: 'rgba(255,255,255,0.5)' } : { color: '#d1d5db' }} />
             <span className="font-semibold" style={roleTheme ? { color: '#fff' } : { color: '#111827' }}>
-              {title || `${role} Dashboard`}
+              {title || t('common.dashboardTitle', { role: t(`common.${role.toLowerCase()}`, role), defaultValue: '{{role}} Dashboard' })}
             </span>
           </div>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4">
           <div className="relative hidden sm:block">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 rtl:right-3 rtl:left-auto" size={16} />
+            <Search className="absolute start-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             <input 
               type="text" 
-              placeholder="Search analytics..." 
-              className={`pl-10 pr-4 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all w-64 rtl:pr-10 rtl:pl-4 ${roleTheme ? 'bg-white/10 border-white/20 text-white placeholder-white/50 focus:ring-white/30' : 'bg-gray-50 border-gray-200 focus:ring-primary-500'}`}
+              placeholder={t('admin.dashboard.search', 'Search analytics...')} 
+              className={`ps-10 pe-4 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all w-64 ${roleTheme ? 'bg-white/10 border-white/20 text-white placeholder-white/50 focus:ring-white/30' : 'bg-gray-50 border-gray-200 focus:ring-primary-500'}`}
             />
           </div>
           
@@ -213,7 +213,7 @@ export const DashboardTopNav: React.FC<{
               <div className="hidden lg:flex flex-col items-start leading-tight">
                 <span className="text-sm font-bold" style={roleTheme ? { color: '#fff' } : { color: '#1f2937' }}>{userName}</span>
                 <span className="text-[10px] font-bold uppercase tracking-wider" style={roleTheme ? { color: roleTheme.badgeText } : { color: '#9ca3af' }}>
-                  {roleTheme ? roleTheme.label : `${role} Mode`}
+                  {roleTheme ? roleTheme.label : t('common.roleMode', { role: t(`common.${role.toLowerCase()}`, role), defaultValue: '{{role}} Mode' })}
                 </span>
               </div>
               <ChevronDown size={14} className={`transition-transform duration-300 ${showProfileMenu ? 'rotate-180' : ''}`} style={roleTheme ? { color: '#fff' } : { color: '#9ca3af' }} />
@@ -235,7 +235,7 @@ export const DashboardTopNav: React.FC<{
                     className="absolute right-0 mt-2 w-56 bg-white border border-gray-100 rounded-2xl shadow-xl shadow-gray-200/50 py-2 z-50 overflow-hidden"
                   >
                     <div className="px-4 py-3 border-b border-gray-50 mb-1">
-                      <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mb-1">Account Options</p>
+                      <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mb-1">{t('admin.dashboard.accountOptions', 'Account Options')}</p>
                       <p className="text-sm font-bold text-gray-700 truncate">{userName}</p>
                     </div>
 
@@ -247,7 +247,7 @@ export const DashboardTopNav: React.FC<{
                       <div className="p-1.5 bg-gray-50 rounded-lg group-hover:bg-primary-100 transition-colors">
                         <Settings size={16} />
                       </div>
-                      <span className="font-semibold">إعدادات الملف الشخصي</span>
+                      <span className="font-semibold">{t('admin.dashboard.profileSettings', 'Profile Settings')}</span>
                     </Link>
 
                     <button 
@@ -261,7 +261,7 @@ export const DashboardTopNav: React.FC<{
                       <div className="p-1.5 bg-red-50 rounded-lg group-hover:bg-red-100 transition-colors">
                         <LogOut size={16} />
                       </div>
-                      <span className="font-semibold">تسجيل خروج</span>
+                      <span className="font-semibold">{t('common.logout', 'Logout')}</span>
                     </button>
                   </motion.div>
                 </>
@@ -339,16 +339,3 @@ export const auditDashboardData = (stats: any) => {
   });
 };
 
-export const getMockTrends = () => {
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const currentMonth = new Date().getMonth();
-  
-  return Array.from({ length: 7 }).map((_, i) => {
-    const monthIndex = (currentMonth - 6 + i + 12) % 12;
-    return {
-      name: months[monthIndex],
-      revenue: 4000 + Math.random() * 8000,
-      orders: 120 + Math.floor(Math.random() * 300),
-    };
-  });
-};

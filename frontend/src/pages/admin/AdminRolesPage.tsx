@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Shield, Plus, Edit2, Trash2, Users, Save, X, Loader2, ChevronDown, ChevronUp
 } from 'lucide-react';
@@ -28,6 +29,7 @@ const PermissionMatrix: React.FC<{
   onToggleResource: (resource: Resource) => void;
   onToggleOperation: (operation: Operation) => void;
 }> = ({ selectedPermissions, onToggle, onToggleResource, onToggleOperation }) => {
+  const { t } = useTranslation();
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
     new Set(Object.keys(RESOURCE_GROUPS))
   );
@@ -51,7 +53,7 @@ const PermissionMatrix: React.FC<{
       {/* Header Row */}
       <div className="grid grid-cols-[minmax(200px,1fr)_repeat(4,80px)_80px] bg-gray-50 border-b border-gray-200">
         <div className="px-4 py-3 text-xs font-black text-gray-500 uppercase tracking-widest flex items-center">
-          Resource
+          {t('admin.rolesPage.resource')}
         </div>
         {OPERATIONS.map((op) => (
           <div key={op} className="px-2 py-3 text-center">
@@ -69,7 +71,7 @@ const PermissionMatrix: React.FC<{
           </div>
         ))}
         <div className="px-2 py-3 text-center">
-          <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">All</span>
+          <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">{t('admin.rolesPage.all')}</span>
         </div>
       </div>
 
@@ -155,7 +157,7 @@ const PermissionMatrix: React.FC<{
       {/* Summary */}
       <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
         <span className="text-xs font-bold text-gray-500">
-          {selectedPermissions.size} of {RESOURCES.length * OPERATIONS.length} permissions selected
+          {t('admin.rolesPage.permissionsCount', { selected: selectedPermissions.size, total: RESOURCES.length * OPERATIONS.length })}
         </span>
         <div className="flex gap-2">
           <button
@@ -168,7 +170,7 @@ const PermissionMatrix: React.FC<{
             }}
             className="text-[10px] font-bold text-primary-600 hover:underline uppercase"
           >
-            Select All
+            {t('admin.rolesPage.selectAll')}
           </button>
           <span className="text-gray-300">│</span>
           <button
@@ -178,7 +180,7 @@ const PermissionMatrix: React.FC<{
             }}
             className="text-[10px] font-bold text-red-500 hover:underline uppercase"
           >
-            Clear All
+            {t('admin.rolesPage.clearAll')}
           </button>
         </div>
       </div>
@@ -189,6 +191,7 @@ const PermissionMatrix: React.FC<{
 // ─── Main Page ──────────────────────────────────────────────────────────────
 
 const AdminRolesPage: React.FC = () => {
+  const { t } = useTranslation();
   const [roles, setRoles] = useState<CustomRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -207,7 +210,7 @@ const AdminRolesPage: React.FC = () => {
       const res = await api.get('/admin/roles');
       setRoles(res.data.roles);
     } catch (err) {
-      toast.error('Failed to load roles');
+      toast.error(t('admin.rolesPage.fetchFailed'));
     } finally {
       setLoading(false);
     }
@@ -264,8 +267,8 @@ const AdminRolesPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!roleName.trim()) { toast.error('Role name is required'); return; }
-    if (selectedPermissions.size === 0) { toast.error('Select at least one permission'); return; }
+    if (!roleName.trim()) { toast.error(t('admin.rolesPage.roleNameRequired')); return; }
+    if (selectedPermissions.size === 0) { toast.error(t('admin.rolesPage.selectPermission')); return; }
 
     setSaving(true);
     try {
@@ -277,29 +280,29 @@ const AdminRolesPage: React.FC = () => {
 
       if (editingRole) {
         await api.patch(`/admin/roles/${editingRole.id}`, payload);
-        toast.success(`Role "${roleName}" updated`);
+        toast.success(t('admin.rolesPage.updateSuccess', { name: roleName }));
       } else {
         await api.post('/admin/roles', payload);
-        toast.success(`Role "${roleName}" created`);
+        toast.success(t('admin.rolesPage.createSuccess', { name: roleName }));
       }
 
       resetForm();
       fetchRoles();
     } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Failed to save role');
+      toast.error(err.response?.data?.error || t('admin.rolesPage.saveFailed'));
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (role: CustomRole) => {
-    if (!window.confirm(`Delete role "${role.name}"? This cannot be undone.`)) return;
+    if (!window.confirm(t('admin.rolesPage.deleteConfirm', { name: role.name }))) return;
     try {
       await api.delete(`/admin/roles/${role.id}`);
-      toast.success(`Role "${role.name}" deleted`);
+      toast.success(t('admin.rolesPage.deleteSuccess', { name: role.name }));
       fetchRoles();
     } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Failed to delete role');
+      toast.error(err.response?.data?.error || t('admin.rolesPage.deleteFailed'));
     }
   };
 
@@ -318,10 +321,10 @@ const AdminRolesPage: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-3">
             <Shield className="text-primary-600" size={28} />
-            Roles & Access Control
+            {t('admin.rolesPage.title')}
           </h1>
           <p className="text-gray-500 mt-1 text-sm">
-            Define granular CRUD permissions for staff members
+            {t('admin.rolesPage.subtitle')}
           </p>
         </div>
         <button
@@ -329,7 +332,7 @@ const AdminRolesPage: React.FC = () => {
           className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white font-bold text-sm rounded-xl hover:bg-primary-700 transition-all shadow-lg shadow-primary-200"
         >
           <Plus size={18} />
-          New Role
+          {t('admin.rolesPage.newRole')}
         </button>
       </div>
 
@@ -343,10 +346,10 @@ const AdminRolesPage: React.FC = () => {
               </div>
               <div>
                 <h2 className="text-lg font-bold text-gray-900">
-                  {editingRole ? `Edit Role: ${editingRole.name}` : 'Create New Role'}
+                  {editingRole ? t('admin.rolesPage.editTitle', { name: editingRole.name }) : t('admin.rolesPage.createTitle')}
                 </h2>
                 <p className="text-xs text-gray-400 font-medium uppercase tracking-tighter">
-                  Define the permission scope for this staff role
+                  {t('admin.rolesPage.formSubtitle')}
                 </p>
               </div>
             </div>
@@ -359,26 +362,26 @@ const AdminRolesPage: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">
-                  Role Name *
+                  {t('admin.rolesPage.roleName')}
                 </label>
                 <input
                   type="text"
                   value={roleName}
                   onChange={(e) => setRoleName(e.target.value)}
-                  placeholder="e.g. Data Entry, Sales Manager, Content Editor"
+                  placeholder={t('admin.rolesPage.roleNamePlaceholder')}
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
                   required
                 />
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">
-                  Description
+                  {t('admin.rolesPage.description')}
                 </label>
                 <input
                   type="text"
                   value={roleDescription}
                   onChange={(e) => setRoleDescription(e.target.value)}
-                  placeholder="Brief description of this role's responsibilities"
+                  placeholder={t('admin.rolesPage.descriptionPlaceholder')}
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
                 />
               </div>
@@ -387,7 +390,7 @@ const AdminRolesPage: React.FC = () => {
             {/* Permission Matrix */}
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">
-                Permission Matrix *
+                {t('admin.rolesPage.permissionMatrix')}
               </label>
               <PermissionMatrix
                 selectedPermissions={selectedPermissions}
@@ -403,7 +406,7 @@ const AdminRolesPage: React.FC = () => {
                 onClick={resetForm}
                 className="px-6 py-2.5 text-sm font-bold text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="submit"
@@ -411,7 +414,7 @@ const AdminRolesPage: React.FC = () => {
                 className="flex items-center gap-2 px-6 py-2.5 bg-primary-600 text-white font-bold text-sm rounded-xl hover:bg-primary-700 disabled:opacity-50 transition-all shadow-lg shadow-primary-100"
               >
                 {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-                {editingRole ? 'Update Role' : 'Create Role'}
+                {editingRole ? t('admin.rolesPage.updateRole') : t('admin.rolesPage.createRole')}
               </button>
             </div>
           </form>
@@ -424,11 +427,11 @@ const AdminRolesPage: React.FC = () => {
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="px-6 py-4 text-start text-xs font-black text-gray-500 uppercase tracking-widest">Role Name</th>
-                <th className="px-6 py-4 text-start text-xs font-black text-gray-500 uppercase tracking-widest">Description</th>
-                <th className="px-6 py-4 text-center text-xs font-black text-gray-500 uppercase tracking-widest">Permissions</th>
-                <th className="px-6 py-4 text-center text-xs font-black text-gray-500 uppercase tracking-widest">Assigned Users</th>
-                <th className="px-6 py-4 text-end text-xs font-black text-gray-500 uppercase tracking-widest">Actions</th>
+                <th className="px-6 py-4 text-start text-xs font-black text-gray-500 uppercase tracking-widest">{t('admin.rolesPage.tableName')}</th>
+                <th className="px-6 py-4 text-start text-xs font-black text-gray-500 uppercase tracking-widest">{t('admin.rolesPage.tableDescription')}</th>
+                <th className="px-6 py-4 text-center text-xs font-black text-gray-500 uppercase tracking-widest">{t('admin.rolesPage.tablePermissions')}</th>
+                <th className="px-6 py-4 text-center text-xs font-black text-gray-500 uppercase tracking-widest">{t('admin.rolesPage.tableAssignedUsers')}</th>
+                <th className="px-6 py-4 text-end text-xs font-black text-gray-500 uppercase tracking-widest">{t('admin.rolesPage.tableActions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -436,8 +439,8 @@ const AdminRolesPage: React.FC = () => {
                 <tr>
                   <td colSpan={5} className="px-6 py-16 text-center">
                     <Shield className="text-gray-300 mx-auto mb-3" size={40} />
-                    <p className="text-gray-400 font-medium">No custom roles defined yet</p>
-                    <p className="text-xs text-gray-400 mt-1">Create your first role to start managing granular access</p>
+                    <p className="text-gray-400 font-medium">{t('admin.rolesPage.emptyTitle')}</p>
+                    <p className="text-xs text-gray-400 mt-1">{t('admin.rolesPage.emptyDesc')}</p>
                   </td>
                 </tr>
               ) : (
@@ -470,7 +473,7 @@ const AdminRolesPage: React.FC = () => {
                         <button
                           onClick={() => openEditForm(role)}
                           className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-all"
-                          title="Edit Role"
+                          title={t('admin.rolesPage.editRole')}
                         >
                           <Edit2 size={16} />
                         </button>
@@ -478,7 +481,7 @@ const AdminRolesPage: React.FC = () => {
                           onClick={() => handleDelete(role)}
                           disabled={role.userCount > 0}
                           className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                          title={role.userCount > 0 ? 'Reassign users before deleting' : 'Delete Role'}
+                          title={role.userCount > 0 ? t('admin.rolesPage.reassignFirst') : t('admin.rolesPage.deleteRole')}
                         >
                           <Trash2 size={16} />
                         </button>

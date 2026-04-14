@@ -7,7 +7,6 @@ import {
   Eye, 
   Search, 
   Filter, 
-  MoreVertical,
   MessageSquare,
   User,
   Package,
@@ -35,7 +34,7 @@ interface Review {
 }
 
 const AdminReviewsPage: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -45,6 +44,12 @@ const AdminReviewsPage: React.FC = () => {
     total: 0,
     totalPages: 0
   });
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString(i18n.language === 'ar' ? 'ar-EG' : 'en-US', {
+      year: 'numeric', month: 'long', day: 'numeric'
+    });
+  };
 
   useEffect(() => {
     fetchReviews();
@@ -67,23 +72,23 @@ const AdminReviewsPage: React.FC = () => {
       }));
     } catch (error: any) {
       console.error('Failed to fetch reviews:', error);
-      toast.error('Failed to sync with reviews server');
+      toast.error(t('admin.reviewsPage.fetchFailed'));
     } finally {
       setLoading(false);
     }
   };
 
   const handleDeleteReview = async (id: string) => {
-    if (!window.confirm('CRITICAL ACTION: Are you sure you want to delete this review? This will permanently remove it from the product page and recalculate product ratings.')) {
+    if (!window.confirm(t('admin.reviewsPage.deleteConfirm'))) {
       return;
     }
 
     try {
       await api.delete(`/reviews/admin/${id}`);
-      toast.success('Review moderated successfully');
+      toast.success(t('admin.reviewsPage.deleteSuccess'));
       fetchReviews();
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to delete review');
+      toast.error(error.response?.data?.error || t('admin.reviewsPage.deleteFailed'));
     }
   };
 
@@ -112,19 +117,19 @@ const AdminReviewsPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-gray-900 tracking-tight uppercase">Reviews Moderation</h1>
-          <p className="text-gray-500 text-sm mt-1 font-medium">Manage platform-wide feedback and moderate inappropriate content</p>
+          <h1 className="text-2xl font-black text-gray-900 tracking-tight">{t('admin.reviewsPage.title')}</h1>
+          <p className="text-gray-500 text-sm mt-1 font-medium">{t('admin.reviewsPage.subtitle')}</p>
         </div>
         
         <div className="flex items-center gap-3">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <Search className="absolute start-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input
               type="text"
-              placeholder="Search reviews..."
+              placeholder={t('admin.reviewsPage.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 outline-none w-64 transition-all"
+              className="ps-10 pe-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 outline-none w-64 transition-all"
             />
           </div>
           <button className="p-2 bg-white border border-gray-200 rounded-xl text-gray-400 hover:text-gray-900 transition-colors">
@@ -140,7 +145,7 @@ const AdminReviewsPage: React.FC = () => {
             <MessageSquare size={20} />
           </div>
           <div>
-            <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Total Reviews</p>
+            <p className="text-xs font-black text-gray-400 tracking-widest">{t('admin.reviewsPage.totalReviews')}</p>
             <p className="text-xl font-black text-gray-900">{pagination.total}</p>
           </div>
         </div>
@@ -149,7 +154,7 @@ const AdminReviewsPage: React.FC = () => {
             <Star size={20} />
           </div>
           <div>
-            <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Avg. Rating</p>
+            <p className="text-xs font-black text-gray-400 tracking-widest">{t('admin.reviewsPage.avgRating')}</p>
             <p className="text-xl font-black text-gray-900">4.8</p>
           </div>
         </div>
@@ -158,7 +163,7 @@ const AdminReviewsPage: React.FC = () => {
             <AlertCircle size={20} />
           </div>
           <div>
-            <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Reported</p>
+            <p className="text-xs font-black text-gray-400 tracking-widest">{t('admin.reviewsPage.reports')}</p>
             <p className="text-xl font-black text-gray-900">0</p>
           </div>
         </div>
@@ -167,14 +172,14 @@ const AdminReviewsPage: React.FC = () => {
       {/* Table Section */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-start border-collapse">
             <thead>
               <tr className="bg-gray-50/50 border-b border-gray-100">
-                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Review Content</th>
-                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Product</th>
-                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Customer</th>
-                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Date</th>
-                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest text-right">Actions</th>
+                <th className="px-6 py-4 text-xs font-black text-gray-400 tracking-widest text-start">{t('admin.reviewsPage.reviewContent')}</th>
+                <th className="px-6 py-4 text-xs font-black text-gray-400 tracking-widest text-start">{t('admin.reviewsPage.product')}</th>
+                <th className="px-6 py-4 text-xs font-black text-gray-400 tracking-widest text-start">{t('admin.reviewsPage.customer')}</th>
+                <th className="px-6 py-4 text-xs font-black text-gray-400 tracking-widest text-start">{t('admin.reviewsPage.date')}</th>
+                <th className="px-6 py-4 text-xs font-black text-gray-400 tracking-widest text-end">{t('admin.reviewsPage.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -191,7 +196,7 @@ const AdminReviewsPage: React.FC = () => {
                 ) : filteredReviews.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
-                      No reviews found matching your search.
+                      {t('admin.reviewsPage.noReviews')}
                     </td>
                   </tr>
                 ) : (
@@ -232,21 +237,21 @@ const AdminReviewsPage: React.FC = () => {
                       <td className="px-6 py-5">
                         <div className="flex items-center gap-2 text-gray-400">
                           <Calendar size={14} />
-                          <span className="text-xs font-bold">{new Date(review.createdAt).toLocaleDateString()}</span>
+                          <span className="text-xs font-bold">{formatDate(review.createdAt)}</span>
                         </div>
                       </td>
-                      <td className="px-6 py-5 text-right">
+                      <td className="px-6 py-5 text-end">
                         <div className="flex items-center justify-end gap-2">
                           <button 
                             className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-xl transition-all"
-                            title="View Details"
+                            title={t('admin.reviewsPage.viewDetails')}
                           >
                             <Eye size={18} />
                           </button>
                           <button 
                             onClick={() => handleDeleteReview(review.id)}
                             className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                            title="Delete Review"
+                            title={t('admin.reviewsPage.deleteReview')}
                           >
                             <Trash2 size={18} />
                           </button>
@@ -263,8 +268,8 @@ const AdminReviewsPage: React.FC = () => {
         {/* Pagination */}
         {pagination.totalPages > 1 && (
           <div className="px-6 py-4 bg-gray-50/50 border-t border-gray-100 flex items-center justify-between">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-              Showing page {pagination.page} of {pagination.totalPages}
+            <p className="text-xs font-bold text-gray-400 tracking-widest">
+              {t('admin.reviewsPage.pageOf', { current: pagination.page, total: pagination.totalPages })}
             </p>
             <div className="flex items-center gap-2">
               <button
@@ -272,14 +277,14 @@ const AdminReviewsPage: React.FC = () => {
                 onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
                 className="px-3 py-1 bg-white border border-gray-200 rounded-lg text-xs font-bold disabled:opacity-50"
               >
-                Previous
+                {t('admin.reviewsPage.prev')}
               </button>
               <button
                 disabled={pagination.page >= pagination.totalPages}
                 onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
                 className="px-3 py-1 bg-white border border-gray-200 rounded-lg text-xs font-bold disabled:opacity-50"
               >
-                Next
+                {t('admin.reviewsPage.next')}
               </button>
             </div>
           </div>

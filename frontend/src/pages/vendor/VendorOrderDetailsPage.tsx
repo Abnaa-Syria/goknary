@@ -5,6 +5,8 @@ import { formatPrice } from '../../lib/utils';
 import { Clock, CheckCircle2, Package, Truck, XCircle, RotateCcw, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getImageUrl } from '../../utils/image';
+import { useTranslation } from 'react-i18next';
+import { mapEnum, orderStatusMap } from '../../utils/localization';
 
 interface OrderItem {
   id: string;
@@ -54,6 +56,7 @@ interface OrderDetails {
 const VendorOrderDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
   const [order, setOrder] = useState<OrderDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -153,18 +156,18 @@ const VendorOrderDetailsPage: React.FC = () => {
   };
 
   if (loading) {
-    return <div className="text-center py-8">Loading order...</div>;
+    return <div className="text-center py-8">{t('vendor.ordersPage.loadingOrder', 'Loading order...')}</div>;
   }
 
   if (error || !order) {
     return (
       <div className="card p-6">
-        <p className="text-red-500 mb-4">{error || 'Order not found'}</p>
+        <p className="text-red-500 mb-4">{error || t('vendor.ordersPage.orderNotFound', 'Order not found')}</p>
         <button
           onClick={() => navigate('/vendor/orders')}
           className="btn-outline text-sm"
         >
-          Back to Orders
+          {t('vendor.ordersPage.backToOrders', 'Back to Orders')}
         </button>
       </div>
     );
@@ -176,7 +179,7 @@ const VendorOrderDetailsPage: React.FC = () => {
         onClick={() => navigate('/vendor/orders')}
         className="text-sm text-primary-500 hover:underline mb-2 inline-flex items-center gap-1 font-bold"
       >
-        ← Back to Orders
+        ← {t('vendor.ordersPage.backToOrders', 'Back to Orders')}
       </button>
 
       {/* Main Stats Card */}
@@ -184,17 +187,17 @@ const VendorOrderDetailsPage: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>
             <h2 className="text-2xl font-black text-gray-900 tracking-tight">
-              Order #{order.id.slice(0, 8).toUpperCase()}
+              {t('vendor.ordersPage.orderId', { id: order.id.slice(0, 8).toUpperCase(), defaultValue: 'Order #{{id}}' })}
             </h2>
             <p className="text-sm font-bold text-gray-400 mt-1 uppercase tracking-widest">
-              {new Date(order.createdAt).toLocaleString()}
+              {new Date(order.createdAt).toLocaleString(i18n.language === 'ar' ? 'ar-EG' : 'en-US')}
             </p>
           </div>
           
           <div className="flex flex-wrap items-center gap-4">
             <span className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${getStatusColor(order.status)}`}>
               {getStatusIcon(order.status)}
-              {order.status}
+              {mapEnum(orderStatusMap, order.status)}
             </span>
             
             {getNextStatusOptions(order.status).length > 0 && (
@@ -202,13 +205,13 @@ const VendorOrderDetailsPage: React.FC = () => {
                 <select
                   disabled={updatingStatus}
                   onChange={(e) => e.target.value && handleStatusUpdate(e.target.value)}
-                  className="bg-white border border-gray-200 text-gray-900 text-xs font-bold rounded-xl px-4 py-2 focus:ring-2 focus:ring-primary-500 outline-none disabled:opacity-50 appearance-none pr-8 relative bg-no-repeat bg-[right_0.5rem_center]"
+                  className="bg-white border border-gray-200 text-gray-900 text-xs font-bold rounded-xl px-4 py-2 focus:ring-2 focus:ring-primary-500 outline-none disabled:opacity-50 appearance-none pe- relative bg-no-repeat bg-[right_0.5rem_center]"
                   defaultValue=""
                   style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='Length 19 9l-7 7-7-7' /%3E%3C/svg%3E")`, backgroundSize: '1rem' }}
                 >
-                  <option value="" disabled>Update Status</option>
+                  <option value="" disabled>{t('vendor.ordersPage.updateStatus', 'Update Status')}</option>
                   {getNextStatusOptions(order.status).map((status) => (
-                    <option key={status} value={status}>Mark as {status}</option>
+                    <option key={status} value={status}>{t('vendor.ordersPage.markAs', 'Mark as')} {mapEnum(orderStatusMap, status)}</option>
                   ))}
                 </select>
               </div>
@@ -218,13 +221,13 @@ const VendorOrderDetailsPage: React.FC = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 py-6 border-y border-gray-50">
           <div>
-            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-3">Customer Information</h3>
+            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-3">{t('vendor.ordersPage.customerInfo', 'Customer Information')}</h3>
             <p className="font-bold text-gray-900">{order.user.name || order.user.email}</p>
             <p className="text-sm text-gray-500 mt-1">{order.user.email}</p>
             {order.user.phone && <p className="text-sm text-gray-500">Tel: {order.user.phone}</p>}
           </div>
           <div>
-            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-3">Shipping Logistics</h3>
+            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-3">{t('vendor.ordersPage.shippingLogistics', 'Shipping Logistics')}</h3>
             <p className="font-bold text-gray-900">{order.address.fullName}</p>
             <p className="text-sm text-gray-600 mt-1">{order.address.addressLine1}</p>
             {order.address.addressLine2 && <p className="text-sm text-gray-600">{order.address.addressLine2}</p>}
@@ -234,18 +237,18 @@ const VendorOrderDetailsPage: React.FC = () => {
             <p className="text-sm text-gray-600">{order.address.country}</p>
           </div>
           <div>
-            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-3">Financial Summary</h3>
+            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-3">{t('vendor.ordersPage.financialSummary', 'Financial Summary')}</h3>
             <div className="space-y-2">
               <p className="flex justify-between text-sm">
-                <span className="text-gray-500">Subtotal</span>
+                <span className="text-gray-500">{t('common.subtotal', 'Subtotal')}</span>
                 <span className="font-bold text-gray-900">{formatPrice(order.subtotal)}</span>
               </p>
               <p className="flex justify-between text-sm">
-                <span className="text-gray-500">Shipping</span>
-                <span className="font-bold text-green-600">{order.shippingCost === 0 ? 'Free' : formatPrice(order.shippingCost)}</span>
+                <span className="text-gray-500">{t('common.shipping', 'Shipping')}</span>
+                <span className="font-bold text-green-600">{order.shippingCost === 0 ? t('common.free', 'Free') : formatPrice(order.shippingCost)}</span>
               </p>
               <div className="pt-2 mt-2 border-t border-gray-50 flex justify-between">
-                <span className="font-black text-gray-900 uppercase text-xs">Total Revenue</span>
+                <span className="font-black text-gray-900 uppercase text-xs">{t('vendor.ordersPage.totalRevenue', 'Total Revenue')}</span>
                 <span className="font-black text-primary-600">{formatPrice(order.total)}</span>
               </div>
             </div>
@@ -256,7 +259,7 @@ const VendorOrderDetailsPage: React.FC = () => {
         <div className="mt-8">
           <h3 className="text-xs font-black text-gray-900 uppercase tracking-widest mb-6 flex items-center gap-2">
             <Clock size={14} className="text-primary-600" />
-            Live Lifecycle Timeline
+            {t('vendor.ordersPage.liveTimeline', 'Live Lifecycle Timeline')}
           </h3>
           <div className="space-y-6 max-w-2xl">
             {[...order.statusHistory].reverse().map((history, idx) => (
@@ -276,12 +279,12 @@ const VendorOrderDetailsPage: React.FC = () => {
                     <span className={`text-[10px] font-black uppercase tracking-tighter px-2 py-0.5 rounded ${
                       idx === 0 ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-500'
                     }`}>
-                      {history.status}
+                      {mapEnum(orderStatusMap, history.status)}
                     </span>
                     <p className="text-sm text-gray-700 mt-2 font-medium leading-relaxed">{history.notes}</p>
                   </div>
                   <span className="text-[10px] font-bold text-gray-400 font-mono whitespace-nowrap">
-                    {new Date(history.createdAt).toLocaleString()}
+                    {new Date(history.createdAt).toLocaleString(i18n.language === 'ar' ? 'ar-EG' : 'en-US')}
                   </span>
                 </div>
               </div>
@@ -292,7 +295,7 @@ const VendorOrderDetailsPage: React.FC = () => {
 
       {/* Items Grid */}
       <div className="card p-6 border-gray-100 shadow-sm">
-        <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-6 px-2 border-s-4 border-primary-600">Inventory Items</h3>
+        <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-6 px-2 border-s-4 border-primary-600">{t('vendor.ordersPage.inventoryItems', 'Inventory Items')}</h3>
         <div className="grid grid-cols-1 gap-4">
           {order.items.map((item) => {
             const images = typeof item.product.images === 'string'
@@ -309,11 +312,11 @@ const VendorOrderDetailsPage: React.FC = () => {
                 <div className="flex-grow min-w-0">
                   <p className="font-black text-gray-900 truncate tracking-tight">{item.product.name}</p>
                   <div className="flex items-center gap-3 mt-1.5">
-                    <span className="text-[10px] font-black uppercase bg-gray-100 text-gray-500 px-2 py-0.5 rounded">Qty: {item.quantity}</span>
-                    <span className="text-[10px] font-black uppercase bg-primary-100 text-primary-600 px-2 py-0.5 rounded">{formatPrice(unitPrice)} / unit</span>
+                    <span className="text-[10px] font-black uppercase bg-gray-100 text-gray-500 px-2 py-0.5 rounded">{t('product.quantity', 'Qty')}: {item.quantity}</span>
+                    <span className="text-[10px] font-black uppercase bg-primary-100 text-primary-600 px-2 py-0.5 rounded">{formatPrice(unitPrice)} / {t('vendor.ordersPage.unit', 'unit')}</span>
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="text-end">
                   <p className="text-lg font-black text-gray-900">{formatPrice(unitPrice * item.quantity)}</p>
                   {item.discountPrice && (
                     <p className="text-xs text-gray-400 line-through font-bold">

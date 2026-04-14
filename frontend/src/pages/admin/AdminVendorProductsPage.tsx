@@ -17,6 +17,7 @@ import { formatPrice } from 'lib/utils';
 import ImageUploader from 'components/common/ImageUploader';
 import { uploadImages } from 'utils/upload';
 import { getImageUrl } from 'utils/image';
+import { mapEnum, productStatusMap } from 'utils/localization';
 
 interface Product {
   id: string;
@@ -342,7 +343,7 @@ const AdminVendorProductsPage: React.FC = () => {
                                 product.status === 'INACTIVE' ? 'bg-gray-100 text-gray-500' :
                                   'bg-gray-100 text-gray-700'
                           }`}>
-                          {product.status}
+                          {mapEnum(productStatusMap, product.status)}
                         </span>
                       </td>
                       <td className="px-8 py-6 text-end">

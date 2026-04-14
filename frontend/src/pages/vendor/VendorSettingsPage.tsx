@@ -139,8 +139,8 @@ const VendorSettingsPage: React.FC = () => {
     <div className="space-y-8 pb-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Page Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Store Settings</h1>
-        <p className="text-gray-500 mt-1 text-sm tracking-wide">Customize your brand identity and secure your vendor dashboard access</p>
+        <h1 className="text-3xl font-bold text-gray-900 tracking-tight">{t('vendor.settingsPage.title', 'Store Settings')}</h1>
+        <p className="text-gray-500 mt-1 text-sm tracking-wide">{t('vendor.settingsPage.subtitle', 'Customize your brand identity and secure your vendor dashboard access')}</p>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 items-start">
@@ -161,16 +161,16 @@ const VendorSettingsPage: React.FC = () => {
               {/* Store Name */}
               <div className="relative group">
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ms-1 group-focus-within:text-purple-600 transition-colors">
-                  Store Name *
+                  {t('vendor.settingsPage.storeName', 'Store Name *')}
                 </label>
                 <div className="relative">
-                  <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-purple-600 transition-colors" size={18} />
+                  <Globe className="absolute start-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-purple-600 transition-colors" size={18} />
                   <input
                     type="text"
                     value={formData.storeName}
                     onChange={(e) => setFormData({ ...formData, storeName: e.target.value })}
-                    className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all"
-                    placeholder="e.g. Premium Tech Store"
+                    className="w-full ps-12 pe-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all"
+                    placeholder={t('vendor.settingsPage.storeNamePlaceholder', 'e.g. Premium Tech Store')}
                     required
                   />
                 </div>
@@ -179,16 +179,16 @@ const VendorSettingsPage: React.FC = () => {
               {/* Description */}
               <div className="relative group">
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ms-1 group-focus-within:text-purple-600 transition-colors">
-                  Store Description
+                  {t('vendor.settingsPage.storeDescription', 'Store Description')}
                 </label>
                 <div className="relative">
-                  <FileText className="absolute left-4 top-4 text-gray-400 group-focus-within:text-purple-600 transition-colors" size={18} />
+                  <FileText className="absolute start-4 top-4 text-gray-400 group-focus-within:text-purple-600 transition-colors" size={18} />
                   <textarea
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     rows={3}
-                    className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all min-h-[100px]"
-                    placeholder="Describe your store's mission and products..."
+                    className="w-full ps-12 pe-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all min-h-[100px]"
+                    placeholder={t('vendor.settingsPage.storeDescPlaceholder', "Describe your store's mission and products...")}
                   />
                 </div>
               </div>
@@ -222,7 +222,7 @@ const VendorSettingsPage: React.FC = () => {
                 className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-purple-600 text-white font-bold rounded-2xl hover:bg-purple-700 disabled:opacity-50 transition-all shadow-lg shadow-purple-100"
               >
                 {profileLoading ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
-                <span>Save Storefront Changes</span>
+                <span>{t('vendor.settingsPage.saveChanges', 'Save Storefront Changes')}</span>
               </button>
             </div>
           </form>
@@ -244,15 +244,15 @@ const VendorSettingsPage: React.FC = () => {
             <div className="space-y-4">
               <div className="relative group">
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ms-1 group-focus-within:text-red-500 transition-colors">
-                  Current Password
+                  {t('vendor.settingsPage.currentPassword', 'Current Password')}
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-red-500 transition-colors" size={18} />
+                  <Lock className="absolute start-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-red-500 transition-colors" size={18} />
                   <input
                     type="password"
                     value={passwordData.currentPassword}
                     onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                    className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white transition-all"
+                    className="w-full ps-12 pe-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white transition-all"
                     placeholder="••••••••"
                     required
                   />
@@ -263,16 +263,16 @@ const VendorSettingsPage: React.FC = () => {
 
               <div className="relative group">
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ms-1 group-focus-within:text-purple-600 transition-colors">
-                  New Password
+                  {t('vendor.settingsPage.newPassword', 'New Password')}
                 </label>
                 <div className="relative">
-                  <Shield className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-purple-600 transition-colors" size={18} />
+                  <Shield className="absolute start-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-purple-600 transition-colors" size={18} />
                   <input
                     type="password"
                     value={passwordData.newPassword}
                     onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                    className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all"
-                    placeholder="Minimum 8 characters"
+                    className="w-full ps-12 pe-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all"
+                    placeholder={t('vendor.settingsPage.newPassPlaceholder', 'Minimum 8 characters')}
                     required
                   />
                 </div>
@@ -280,16 +280,16 @@ const VendorSettingsPage: React.FC = () => {
 
               <div className="relative group">
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ms-1 group-focus-within:text-purple-600 transition-colors">
-                  Confirm New Password
+                  {t('vendor.settingsPage.confirmNewPassword', 'Confirm New Password')}
                 </label>
                 <div className="relative">
-                  <Shield className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-purple-600 transition-colors" size={18} />
+                  <Shield className="absolute start-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-purple-600 transition-colors" size={18} />
                   <input
                     type="password"
                     value={passwordData.confirmPassword}
                     onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                    className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all"
-                    placeholder="Repeat new password"
+                    className="w-full ps-12 pe-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all"
+                    placeholder={t('vendor.settingsPage.confirmPassPlaceholder', 'Repeat new password')}
                     required
                   />
                 </div>
@@ -303,7 +303,7 @@ const VendorSettingsPage: React.FC = () => {
                 className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-red-600 text-white font-bold rounded-2xl hover:bg-red-700 disabled:opacity-50 transition-all shadow-lg shadow-red-200"
               >
                 {passwordLoading ? <Loader2 className="animate-spin" size={20} /> : <Shield size={20} />}
-                <span>Update Access Credentials</span>
+                <span>{t('vendor.settingsPage.updateCredentials', 'Update Access Credentials')}</span>
               </button>
             </div>
           </form>

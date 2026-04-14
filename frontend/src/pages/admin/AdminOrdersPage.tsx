@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, Routes, Route } from 'react-router-dom';
 import api from '../../lib/api';
 import { formatPrice } from '../../lib/utils';
+import { orderStatusMap, mapEnum } from '../../utils/localization';
 import AdminOrderDetailPage from './AdminOrderDetailPage';
 import { FiArrowLeft, FiArrowRight, FiShoppingCart } from 'react-icons/fi';
 
@@ -29,13 +31,20 @@ const AdminOrdersPage: React.FC = () => {
 };
 
 const OrdersList: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [pagination, setPagination] = useState({ 
-    page: 1, 
+  const [pagination, setPagination] = useState({
+    page: 1,
     totalPages: 1,
-    totalCount: 0 
+    totalCount: 0
   });
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString(i18n.language === 'ar' ? 'ar-EG' : 'en-US', {
+      year: 'numeric', month: 'short', day: 'numeric'
+    });
+  };
 
   useEffect(() => {
     fetchOrders();
@@ -83,8 +92,10 @@ const OrdersList: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-black text-gray-900 tracking-tight uppercase">Master Order Ecosystem</h1>
-        <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">{pagination.totalCount} Transactions Audited</p>
+        <h1 className="text-2xl font-black text-gray-900 tracking-tight uppercase">{t('admin.ordersPage.title')}</h1>
+        <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">
+          {t('admin.ordersPage.totalCount', { count: pagination.totalCount })}
+        </p>
       </div>
 
       {orders.length === 0 ? (
@@ -92,19 +103,19 @@ const OrdersList: React.FC = () => {
           <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6">
             <FiShoppingCart className="text-gray-300" style={{ width: 32, height: 32 }} />
           </div>
-          <h3 className="text-xl font-black text-gray-900 uppercase">Transaction Void</h3>
-          <p className="text-gray-400 font-bold mt-2 uppercase tracking-widest text-sm">No orders have been recorded in the ecosystem</p>
+          <h3 className="text-xl font-black text-gray-900 uppercase">{t('admin.ordersPage.emptyTitle')}</h3>
+          <p className="text-gray-400 font-bold mt-2 uppercase tracking-widest text-sm">{t('admin.ordersPage.emptyDesc')}</p>
         </div>
       ) : (
         <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-start border-collapse">
             <thead>
               <tr className="bg-gray-50/50 border-b border-gray-100">
-                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Order Identity</th>
-                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Customer/Vendor</th>
-                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Lifecycle State</th>
-                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Revenue</th>
-                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Timestamp</th>
+                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest text-start">{t('admin.ordersPage.orderId')}</th>
+                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest text-start">{t('admin.ordersPage.customerVendor')}</th>
+                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest text-start">{t('admin.ordersPage.status')}</th>
+                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest text-start">{t('admin.ordersPage.amount')}</th>
+                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest text-start">{t('admin.ordersPage.date')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -119,17 +130,19 @@ const OrdersList: React.FC = () => {
                     </Link>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="text-sm font-black text-gray-900">{order.user.name || 'N/A'}</div>
-                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter mt-0.5">Sold by {order.vendor.storeName}</div>
+                    <div className="text-sm font-black text-gray-900">{order.user.name || t('admin.ordersPage.notSpecified')}</div>
+                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter mt-0.5">
+                      {t('admin.ordersPage.soldBy', { name: order.vendor.storeName })}
+                    </div>
                   </td>
                   <td className="px-6 py-4">
                     <span className={`inline-flex px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${getStatusColor(order.status)}`}>
-                      {order.status}
+                      {mapEnum(orderStatusMap, order.status)}
                     </span>
                   </td>
                   <td className="px-6 py-4 font-black text-sm">{formatPrice(order.total)}</td>
                   <td className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase">
-                    {new Date(order.createdAt).toLocaleDateString()}
+                    {formatDate(order.createdAt)}
                   </td>
                 </tr>
               ))}
@@ -139,22 +152,22 @@ const OrdersList: React.FC = () => {
           {pagination.totalPages > 1 && (
             <div className="px-6 py-4 bg-gray-50/50 border-t border-gray-100 flex items-center justify-between">
               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                Visualizing Page {pagination.page} of {pagination.totalPages}
+                {t('admin.ordersPage.pageOf', { current: pagination.page, total: pagination.totalPages })}
               </p>
               <div className="flex gap-2">
-                <button 
+                <button
                   disabled={pagination.page === 1}
                   onClick={() => setPagination(p => ({ ...p, page: p.page - 1 }))}
                   className="px-4 py-2 bg-white border border-gray-200 rounded-xl text-xs font-black uppercase tracking-widest disabled:opacity-30 hover:border-primary-500 transition-all"
                 >
-                  <FiArrowLeft className="inline mr-1" /> Prev
+                  <FiArrowLeft className="inline me-1" /> {t('admin.ordersPage.prev')}
                 </button>
-                <button 
+                <button
                   disabled={pagination.page === pagination.totalPages}
                   onClick={() => setPagination(p => ({ ...p, page: p.page + 1 }))}
                   className="px-4 py-2 bg-white border border-gray-200 rounded-xl text-xs font-black uppercase tracking-widest disabled:opacity-30 hover:border-primary-500 transition-all"
                 >
-                  Next <FiArrowRight className="inline ml-1" />
+                  {t('admin.ordersPage.next')} <FiArrowRight className="inline ms-1" />
                 </button>
               </div>
             </div>
