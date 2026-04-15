@@ -9,7 +9,7 @@ const LogoutPage: React.FC = () => {
 
   useEffect(() => {
     dispatch(logout());
-    navigate('/', { replace: true });
+    navigate('/login', { replace: true });
   }, [dispatch, navigate]);
 
   return null;

@@ -7,6 +7,7 @@ import { calculateDiscountPercentage, formatPrice } from '../../lib/utils';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { addToWishlist, removeFromWishlistByProductId } from '../../store/slices/wishlistSlice';
 import { addToCompare, removeFromCompare } from '../../store/slices/compareSlice';
+import { getImageUrl } from '../../utils/image';
 
 interface ProductCardProps {
   product: Product;
@@ -38,9 +39,9 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   const brandName = product.brand 
     ? (isRTL && (product.brand as any).nameAr ? (product.brand as any).nameAr : product.brand.name)
     : null;
-  const vendorName = isRTL && (product.vendor as any).storeNameAr 
-    ? (product.vendor as any).storeNameAr 
-    : product.vendor.storeName;
+  const vendorName = isRTL && (product.vendor as any)?.storeNameAr 
+    ? (product.vendor as any)?.storeNameAr 
+    : product.vendor?.storeName || 'Unknown Vendor';
 
   const handleWishlistToggle = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -77,8 +78,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   const originalPrice = product.discountPrice ? product.price : null;
 
   const images = product.images || [];
-  const mainImage = images[0] || '/imgs/default-product.jpg';
-  const hoverImage = images.length > 1 ? images[1] : mainImage;
+  const mainImage = getImageUrl(images[0]);
+  const hoverImage = images.length > 1 ? getImageUrl(images[1]) : mainImage;
 
   // Featured products typically have high ratings and sales - using rating as proxy
   const isFeatured = false; // product.featured is not in the Product type yet
@@ -134,7 +135,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
       {/* Product Image */}
       <Link to={`/product/${product.slug}`} className="block relative overflow-hidden bg-gray-100 aspect-square">
         <img
-          src={hovered && !imageError ? hoverImage : mainImage}
+          src={imageError ? getImageUrl(null) : (hovered ? hoverImage : mainImage)}
           alt={productName}
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
           onError={() => setImageError(true)}
@@ -193,7 +194,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           <div className="flex items-center justify-center text-xs text-gray-500 truncate">
             <span className="me-1 whitespace-nowrap">{t('product.vendor')}:</span>
             <Link
-              to={`/store/${product.vendor.slug}`}
+              to={`/store/${product.vendor?.slug || ''}`}
               onClick={(e) => e.stopPropagation()}
               className="text-primary-600 hover:underline font-medium truncate"
             >

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { fetchHomeSections } from '../store/slices/homeSlice';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import ProductCard from '../components/product/ProductCard';
 import CategoryCard from '../components/category/CategoryCard';
 import { fetchCategories } from '../store/slices/categorySlice';
@@ -10,6 +10,8 @@ import { ProductCardSkeleton, CategoryCardSkeleton } from '../components/common/
 import { SEO } from '../components/common/SEO';
 import { FiChevronRight, FiStar } from 'react-icons/fi';
 import { formatPrice } from '../lib/utils';
+import api from '../lib/api';
+import { getImageUrl } from '../utils/image';
 
 // Custom arrow/chevron icons since they may not be in react-icons v4
 const ArrowRightIcon: React.FC<{ className?: string }> = ({ className = "w-4 h-4" }) => (
@@ -30,6 +32,8 @@ const HomePage: React.FC = () => {
   const dispatch = useAppDispatch();
   const { banners, sections, loading } = useAppSelector((state) => state.home);
   const { categories, loading: categoriesLoading } = useAppSelector((state) => state.categories);
+  const { user, isAuthenticated } = useAppSelector((state) => state.auth);
+  const navigate = useNavigate();
   const [currentHeroIndex, setCurrentHeroIndex] = useState(0);
   const hasFetchedHome = useRef(false);
   const hasFetchedCategories = useRef(false);
@@ -38,7 +42,20 @@ const HomePage: React.FC = () => {
   const featuredProducts = sections.find(s => s.type === 'best_sellers' || s.type === 'trending')?.products || [];
   const topDealsProducts = sections.find(s => s.type === 'top_deals')?.products || [];
 
+  // Phase 4 New Arrivals
+  const [newArrivals, setNewArrivals] = useState<any[]>([]);
+
   useEffect(() => {
+    // Fetch Recent Arrivals separately
+    api.get('/products/recent?limit=6')
+      .then(res => setNewArrivals(res.data.products || []))
+      .catch(err => console.error("Failed to load generic matrix: ", err));
+
+    if (isAuthenticated && (user?.role === 'ADMIN' || user?.role === 'STAFF')) {
+      navigate('/admin', { replace: true });
+      return;
+    }
+
     if (!hasFetchedHome.current && !loading) {
       hasFetchedHome.current = true;
       dispatch(fetchHomeSections());
@@ -90,7 +107,7 @@ const HomePage: React.FC = () => {
                       >
                         <div className="relative w-full h-full">
                           <img
-                            src={banner.imageUrl}
+                            src={getImageUrl(banner.imageUrl)}
                             alt={banner.title || 'Banner'}
                             className="w-full h-full object-cover"
                             onError={(e) => {
@@ -203,7 +220,7 @@ const HomePage: React.FC = () => {
                         >
                           <div className="relative w-full h-full">
                             <img
-                              src={banner.imageUrl}
+                              src={getImageUrl(banner.imageUrl)}
                               alt={banner.title || 'Promo'}
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                               onError={(e) => {
@@ -269,7 +286,7 @@ const HomePage: React.FC = () => {
                               </span>
                             )}
                             <img
-                              src={product.images?.[0] || '/imgs/default-product.jpg'}
+                              src={getImageUrl(product.images?.[0])}
                               alt={product.name}
                               className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                             />
@@ -298,6 +315,25 @@ const HomePage: React.FC = () => {
                       );
                     })}
                   </div>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Phase 4: New Arrivals */}
+          {newArrivals && newArrivals.length > 0 && (
+            <section className="mb-6 sm:mb-8 lg:mb-10">
+              <div className="container mx-auto px-3 sm:px-4">
+                <div className="flex items-center justify-between mb-4 sm:mb-6">
+                  <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 flex items-center gap-2">
+                    <FiStar className="text-primary-500 fill-primary-500 w-6 h-6" />
+                    {isRTL ? 'وصل حديثاً' : 'New Arrivals'}
+                  </h2>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-6 gap-3 sm:gap-4 lg:gap-6">
+                  {newArrivals.map((p) => (
+                    <ProductCard key={p.id} product={p} />
+                  ))}
                 </div>
               </div>
             </section>
@@ -383,7 +419,7 @@ const HomePage: React.FC = () => {
                         className="relative overflow-hidden rounded-xl aspect-[4/3] group"
                       >
                         <img
-                          src={banner.imageUrl}
+                          src={getImageUrl(banner.imageUrl)}
                           alt={banner.title || 'Promo'}
                           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                         />

@@ -68,6 +68,21 @@ module.exports = {
         'base': '200ms',
         'slow': '300ms',
       },
+animation: {
+  marquee: 'marquee 20s linear infinite',
+  'marquee-rtl': 'marquee-rtl 20s linear infinite',
+},
+
+keyframes: {
+  marquee: {
+    '0%': { transform: 'translateX(0)' },
+    '100%': { transform: 'translateX(-50%)' },
+  },
+  'marquee-rtl': {
+    '0%': { transform: 'translateX(0)' },
+    '100%': { transform: 'translateX(50%)' },
+  }
+}
     },
   },
   plugins: [],

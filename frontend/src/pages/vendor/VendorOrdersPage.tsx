@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../lib/api';
 import { formatPrice } from '../../lib/utils';
+import { getImageUrl } from '../../utils/image';
+import { useTranslation } from 'react-i18next';
+import { mapEnum, orderStatusMap } from '../../utils/localization';
 
 interface Order {
   id: string;
@@ -22,6 +25,7 @@ interface Order {
 }
 
 const VendorOrdersPage: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -65,12 +69,12 @@ const VendorOrdersPage: React.FC = () => {
   };
 
   if (loading) {
-    return <div className="text-center py-8">Loading orders...</div>;
+    return <div className="text-center py-8">{t('vendor.ordersPage.loading', 'Loading orders...')}</div>;
   }
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-6">Orders</h2>
+      <h2 className="text-2xl font-bold mb-6">{t('vendor.ordersPage.title', 'Orders')}</h2>
 
       <div className="mb-4">
         <select
@@ -78,19 +82,19 @@ const VendorOrdersPage: React.FC = () => {
           onChange={(e) => setStatusFilter(e.target.value)}
           className="input-field w-auto"
         >
-          <option value="all">All Orders</option>
-          <option value="PENDING">Pending</option>
-          <option value="CONFIRMED">Confirmed</option>
-          <option value="PROCESSING">Processing</option>
-          <option value="SHIPPED">Shipped</option>
-          <option value="DELIVERED">Delivered</option>
-          <option value="CANCELLED">Cancelled</option>
+          <option value="all">{t('vendor.ordersPage.allOrders', 'All Orders')}</option>
+          <option value="PENDING">{t('common.pending', 'Pending')}</option>
+          <option value="CONFIRMED">{t('common.confirmed', 'Confirmed')}</option>
+          <option value="PROCESSING">{t('common.processing', 'Processing')}</option>
+          <option value="SHIPPED">{t('common.shipped', 'Shipped')}</option>
+          <option value="DELIVERED">{t('common.delivered', 'Delivered')}</option>
+          <option value="CANCELLED">{t('common.cancelled', 'Cancelled')}</option>
         </select>
       </div>
 
       {orders.length === 0 ? (
         <div className="card p-12 text-center">
-          <p className="text-gray-500">No orders found.</p>
+          <p className="text-gray-500">{t('vendor.ordersPage.noOrders', 'No orders found.')}</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -107,7 +111,7 @@ const VendorOrdersPage: React.FC = () => {
                 <div className="flex flex-col md:flex-row gap-4">
                   <div className="flex-shrink-0 w-full md:w-32 h-32 rounded-lg overflow-hidden bg-gray-100">
                     <img
-                      src={mainImage}
+                      src={getImageUrl(mainImage)}
                       alt={firstItem?.product?.name || 'Product'}
                       className="w-full h-full object-cover"
                     />
@@ -116,11 +120,11 @@ const VendorOrdersPage: React.FC = () => {
                   <div className="flex-grow">
                     <div className="flex justify-between items-start mb-2">
                       <div>
-                        <p className="text-sm text-gray-500">Order #{order.id.slice(0, 8)}</p>
+                        <p className="text-sm text-gray-500">{t('vendor.ordersPage.orderId', { id: order.id.slice(0, 8), defaultValue: 'Order #{{id}}' })}</p>
                         <p className="font-medium">{order.user.name || order.user.email}</p>
                         <p className="text-sm text-gray-500">
-                          {order.items.length} {order.items.length === 1 ? 'item' : 'items'} •{' '}
-                          {new Date(order.createdAt).toLocaleDateString()}
+                          {order.items.length} {order.items.length === 1 ? t('account.item', 'item') : t('account.items', 'items')} •{' '}
+                          {new Date(order.createdAt).toLocaleDateString(i18n.language === 'ar' ? 'ar-EG' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                         </p>
                       </div>
                       <span
@@ -128,13 +132,13 @@ const VendorOrdersPage: React.FC = () => {
                           order.status
                         )}`}
                       >
-                        {order.status}
+                        {mapEnum(orderStatusMap, order.status)}
                       </span>
                     </div>
 
                     <div className="flex justify-between items-center">
                       <p className="font-bold text-lg">{formatPrice(order.total)}</p>
-                      <span className="text-primary-500 text-sm">View Details →</span>
+                      <span className="text-primary-500 text-sm">{t('vendor.ordersPage.viewDetails', 'View Details →')}</span>
                     </div>
                   </div>
                 </div>

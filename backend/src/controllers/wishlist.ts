@@ -61,6 +61,21 @@ export const getWishlist = async (req: AuthRequest, res: Response) => {
   }
 };
 
+export const getWishlistCount = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.json({ count: 0 });
+    }
+    const count = await prisma.wishlistItem.count({
+      where: { userId: req.user.id }
+    });
+    res.json({ count });
+  } catch (error) {
+    console.error('Error computing wishlist matrix count:', error);
+    res.status(500).json({ error: 'Failed to synchronize count data' });
+  }
+};
+
 export const addToWishlist = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {

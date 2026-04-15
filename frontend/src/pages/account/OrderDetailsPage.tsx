@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../../lib/api';
 import { formatPrice } from '../../lib/utils';
+import toast from 'react-hot-toast';
+import { motion, AnimatePresence } from 'framer-motion';
+import { XCircle, RotateCcw, AlertTriangle, CheckCircle2, Clock, Truck } from 'lucide-react';
 
 interface OrderDetails {
   id: string;
@@ -56,6 +59,34 @@ const OrderDetailsPage: React.FC = () => {
     }
   };
 
+  const handleCancelOrder = async () => {
+    if (!window.confirm('Are you sure you want to cancel this order? This action cannot be undone and stock will be returned to the store.')) return;
+    try {
+      await api.patch(`/orders/${id}/cancel`);
+      toast.success('Order cancelled successfully');
+      fetchOrderDetails();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to cancel order');
+    }
+  };
+
+  const handleReturnOrder = async () => {
+    const reason = window.prompt('Please provide a reason for the return:');
+    if (reason === null) return;
+    if (!reason.trim()) {
+      toast.error('Return reason is required');
+      return;
+    }
+
+    try {
+      await api.patch(`/orders/${id}/return`, { reason });
+      toast.success('Return requested successfully');
+      fetchOrderDetails();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to request return');
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'PENDING':
@@ -67,11 +98,13 @@ const OrderDetailsPage: React.FC = () => {
       case 'SHIPPED':
         return 'bg-indigo-100 text-indigo-800';
       case 'DELIVERED':
-        return 'bg-green-100 text-green-800';
+        return 'bg-green-100 text-green-800 border border-green-200';
       case 'CANCELLED':
-        return 'bg-red-100 text-red-800';
+        return 'bg-red-100 text-red-800 border border-red-200';
+      case 'REFUNDED':
+        return 'bg-orange-100 text-orange-800 border border-orange-200';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 text-gray-800 border border-gray-200';
     }
   };
 
@@ -212,15 +245,38 @@ const OrderDetailsPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="text-sm text-gray-500">
+            {/* Contextual Action Buttons */}
+            <div className="space-y-3 pt-4 border-t border-gray-100">
+              {['PENDING', 'CONFIRMED', 'PROCESSING'].includes(order.status) && (
+                <button
+                  onClick={handleCancelOrder}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-50 text-red-600 rounded-xl font-bold hover:bg-red-100 transition-all border border-red-100"
+                >
+                  <XCircle size={18} />
+                  Cancel Order
+                </button>
+              )}
+
+              {order.status === 'DELIVERED' && (
+                <button
+                  onClick={handleReturnOrder}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary-50 text-primary-600 rounded-xl font-bold hover:bg-primary-100 transition-all border border-primary-100"
+                >
+                  <RotateCcw size={18} />
+                  Request Return
+                </button>
+              )}
+            </div>
+
+            <div className="text-sm text-gray-500 text-center pt-2">
               <p>Placed on {new Date(order.createdAt).toLocaleDateString()}</p>
             </div>
 
             <Link
               to="/account/orders"
-              className="block text-center btn-outline"
+              className="block text-center px-4 py-3 rounded-xl border border-gray-200 font-bold text-gray-600 hover:bg-gray-50 transition-all"
             >
-              Back to Orders
+              Back to My Orders
             </Link>
           </div>
         </div>

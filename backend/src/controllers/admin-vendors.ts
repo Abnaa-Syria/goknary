@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
+import { Prisma, VendorStatus } from '@prisma/client';
 import { NotFoundError } from '../lib/errors';
 
 export const getVendors = async (req: Request, res: Response) => {
@@ -9,9 +10,16 @@ export const getVendors = async (req: Request, res: Response) => {
     const limitNum = parseInt(limit as string, 10);
     const skip = (pageNum - 1) * limitNum;
 
-    const where: any = {};
-    if (status) {
-      where.status = status;
+    // M-02 Fix: validate status param against Prisma enum — prevents silent empty results
+    // from typos like ?status=HACKED
+    const where: Prisma.VendorWhereInput = {};
+    const validStatusValues = Object.values(VendorStatus);
+    if (status && validStatusValues.includes(status as VendorStatus)) {
+      where.status = status as VendorStatus;
+    } else if (status) {
+      return res.status(400).json({
+        error: `Invalid status value. Must be one of: ${validStatusValues.join(', ')}`,
+      });
     }
 
     const [vendors, total] = await Promise.all([
@@ -176,6 +184,43 @@ export const suspendVendor = async (req: Request, res: Response) => {
     }
     console.error('Error suspending vendor:', error);
     res.status(500).json({ error: 'Failed to suspend vendor' });
+  }
+};
+
+/**
+ * Unified vendor status management (Approve, Reject, Suspend)
+ */
+export const updateVendorStatus = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    const validStatusValues = Object.values(VendorStatus);
+    if (!status || !validStatusValues.includes(status as VendorStatus)) {
+      return res.status(400).json({
+        error: `Invalid status value. Must be one of: ${validStatusValues.join(', ')}`,
+      });
+    }
+
+    const vendor = await prisma.vendor.findUnique({ where: { id } });
+    if (!vendor) throw new NotFoundError('Vendor not found');
+
+    const updated = await prisma.vendor.update({
+      where: { id },
+      data: { 
+        status: status as VendorStatus,
+        verified: status === 'APPROVED' ? true : vendor.verified
+      },
+    });
+
+    res.json({
+      message: `Vendor status updated to ${status}`,
+      vendor: updated,
+    });
+  } catch (error) {
+    if (error instanceof NotFoundError) return res.status(404).json({ error: error.message });
+    console.error('Error updating vendor status:', error);
+    res.status(500).json({ error: 'Failed to synchronize vendor lifecycle' });
   }
 };
 

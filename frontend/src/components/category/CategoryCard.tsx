@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Category } from '../../store/slices/categorySlice';
+import { getImageUrl } from '../../utils/image';
 
 interface CategoryCardProps {
   category: Category;
@@ -21,7 +22,7 @@ const CategoryCard: React.FC<CategoryCardProps> = ({ category }) => {
     >
       <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 mx-auto mb-2 sm:mb-3 rounded-full overflow-hidden bg-gray-100">
         <img
-          src={imageUrl}
+          src={getImageUrl(imageUrl)}
           alt={categoryName}
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200"
           onError={(e) => {

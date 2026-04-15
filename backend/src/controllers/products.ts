@@ -1,89 +1,83 @@
 import { Request, Response } from 'express';
+import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { NotFoundError } from '../lib/errors';
 import { Prisma } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth';
 
+
 export const getProducts = async (req: Request, res: Response) => {
   try {
     const {
-      categoryId,
-      brandId,
+      q,
+      category,
+      brand,
       vendorId,
-      minPrice,
-      maxPrice,
-      minRating,
-      search,
+      priceMin,
+      priceMax,
+      rating,
       sort = 'relevance',
       page = '1',
       limit = '24',
     } = req.query;
 
-    const pageNum = parseInt(page as string, 10);
-    const limitNum = parseInt(limit as string, 10);
+    const pageNum = Math.max(1, parseInt(page as string, 10));
+    const limitNum = Math.max(1, parseInt(limit as string, 10));
     const skip = (pageNum - 1) * limitNum;
 
-    const where: Prisma.ProductWhereInput = {
-      status: 'ACTIVE',
-    };
+    // Use AND to combine different filter groups safely
+    const and: Prisma.ProductWhereInput[] = [
+      { status: { in: ['ACTIVE' as any, 'APPROVED' as any] } }
+    ];
 
-    if (categoryId) {
-      // Get all subcategory IDs for this category
-      const category = await prisma.category.findUnique({
-        where: { id: categoryId as string },
-        include: {
-          children: true,
-        },
-      });
-
-      if (category) {
-        // Include the category itself and all its children
-        const categoryIds = [category.id];
-        if (category.children && category.children.length > 0) {
-          categoryIds.push(...category.children.map(child => child.id));
-        }
-        
-        where.categoryId = {
-          in: categoryIds,
-        };
-      } else {
-        // If category not found, use direct match
-        where.categoryId = categoryId as string;
-      }
+    // Category filtering
+    if (category) {
+      const categoryList = (Array.isArray(category) ? category : [category]) as string[];
+      and.push({ categoryId: { in: categoryList } });
     }
 
-    if (brandId) {
-      where.brandId = brandId as string;
+    // Brand filtering
+    if (brand) {
+      const brandList = (Array.isArray(brand) ? brand : [brand]) as string[];
+      and.push({ brandId: { in: brandList } });
     }
 
     if (vendorId) {
-      where.vendorId = vendorId as string;
+      and.push({ vendorId: vendorId as string });
     }
 
-    if (minPrice || maxPrice) {
-      where.price = {};
-      if (minPrice) {
-        where.price.gte = parseFloat(minPrice as string);
+    // Advanced Price Filtering (Strict Parsing)
+    if (priceMin || priceMax) {
+      const pMin = priceMin ? Number(priceMin) : NaN;
+      const pMax = priceMax ? Number(priceMax) : NaN;
+      
+      const priceFilter: Prisma.FloatFilter = {};
+      if (!isNaN(pMin)) priceFilter.gte = pMin;
+      if (!isNaN(pMax)) priceFilter.lte = pMax;
+      
+      if (Object.keys(priceFilter).length > 0) {
+        and.push({ price: priceFilter });
       }
-      if (maxPrice) {
-        where.price.lte = parseFloat(maxPrice as string);
-      }
     }
 
-    if (minRating) {
-      where.ratingAvg = {
-        gte: parseFloat(minRating as string),
-      };
+    // Rating (Strict Parsing)
+    const ratingNum = rating ? Number(rating) : NaN;
+    if (!isNaN(ratingNum)) {
+      and.push({ ratingAvg: { gte: ratingNum } });
     }
 
-    if (search) {
-      const searchTerm = search as string;
-      where.OR = [
-        { name: { contains: searchTerm } },
-        { description: { contains: searchTerm } },
-        { sku: { contains: searchTerm } },
-      ];
+    // Search Query (Wrapped in OR, but pushed to AND array)
+    if (q) {
+      const searchTerm = String(q).slice(0, 100);
+      and.push({
+        OR: [
+          { name: { contains: searchTerm, mode: 'insensitive' } },
+          { description: { contains: searchTerm, mode: 'insensitive' } },
+        ]
+      });
     }
+
+    const where: Prisma.ProductWhereInput = { AND: and };
 
     let orderBy: Prisma.ProductOrderByWithRelationInput = {};
     switch (sort) {
@@ -99,9 +93,8 @@ export const getProducts = async (req: Request, res: Response) => {
       case 'newest':
         orderBy = { createdAt: 'desc' };
         break;
-      case 'relevance':
       default:
-        orderBy = { ratingAvg: 'desc' };
+        orderBy = { createdAt: 'desc' };
         break;
     }
 
@@ -141,16 +134,17 @@ export const getProducts = async (req: Request, res: Response) => {
 
     res.json({
       products,
+      totalCount: total,
       pagination: {
-        page: pageNum,
+        totalCount: total,
+        currentPage: pageNum,
         limit: limitNum,
-        total,
         totalPages: Math.ceil(total / limitNum),
       },
     });
   } catch (error) {
     console.error('Error fetching products:', error);
-    res.status(500).json({ error: 'Failed to fetch products' });
+    res.status(500).json({ error: 'Failed to synchronize product catalog' });
   }
 };
 
@@ -311,12 +305,26 @@ export const createProductReview = async (req: AuthRequest, res: Response) => {
     }
 
     const { slug } = req.params;
-    const { rating, title, comment, images } = req.body;
 
-    // Validate rating
-    if (!rating || rating < 1 || rating > 5) {
-      return res.status(400).json({ error: 'Rating must be between 1 and 5' });
+    // H-04 Fix: Validate review body with Zod (consistent with rest of codebase)
+    const reviewSchema = z.object({
+      rating: z.number({ required_error: 'Rating is required' }).int().min(1).max(5),
+      title: z.string().max(200).optional(),
+      comment: z.string().max(2000).optional(),
+      images: z.array(z.string().url()).max(5).optional(),
+    });
+
+    let reviewData: z.infer<typeof reviewSchema>;
+    try {
+      reviewData = reviewSchema.parse(req.body);
+    } catch (zodErr) {
+      if (zodErr instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Invalid review data', details: zodErr.errors });
+      }
+      throw zodErr;
     }
+
+    const { rating, title, comment, images } = reviewData;
 
     // Find product
     const product = await prisma.product.findUnique({
@@ -347,7 +355,7 @@ export const createProductReview = async (req: AuthRequest, res: Response) => {
       data: {
         productId: product.id,
         userId: req.user.id,
-        rating: parseInt(rating, 10),
+        rating: rating,
         title: title || null,
         comment: comment || null,
         images: images ? JSON.stringify(images) : null,

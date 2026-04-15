@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { FiPlusCircle, FiEdit2, FiTrash } from 'react-icons/fi';
 
@@ -48,13 +49,15 @@ const AdminBrandsPage: React.FC = () => {
     try {
       if (editingBrand) {
         await api.patch(`/admin/brands/${editingBrand.id}`, formData);
+        toast.success(t('messages.updateSuccess'));
       } else {
         await api.post('/admin/brands', formData);
+        toast.success(t('messages.addSuccess'));
       }
       fetchBrands();
       resetForm();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to save brand');
+      toast.error(error.response?.data?.error || 'Failed to save brand');
     }
   };
 
@@ -63,9 +66,10 @@ const AdminBrandsPage: React.FC = () => {
 
     try {
       await api.delete(`/admin/brands/${id}`);
+      toast.success(t('messages.deleteSuccess'));
       fetchBrands();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to delete brand');
+      toast.error(error.response?.data?.error || 'Failed to delete brand');
     }
   };
 
@@ -88,7 +92,7 @@ const AdminBrandsPage: React.FC = () => {
   };
 
   if (loading) {
-    return <div className="text-center py-8">{t('common.loading')}</div>;
+    return <div className="text-center py-8">{t('common.loading', 'Loading...')}</div>;
   }
 
   return (
@@ -117,7 +121,7 @@ const AdminBrandsPage: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-2">
-                  {t('admin.brandName')} (English) *
+                  {t('admin.brandName')} ({t('common.english', 'English')}) *
                 </label>
                 <input
                   type="text"
@@ -125,12 +129,12 @@ const AdminBrandsPage: React.FC = () => {
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="input-field"
                   required
-                  placeholder="Brand name in English"
+                  placeholder={t('admin.brandsPage.placeholder.nameEn', 'Brand name in English')}
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">
-                  {t('admin.brandName')} (العربية)
+                  {t('admin.brandName')} ({t('common.arabic', 'العربية')})
                 </label>
                 <input
                   type="text"
@@ -138,7 +142,7 @@ const AdminBrandsPage: React.FC = () => {
                   onChange={(e) => setFormData({ ...formData, nameAr: e.target.value })}
                   className="input-field"
                   dir="rtl"
-                  placeholder="اسم العلامة التجارية بالعربية"
+                  placeholder={t('admin.brandsPage.placeholder.nameAr', 'اسم العلامة التجارية بالعربية')}
                 />
               </div>
             </div>
@@ -146,30 +150,30 @@ const AdminBrandsPage: React.FC = () => {
             {/* Descriptions */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Description (English)</label>
+                <label className="block text-sm font-medium mb-2">{t('admin.description', 'Description')} ({t('common.english', 'English')})</label>
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   className="input-field"
                   rows={3}
-                  placeholder="Description in English"
+                  placeholder={t('admin.brandsPage.placeholder.descEn', 'Description in English')}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">Description (العربية)</label>
+                <label className="block text-sm font-medium mb-2">{t('admin.description', 'Description')} ({t('common.arabic', 'العربية')})</label>
                 <textarea
                   value={formData.descriptionAr}
                   onChange={(e) => setFormData({ ...formData, descriptionAr: e.target.value })}
                   className="input-field"
                   rows={3}
                   dir="rtl"
-                  placeholder="الوصف بالعربية"
+                  placeholder={t('admin.brandsPage.placeholder.descAr', 'الوصف بالعربية')}
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">{t('admin.brandLogo')} URL</label>
+              <label className="block text-sm font-medium mb-2">{t('admin.brandLogo', 'Brand Logo')} URL</label>
               <input
                 type="text"
                 value={formData.logo}

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { getCurrentUser } from '../../store/slices/authSlice';
 import api from '../../lib/api';
+import ChangePasswordSection from '../../components/account/ChangePasswordSection';
 
 const ProfilePage: React.FC = () => {
   const { t } = useTranslation();
@@ -102,6 +103,10 @@ const ProfilePage: React.FC = () => {
             {loading ? t('account.saving') : t('account.saveChanges')}
           </button>
         </form>
+      </div>
+
+      <div className="mt-8">
+        <ChangePasswordSection />
       </div>
     </div>
   );

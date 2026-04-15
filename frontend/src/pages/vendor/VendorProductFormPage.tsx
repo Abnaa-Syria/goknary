@@ -2,6 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import api from '../../lib/api';
+import ImageUploader from '../../components/common/ImageUploader';
+import { uploadImages } from '../../utils/upload';
+import { getImageUrl } from '../../utils/image';
+import { formatPrice } from '../../lib/utils';
+import { mapEnum, productStatusMap } from '../../utils/localization';
 
 interface Category {
   id: string;
@@ -29,7 +34,7 @@ interface ProductVariant {
   price: number;
   discountPrice?: number | null;
   stock: number;
-  image?: string | null;
+  image?: File | string | null;
   attributes: VariantAttribute[];
   isDefault: boolean;
   status: boolean;
@@ -54,8 +59,10 @@ const VendorProductFormPage: React.FC = () => {
     descriptionAr: '', // Arabic description
     price: '',
     discountPrice: '',
+    discountType: '',
+    discountValue: '',
     stock: '',
-    images: [''] as string[],
+    images: [] as (File | string)[],
     featured: false,
     status: 'ACTIVE', // Default to ACTIVE so product appears immediately
     hasVariants: false,
@@ -109,11 +116,11 @@ const VendorProductFormPage: React.FC = () => {
       setLoading(true);
       const response = await api.get(`/vendor/products/${id}`);
       const product = response.data;
-      
+
       // Parse images if string
-      const images = typeof product.images === 'string' 
-        ? JSON.parse(product.images) 
-        : product.images || [''];
+      const images = typeof product.images === 'string'
+        ? JSON.parse(product.images)
+        : product.images || [];
 
       setFormData({
         categoryId: product.categoryId || '',
@@ -124,8 +131,10 @@ const VendorProductFormPage: React.FC = () => {
         descriptionAr: product.descriptionAr || '',
         price: product.price?.toString() || '',
         discountPrice: product.discountPrice?.toString() || '',
+        discountType: product.discountType || '',
+        discountValue: product.discountValue?.toString() || '',
         stock: product.stock?.toString() || '',
-        images: images.length > 0 ? images : [''],
+        images: images,
         featured: product.featured || false,
         status: product.status || 'DRAFT',
         hasVariants: product.hasVariants || false,
@@ -144,27 +153,39 @@ const VendorProductFormPage: React.FC = () => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
+
     if (type === 'checkbox') {
       const checked = (e.target as HTMLInputElement).checked;
       setFormData({ ...formData, [name]: checked });
+    } else if (type === 'number') {
+      // لو الرقم فاضي نخليها string فاضي عشان يقدر يمسح الرقم من الـ input
+      setFormData({ ...formData, [name]: value === '' ? '' : parseFloat(value) });
     } else {
       setFormData({ ...formData, [name]: value });
     }
   };
 
-  const handleImageChange = (index: number, value: string) => {
-    const newImages = [...formData.images];
-    newImages[index] = value;
-    setFormData({ ...formData, images: newImages });
-  };
+  useEffect(() => {
+    const p = parseFloat(formData.price) || 0;
+    const v = parseFloat(formData.discountValue) || 0;
+    if (formData.discountType) {
+      let finalP = p;
+      if (formData.discountType === 'PERCENTAGE') {
+        finalP = p - (p * v / 100);
+      } else if (formData.discountType === 'FIXED') {
+        finalP = p - v;
+      }
+      const calculated = Math.max(0, finalP).toFixed(2).toString();
+      if (calculated !== formData.discountPrice) {
+        setFormData(prev => ({ ...prev, discountPrice: calculated }));
+      }
+    } else if (formData.discountPrice !== '') {
+      setFormData(prev => ({ ...prev, discountPrice: '' }));
+    }
+  }, [formData.price, formData.discountType, formData.discountValue]);
 
-  const addImageField = () => {
-    setFormData({ ...formData, images: [...formData.images, ''] });
-  };
-
-  const removeImageField = (index: number) => {
-    const newImages = formData.images.filter((_, i) => i !== index);
-    setFormData({ ...formData, images: newImages.length > 0 ? newImages : [''] });
+  const handleImagesChange = (items: (File | string)[]) => {
+    setFormData({ ...formData, images: items });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -176,15 +197,16 @@ const VendorProductFormPage: React.FC = () => {
     try {
       // Validate
       if (!formData.categoryId || !formData.name || !formData.price || !formData.stock) {
-        setError('Please fill in all required fields');
+        setError(t('vendor.productForm.fillRequired', 'Please fill in all required fields'));
         setLoading(false);
         return;
       }
 
-      // Filter out empty image URLs
-      const validImages = formData.images.filter(img => img.trim() !== '');
-      if (validImages.length === 0) {
-        setError('Please add at least one product image');
+      // 1. Process Main Images (Local Files -> URLs)
+      const finalImageUrls = await uploadImages(formData.images);
+      
+      if (finalImageUrls.length === 0) {
+        setError(t('vendor.productForm.atLeastOneImage', 'Please add at least one product image'));
         setLoading(false);
         return;
       }
@@ -198,8 +220,10 @@ const VendorProductFormPage: React.FC = () => {
         descriptionAr: formData.descriptionAr || undefined, // Arabic description
         price: parseFloat(formData.price),
         discountPrice: formData.discountPrice ? parseFloat(formData.discountPrice) : undefined,
+        discountType: formData.discountType || undefined,
+        discountValue: formData.discountValue ? parseFloat(formData.discountValue) : undefined,
         stock: parseInt(formData.stock, 10),
-        images: validImages,
+        images: finalImageUrls,
         featured: formData.featured,
         status: formData.status, // Include status in payload
       };
@@ -207,17 +231,28 @@ const VendorProductFormPage: React.FC = () => {
       // Include variants if creating a new product with variants
       if (!isEdit && variants.length > 0) {
         payload.hasVariants = true;
-        payload.variants = variants.map(v => ({
-          name: v.name,
-          nameAr: v.nameAr || undefined, // Arabic name
-          price: v.price,
-          discountPrice: v.discountPrice,
-          stock: v.stock,
-          imageUrl: v.image || undefined,
-          attributes: v.attributes,
-          isDefault: v.isDefault,
-          status: v.status,
+        // Upload images for all variants that have local File objects
+        const variantPayloads = await Promise.all(variants.map(async (v) => {
+          let variantImageUrl = v.image as string | undefined;
+          
+          if (v.image instanceof File) {
+            const uploaded = await uploadImages([v.image]);
+            variantImageUrl = uploaded[0];
+          }
+          
+          return {
+            name: v.name,
+            nameAr: v.nameAr || undefined,
+            price: v.price,
+            discountPrice: v.discountPrice,
+            stock: v.stock,
+            imageUrl: variantImageUrl || undefined,
+            attributes: v.attributes,
+            isDefault: v.isDefault,
+            status: v.status,
+          };
         }));
+        payload.variants = variantPayloads;
       }
 
       if (isEdit) {
@@ -231,7 +266,7 @@ const VendorProductFormPage: React.FC = () => {
         navigate('/vendor/products');
       }, 1500);
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || error.response?.data?.details?.[0]?.message || 'Failed to save product';
+      const errorMessage = error.response?.data?.error || error.response?.data?.details?.[0]?.message || t('vendor.productForm.failedSave', 'Failed to save product');
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -335,7 +370,7 @@ const VendorProductFormPage: React.FC = () => {
               onChange={handleChange}
               className="input-field w-full"
               required
-              placeholder="Product name in English"
+              placeholder={t('vendor.productForm.productNamePlaceholder', 'Product name in English')}
             />
           </div>
 
@@ -351,7 +386,7 @@ const VendorProductFormPage: React.FC = () => {
               onChange={handleChange}
               className="input-field w-full"
               dir="rtl"
-              placeholder="اسم المنتج بالعربية"
+              placeholder={t('vendor.productForm.productNameArPlaceholder', 'اسم المنتج بالعربية')}
             />
           </div>
 
@@ -364,7 +399,7 @@ const VendorProductFormPage: React.FC = () => {
               onChange={handleChange}
               className="input-field w-full"
               rows={4}
-              placeholder="Product description in English"
+              placeholder={t('vendor.productForm.productDescPlaceholder', 'Product description in English')}
             />
           </div>
 
@@ -378,7 +413,7 @@ const VendorProductFormPage: React.FC = () => {
               className="input-field w-full"
               rows={4}
               dir="rtl"
-              placeholder="وصف المنتج بالعربية"
+              placeholder={t('vendor.productForm.productDescArPlaceholder', 'وصف المنتج بالعربية')}
             />
           </div>
 
@@ -401,22 +436,51 @@ const VendorProductFormPage: React.FC = () => {
 
           {/* Discount Price */}
           <div>
-            <label className="block text-sm font-medium mb-2">{t('product.discountPercent', {percent: ''})} ({t('common.currency')})</label>
+            <label className="block text-sm font-medium mb-2">{t('vendor.productForm.finalPrice', 'Final Price (Read-Only)')} ({t('common.currency')})</label>
             <input
               type="number"
               name="discountPrice"
               value={formData.discountPrice}
+              readOnly
+              disabled
+              className="input-field w-full bg-gray-100 cursor-not-allowed"
+            />
+          </div>
+
+          {/* Discount Type */}
+          <div>
+            <label className="block text-sm font-medium mb-2">{t('vendor.productForm.discountType', 'Discount Type')}</label>
+            <select
+              name="discountType"
+              value={formData.discountType}
               onChange={handleChange}
-              step="0.01"
+              className="input-field w-full"
+            >
+              <option value="">{t('vendor.productForm.noDiscount', 'No Additional Discount logic')}</option>
+              <option value="PERCENTAGE">{t('vendor.productForm.percentage', 'Percentage (%)')}</option>
+              <option value="FIXED">{t('vendor.productForm.fixedAmount', 'Fixed Amount')}</option>
+            </select>
+          </div>
+
+          {/* Discount Value */}
+          <div>
+            <label className="block text-sm font-medium mb-2">{t('vendor.productForm.discountValue', 'Discount Value')}</label>
+            <input
+              type="number"
+              name="discountValue"
+              value={formData.discountValue}
+              onChange={handleChange}
+              step="0.1"
               min="0"
               className="input-field w-full"
+              disabled={!formData.discountType}
             />
           </div>
 
           {/* Stock */}
           <div>
             <label className="block text-sm font-medium mb-2">
-              Stock Quantity <span className="text-red-500">*</span>
+              {t('vendor.productForm.stockQuantity', 'Stock Quantity')} <span className="text-red-500">*</span>
             </label>
             <input
               type="number"
@@ -432,7 +496,7 @@ const VendorProductFormPage: React.FC = () => {
           {/* Status */}
           <div>
             <label className="block text-sm font-medium mb-2">
-              Product Status <span className="text-red-500">*</span>
+              {t('vendor.productForm.productStatus', 'Product Status')} <span className="text-red-500">*</span>
             </label>
             <select
               name="status"
@@ -441,14 +505,14 @@ const VendorProductFormPage: React.FC = () => {
               className="input-field w-full"
               required
             >
-              <option value="ACTIVE">Active (Visible on website)</option>
-              <option value="DRAFT">Draft (Hidden from website)</option>
-              <option value="INACTIVE">Inactive (Hidden from website)</option>
+              <option value="ACTIVE">{t('vendor.productForm.activeStatusDesc', 'Active (Visible on website)')}</option>
+              <option value="DRAFT">{t('vendor.productForm.draftStatusDesc', 'Draft (Hidden from website)')}</option>
+              <option value="INACTIVE">{t('vendor.productForm.inactiveStatusDesc', 'Inactive (Hidden from website)')}</option>
             </select>
             <p className="text-xs text-gray-500 mt-1">
-              {formData.status === 'ACTIVE' 
-                ? '✓ Product will appear on website immediately' 
-                : '⚠ Product will be hidden from website'}
+              {formData.status === 'ACTIVE'
+                ? t('vendor.productForm.statusNoteActive', '✓ Product will appear on website immediately')
+                : t('vendor.productForm.statusNoteHidden', '⚠ Product will be hidden from website')}
             </p>
           </div>
 
@@ -462,420 +526,407 @@ const VendorProductFormPage: React.FC = () => {
               id="featured"
               className="w-4 h-4 text-primary-600 rounded"
             />
-            <label htmlFor="featured" className="ml-2 text-sm font-medium">
-              Featured Product
+            <label htmlFor="featured" className="ms-2 text-sm font-medium">
+              {t('vendor.productForm.featuredProduct', 'Featured Product')}
             </label>
           </div>
         </div>
 
         {/* Images */}
-        <div>
-          <label className="block text-sm font-medium mb-2">
-            Product Images <span className="text-red-500">*</span>
-          </label>
-          <p className="text-xs text-gray-500 mb-3">Enter image URLs (one per line)</p>
-          {formData.images.map((image, index) => (
-            <div key={index} className="flex gap-2 mb-2">
-              <input
-                type="text"
-                value={image}
-                onChange={(e) => handleImageChange(index, e.target.value)}
-                placeholder={`Image URL ${index + 1}`}
-                className="input-field flex-1"
-              />
-              {formData.images.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => removeImageField(index)}
-                  className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
-                >
-                  Remove
-                </button>
-              )}
-            </div>
-          ))}
-          <button
-            type="button"
-            onClick={addImageField}
-            className="btn-outline mt-2"
-          >
-            + Add Another Image
-          </button>
+        <div className="md:col-span-2">
+          <ImageUploader
+            label={t('vendor.productForm.productImages', 'Product Images')}
+            multiple={true}
+            value={formData.images}
+            onChange={handleImagesChange}
+            helperText={t('vendor.productForm.imagesHelper', 'Upload high-quality images of your product (max 10MB each). The first image will be the primary thumbnail.')}
+          />
         </div>
 
         {/* Product Variants Section */}
         <div className="border-t pt-6">
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <h3 className="text-lg font-bold">Product Variants</h3>
-                <p className="text-sm text-gray-500">
-                  Add variations like different sizes, colors, etc. (Optional)
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingVariant(null);
-                  setVariantForm({
-                    name: '',
-                    nameAr: '', // Arabic name
-                    price: parseFloat(formData.price) || 0,
-                    discountPrice: formData.discountPrice ? parseFloat(formData.discountPrice) : null,
-                    stock: 0,
-                    image: null,
-                    attributes: [{ name: '', nameAr: '', value: '', valueAr: '' }],
-                    isDefault: variants.length === 0,
-                    status: true,
-                  });
-                  setShowVariantForm(true);
-                }}
-                className="btn-outline"
-              >
-                + Add Variant
-              </button>
+          <div className="flex justify-between items-center mb-4">
+            <div>
+              <h3 className="text-lg font-bold">{t('vendor.productForm.productVariants', 'Product Variants')}</h3>
+              <p className="text-sm text-gray-500">
+                {t('vendor.productForm.variantsSubtitle', 'Add variations like different sizes, colors, etc. (Optional)')}
+              </p>
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingVariant(null);
+                setVariantForm({
+                  name: '',
+                  nameAr: '', // Arabic name
+                  price: parseFloat(formData.price) || 0,
+                  discountPrice: formData.discountPrice ? parseFloat(formData.discountPrice) : null,
+                  stock: 0,
+                  image: null,
+                  attributes: [{ name: '', nameAr: '', value: '', valueAr: '' }],
+                  isDefault: variants.length === 0,
+                  status: true,
+                });
+                setShowVariantForm(true);
+              }}
+              className="btn-outline"
+            >
+              {t('vendor.productForm.addVariant', '+ Add Variant')}
+            </button>
+          </div>
 
-            {/* Variant Form Modal */}
-            {showVariantForm && (
-              <div className="bg-gray-50 rounded-lg p-4 mb-4 border">
-                <h4 className="font-medium mb-4">
-                  {editingVariant ? 'Edit Variant' : 'Add New Variant'}
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Variant Name - English */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Variant Name (English) *</label>
-                    <input
-                      type="text"
-                      value={variantForm.name}
-                      onChange={(e) => setVariantForm({ ...variantForm, name: e.target.value })}
-                      placeholder="e.g., Red - Large"
-                      className="input-field w-full"
-                    />
-                  </div>
-                  
-                  {/* Variant Name - Arabic */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Variant Name (العربية)</label>
-                    <input
-                      type="text"
-                      value={variantForm.nameAr || ''}
-                      onChange={(e) => setVariantForm({ ...variantForm, nameAr: e.target.value })}
-                      placeholder="مثال: أحمر - كبير"
-                      className="input-field w-full"
-                      dir="rtl"
-                    />
-                  </div>
-                  
-                  {/* Attributes */}
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium mb-2">Attributes</label>
-                    {variantForm.attributes.map((attr, idx) => (
-                      <div key={idx} className="mb-4 p-3 bg-white rounded-lg border">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
-                          {/* Attribute Name - English */}
-                          <div>
-                            <label className="block text-xs text-gray-600 mb-1">Attribute Name (English)</label>
-                            <input
-                              type="text"
-                              value={attr.name}
-                              onChange={(e) => {
-                                const newAttrs = [...variantForm.attributes];
-                                newAttrs[idx].name = e.target.value;
-                                setVariantForm({ ...variantForm, attributes: newAttrs });
-                              }}
-                              placeholder="e.g., Color"
-                              className="input-field w-full"
-                            />
-                          </div>
-                          {/* Attribute Name - Arabic */}
-                          <div>
-                            <label className="block text-xs text-gray-600 mb-1">Attribute Name (العربية)</label>
-                            <input
-                              type="text"
-                              value={attr.nameAr || ''}
-                              onChange={(e) => {
-                                const newAttrs = [...variantForm.attributes];
-                                newAttrs[idx].nameAr = e.target.value;
-                                setVariantForm({ ...variantForm, attributes: newAttrs });
-                              }}
-                              placeholder="مثال: اللون"
-                              className="input-field w-full"
-                              dir="rtl"
-                            />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {/* Attribute Value - English */}
-                          <div>
-                            <label className="block text-xs text-gray-600 mb-1">Value (English)</label>
-                            <input
-                              type="text"
-                              value={attr.value}
-                              onChange={(e) => {
-                                const newAttrs = [...variantForm.attributes];
-                                newAttrs[idx].value = e.target.value;
-                                setVariantForm({ ...variantForm, attributes: newAttrs });
-                              }}
-                              placeholder="e.g., Red"
-                              className="input-field w-full"
-                            />
-                          </div>
-                          {/* Attribute Value - Arabic */}
-                          <div>
-                            <label className="block text-xs text-gray-600 mb-1">Value (العربية)</label>
-                            <input
-                              type="text"
-                              value={attr.valueAr || ''}
-                              onChange={(e) => {
-                                const newAttrs = [...variantForm.attributes];
-                                newAttrs[idx].valueAr = e.target.value;
-                                setVariantForm({ ...variantForm, attributes: newAttrs });
-                              }}
-                              placeholder="مثال: أحمر"
-                              className="input-field w-full"
-                              dir="rtl"
-                            />
-                          </div>
-                        </div>
-                        {variantForm.attributes.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newAttrs = variantForm.attributes.filter((_, i) => i !== idx);
+          {/* Variant Form Modal */}
+          {showVariantForm && (
+            <div className="bg-gray-50 rounded-lg p-4 mb-4 border">
+              <h4 className="font-medium mb-4">
+                {editingVariant ? t('vendor.productForm.editVariant', 'Edit Variant') : t('vendor.productForm.addNewVariant', 'Add New Variant')}
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Variant Name - English */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t('vendor.productForm.variantName', 'Variant Name')} (English) *</label>
+                  <input
+                    type="text"
+                    value={variantForm.name}
+                    onChange={(e) => setVariantForm({ ...variantForm, name: e.target.value })}
+                    placeholder={t('vendor.productForm.variantNamePlaceholder', 'e.g., Red - Large')}
+                    className="input-field w-full"
+                  />
+                </div>
+
+                {/* Variant Name - Arabic */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t('vendor.productForm.variantName', 'Variant Name')} (العربية)</label>
+                  <input
+                    type="text"
+                    value={variantForm.nameAr || ''}
+                    onChange={(e) => setVariantForm({ ...variantForm, nameAr: e.target.value })}
+                    placeholder={t('vendor.productForm.variantNameArPlaceholder', 'مثال: أحمر - كبير')}
+                    className="input-field w-full"
+                    dir="rtl"
+                  />
+                </div>
+
+                {/* Attributes */}
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium mb-2">{t('vendor.productForm.attributes', 'Attributes')}</label>
+                  {variantForm.attributes.map((attr, idx) => (
+                    <div key={idx} className="mb-4 p-3 bg-white rounded-lg border">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
+                        {/* Attribute Name - English */}
+                        <div>
+                          <label className="block text-xs text-gray-600 mb-1">{t('vendor.productForm.attributeName', 'Attribute Name')} (English)</label>
+                          <input
+                            type="text"
+                            value={attr.name}
+                            onChange={(e) => {
+                              const newAttrs = [...variantForm.attributes];
+                              newAttrs[idx].name = e.target.value;
                               setVariantForm({ ...variantForm, attributes: newAttrs });
                             }}
-                            className="mt-2 px-3 py-1 text-sm text-red-500 hover:bg-red-50 rounded"
-                          >
-                            ✕ Remove Attribute
-                          </button>
-                        )}
+                            placeholder={t('vendor.productForm.attributeNamePlaceholder', 'e.g., Color')}
+                            className="input-field w-full"
+                          />
+                        </div>
+                        {/* Attribute Name - Arabic */}
+                        <div>
+                          <label className="block text-xs text-gray-600 mb-1">{t('vendor.productForm.attributeName', 'Attribute Name')} (العربية)</label>
+                          <input
+                            type="text"
+                            value={attr.nameAr || ''}
+                            onChange={(e) => {
+                              const newAttrs = [...variantForm.attributes];
+                              newAttrs[idx].nameAr = e.target.value;
+                              setVariantForm({ ...variantForm, attributes: newAttrs });
+                            }}
+                            placeholder={t('vendor.productForm.attributeNameArPlaceholder', 'مثال: اللون')}
+                            className="input-field w-full"
+                            dir="rtl"
+                          />
+                        </div>
                       </div>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => setVariantForm({
-                        ...variantForm,
-                        attributes: [...variantForm.attributes, { name: '', nameAr: '', value: '', valueAr: '' }]
-                      })}
-                      className="text-sm text-primary-600 hover:underline"
-                    >
-                      + Add Attribute
-                    </button>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Price (EGP) *</label>
-                    <input
-                      type="number"
-                      value={variantForm.price}
-                      onChange={(e) => setVariantForm({ ...variantForm, price: parseFloat(e.target.value) || 0 })}
-                      step="0.01"
-                      min="0"
-                      className="input-field w-full"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Discount Price</label>
-                    <input
-                      type="number"
-                      value={variantForm.discountPrice || ''}
-                      onChange={(e) => setVariantForm({ ...variantForm, discountPrice: e.target.value ? parseFloat(e.target.value) : null })}
-                      step="0.01"
-                      min="0"
-                      className="input-field w-full"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Stock *</label>
-                    <input
-                      type="number"
-                      value={variantForm.stock}
-                      onChange={(e) => setVariantForm({ ...variantForm, stock: parseInt(e.target.value) || 0 })}
-                      min="0"
-                      className="input-field w-full"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Variant Image URL</label>
-                    <input
-                      type="text"
-                      value={variantForm.image || ''}
-                      onChange={(e) => setVariantForm({ ...variantForm, image: e.target.value || null })}
-                      placeholder="Optional"
-                      className="input-field w-full"
-                    />
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <label className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={variantForm.isDefault}
-                        onChange={(e) => setVariantForm({ ...variantForm, isDefault: e.target.checked })}
-                        className="w-4 h-4 mr-2"
-                      />
-                      <span className="text-sm">Default Variant</span>
-                    </label>
-                    <label className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={variantForm.status}
-                        onChange={(e) => setVariantForm({ ...variantForm, status: e.target.checked })}
-                        className="w-4 h-4 mr-2"
-                      />
-                      <span className="text-sm">Active</span>
-                    </label>
-                  </div>
-                </div>
-                <div className="flex gap-2 mt-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {/* Attribute Value - English */}
+                        <div>
+                          <label className="block text-xs text-gray-600 mb-1">{t('vendor.productForm.value', 'Value')} (English)</label>
+                          <input
+                            type="text"
+                            value={attr.value}
+                            onChange={(e) => {
+                              const newAttrs = [...variantForm.attributes];
+                              newAttrs[idx].value = e.target.value;
+                              setVariantForm({ ...variantForm, attributes: newAttrs });
+                            }}
+                            placeholder={t('vendor.productForm.valuePlaceholder', 'e.g., Red')}
+                            className="input-field w-full"
+                          />
+                        </div>
+                        {/* Attribute Value - Arabic */}
+                        <div>
+                          <label className="block text-xs text-gray-600 mb-1">{t('vendor.productForm.value', 'Value')} (العربية)</label>
+                          <input
+                            type="text"
+                            value={attr.valueAr || ''}
+                            onChange={(e) => {
+                              const newAttrs = [...variantForm.attributes];
+                              newAttrs[idx].valueAr = e.target.value;
+                              setVariantForm({ ...variantForm, attributes: newAttrs });
+                            }}
+                            placeholder={t('vendor.productForm.valueArPlaceholder', 'مثال: أحمر')}
+                            className="input-field w-full"
+                            dir="rtl"
+                          />
+                        </div>
+                      </div>
+                      {variantForm.attributes.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newAttrs = variantForm.attributes.filter((_, i) => i !== idx);
+                            setVariantForm({ ...variantForm, attributes: newAttrs });
+                          }}
+                          className="mt-2 px-3 py-1 text-sm text-red-500 hover:bg-red-50 rounded"
+                        >
+                          {t('vendor.productForm.removeAttr', '✕ Remove Attribute')}
+                        </button>
+                      )}
+                    </div>
+                  ))}
                   <button
                     type="button"
-                    onClick={async () => {
-                      try {
-                        const validAttrs = variantForm.attributes.filter(a => a.name && a.value);
-                        if (!variantForm.name || validAttrs.length === 0) {
-                          alert('Please enter variant name and at least one attribute');
-                          return;
+                    onClick={() => setVariantForm({
+                      ...variantForm,
+                      attributes: [...variantForm.attributes, { name: '', nameAr: '', value: '', valueAr: '' }]
+                    })}
+                    className="text-sm text-primary-600 hover:underline"
+                  >
+                    {t('vendor.productForm.addAttr', '+ Add Attribute')}
+                  </button>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t('vendor.productPrice')} ({t('common.currency')}) *</label>
+                  <input
+                    type="number"
+                    value={variantForm.price}
+                    onChange={(e) => setVariantForm({ ...variantForm, price: parseFloat(e.target.value) || 0 })}
+                    step="0.01"
+                    min="0"
+                    className="input-field w-full"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t('vendor.productForm.discountPrice', 'Discount Price')}</label>
+                  <input
+                    type="number"
+                    value={variantForm.discountPrice || ''}
+                    onChange={(e) => setVariantForm({ ...variantForm, discountPrice: e.target.value ? parseFloat(e.target.value) : null })}
+                    step="0.01"
+                    min="0"
+                    className="input-field w-full"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t('vendor.productForm.stock', 'Stock')} *</label>
+                  <input
+                    type="number"
+                    value={variantForm.stock}
+                    onChange={(e) => setVariantForm({ ...variantForm, stock: parseInt(e.target.value) || 0 })}
+                    min="0"
+                    className="input-field w-full"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <ImageUploader
+                    label={t('vendor.productForm.variantImage', 'Variant Image')}
+                    multiple={false}
+                    value={variantForm.image ? [variantForm.image] : []}
+                    onChange={(items) => setVariantForm({ ...variantForm, image: items[0] || null })}
+                    helperText={t('vendor.productForm.variantImageHelper', 'Optional specific asset for this variant.')}
+                  />
+                </div>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={variantForm.isDefault}
+                      onChange={(e) => setVariantForm({ ...variantForm, isDefault: e.target.checked })}
+                      className="w-4 h-4 me-2"
+                    />
+                    <span className="text-sm">{t('vendor.productForm.defaultVariant', 'Default Variant')}</span>
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={variantForm.status}
+                      onChange={(e) => setVariantForm({ ...variantForm, status: e.target.checked })}
+                      className="w-4 h-4 me-2"
+                    />
+                    <span className="text-sm">{t('common.active', 'Active')}</span>
+                  </label>
+                </div>
+              </div>
+              <div className="flex gap-2 mt-4">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const validAttrs = variantForm.attributes.filter(a => a.name && a.value);
+                      if (!variantForm.name || validAttrs.length === 0) {
+                        alert(t('vendor.productForm.enterVariantInfo', 'Please enter variant name and at least one attribute'));
+                        return;
+                      }
+
+                      const payload = {
+                        ...variantForm,
+                        attributes: validAttrs,
+                      };
+
+                      if (isEdit) {
+                        // Edit mode: upload image immediately if it's a File
+                        let finalVariantImageUrl = variantForm.image as string | null;
+                        if (variantForm.image instanceof File) {
+                          const uploaded = await uploadImages([variantForm.image]);
+                          finalVariantImageUrl = uploaded[0];
                         }
-                        
-                        const payload = {
-                          ...variantForm,
-                          attributes: validAttrs,
+
+                        const apiPayload = {
+                          ...payload,
+                          image: finalVariantImageUrl,
                         };
 
-                        if (isEdit) {
-                          // Edit mode: save via API
-                          if (editingVariant?.id) {
-                            await api.patch(`/vendor/products/${id}/variants/${editingVariant.id}`, payload);
-                          } else {
-                            await api.post(`/vendor/products/${id}/variants`, payload);
-                          }
-                          // Refresh variants from server
-                          const res = await api.get(`/vendor/products/${id}/variants`);
-                          setVariants(res.data.variants);
+                        // Save via API
+                        if (editingVariant?.id) {
+                          await api.patch(`/vendor/products/${id}/variants/${editingVariant.id}`, apiPayload);
                         } else {
-                          // Create mode: save locally
-                          if (editingVariant) {
-                            // Update existing local variant
-                            setVariants(variants.map(v => 
-                              v === editingVariant ? { ...payload, id: v.id } : v
-                            ));
-                          } else {
-                            // Add new local variant with temporary id
-                            const newVariant = {
-                              ...payload,
-                              id: `temp-${Date.now()}`,
-                            };
-                            setVariants([...variants, newVariant]);
-                          }
+                          await api.post(`/vendor/products/${id}/variants`, apiPayload);
                         }
-                        setShowVariantForm(false);
-                      } catch (err: any) {
-                        alert(err.response?.data?.error || 'Failed to save variant');
+                        // Refresh variants from server
+                        const res = await api.get(`/vendor/products/${id}/variants`);
+                        setVariants(res.data.variants);
+                      } else {
+                        // Create mode: save locally
+                        if (editingVariant) {
+                          // Update existing local variant
+                          setVariants(variants.map(v =>
+                            v === editingVariant ? { ...payload, id: v.id } : v
+                          ));
+                        } else {
+                          // Add new local variant with temporary id
+                          const newVariant = {
+                            ...payload,
+                            id: `temp-${Date.now()}`,
+                          };
+                          setVariants([...variants, newVariant]);
+                        }
                       }
-                    }}
-                    className="btn-primary"
-                  >
-                    {editingVariant ? 'Update Variant' : 'Add Variant'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowVariantForm(false)}
-                    className="btn-outline"
-                  >
-                    Cancel
-                  </button>
-                </div>
+                      setShowVariantForm(false);
+                    } catch (err: any) {
+                      alert(err.response?.data?.error || t('vendor.productForm.failedSaveVariant', 'Failed to save variant'));
+                    }
+                  }}
+                   className="btn-primary"
+                >
+                  {editingVariant ? t('vendor.productForm.updateVariant', 'Update Variant') : t('vendor.productForm.addVariant', 'Add Variant')}
+                </button>
+                <button
+                  type="button"
+                   onClick={() => setShowVariantForm(false)}
+                  className="btn-outline"
+                >
+                  {t('common.cancel', 'Cancel')}
+                </button>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Variants List */}
-            {variants.length > 0 && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-100">
-                    <tr>
-                      <th className="px-3 py-2 text-left">Name</th>
-                      <th className="px-3 py-2 text-left">Attributes</th>
-                      <th className="px-3 py-2 text-left">Price</th>
-                      <th className="px-3 py-2 text-left">Stock</th>
-                      <th className="px-3 py-2 text-left">Status</th>
-                      <th className="px-3 py-2 text-left">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {variants.map((v) => (
-                      <tr key={v.id} className="hover:bg-gray-50">
-                        <td className="px-3 py-2">
-                          {v.name}
-                          {v.isDefault && <span className="ml-2 text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded">Default</span>}
-                        </td>
-                        <td className="px-3 py-2">
-                          {v.attributes.map((a, i) => (
-                            <span key={i} className="inline-block bg-gray-100 px-2 py-0.5 rounded text-xs mr-1">
-                              {a.name}: {a.value}
-                            </span>
-                          ))}
-                        </td>
-                        <td className="px-3 py-2">
-                          {v.discountPrice ? (
-                            <>
-                              <span className="line-through text-gray-400 mr-1">EGP {v.price}</span>
-                              <span className="text-green-600">EGP {v.discountPrice}</span>
-                            </>
-                          ) : (
-                            `EGP ${v.price}`
-                          )}
-                        </td>
-                        <td className="px-3 py-2">{v.stock}</td>
-                        <td className="px-3 py-2">
-                          <span className={`px-2 py-0.5 rounded text-xs ${v.status ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                            {v.status ? 'Active' : 'Inactive'}
+          {/* Variants List */}
+          {variants.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="px-3 py-2 text-start">{t('common.name', 'Name')}</th>
+                    <th className="px-3 py-2 text-start">{t('vendor.productForm.attributes', 'Attributes')}</th>
+                    <th className="px-3 py-2 text-start">{t('vendor.productPrice', 'Price')}</th>
+                    <th className="px-3 py-2 text-start">{t('vendor.productForm.stock', 'Stock')}</th>
+                    <th className="px-3 py-2 text-start">{t('common.status', 'Status')}</th>
+                    <th className="px-3 py-2 text-start">{t('common.actions', 'Actions')}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {variants.map((v) => (
+                    <tr key={v.id} className="hover:bg-gray-50">
+                      <td className="px-3 py-2">
+                        {v.name}
+                        {v.isDefault && <span className="ms-2 text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded">{t('common.default', 'Default')}</span>}
+                      </td>
+                      <td className="px-3 py-2">
+                        {v.attributes.map((a, i) => (
+                          <span key={i} className="inline-block bg-gray-100 px-2 py-0.5 rounded text-xs me-1">
+                            {a.name}: {a.value}
                           </span>
-                        </td>
-                        <td className="px-3 py-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingVariant(v);
-                              setVariantForm(v);
-                              setShowVariantForm(true);
-                            }}
-                            className="text-primary-600 hover:underline mr-2"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              if (!window.confirm('Delete this variant?')) return;
-                              try {
-                                if (isEdit && v.id && !v.id.startsWith('temp-')) {
-                                  await api.delete(`/vendor/products/${id}/variants/${v.id}`);
-                                }
-                                setVariants(variants.filter(vr => vr.id !== v.id));
-                              } catch (err: any) {
-                                alert(err.response?.data?.error || 'Failed to delete');
+                        ))}
+                      </td>
+                      <td className="px-3 py-2">
+                        {v.discountPrice ? (
+                          <>
+                            <span className="line-through text-gray-400 me-2">{formatPrice(v.price)}</span>
+                            <span className="text-green-600">{formatPrice(v.discountPrice)}</span>
+                          </>
+                        ) : (
+                          formatPrice(v.price)
+                        )}
+                      </td>
+                      <td className="px-3 py-2">{v.stock}</td>
+                      <td className="px-3 py-2">
+                        <span className={`px-2 py-0.5 rounded text-xs ${v.status ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                          {v.status ? t('common.active', 'Active') : t('common.inactive', 'Inactive')}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingVariant(v);
+                            setVariantForm(v);
+                            setShowVariantForm(true);
+                          }}
+                          className="text-primary-600 hover:underline me-2"
+                        >
+                          {t('common.edit', 'Edit')}
+                        </button>
+                         <button
+                          type="button"
+                          onClick={async () => {
+                            if (!window.confirm(t('vendor.productForm.confirmDeleteVariant', 'Delete this variant?'))) return;
+                            try {
+                              if (isEdit && v.id && !v.id.startsWith('temp-')) {
+                                await api.delete(`/vendor/products/${id}/variants/${v.id}`);
                               }
-                            }}
-                            className="text-red-600 hover:underline"
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                              setVariants(variants.filter(vr => vr.id !== v.id));
+                            } catch (err: any) {
+                              alert(err.response?.data?.error || t('vendor.productForm.failedDelete', 'Failed to delete'));
+                            }
+                          }}
+                          className="text-red-600 hover:underline"
+                        >
+                          {t('common.delete', 'Delete')}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-            {variants.length === 0 && !showVariantForm && (
-              <p className="text-gray-500 text-sm text-center py-4 bg-gray-50 rounded">
-                No variants added yet. Variants are optional - add them if your product has different sizes, colors, etc.
-              </p>
-            )}
-          </div>
+          {variants.length === 0 && !showVariantForm && (
+            <p className="text-gray-500 text-sm text-center py-4 bg-gray-50 rounded">
+              {t('vendor.productForm.noVariants', 'No variants added yet. Variants are optional - add them if your product has different sizes, colors, etc.')}
+            </p>
+          )}
+        </div>
 
         {/* Submit Button */}
         <div className="flex justify-end gap-4 pt-4 border-t">
@@ -885,14 +936,14 @@ const VendorProductFormPage: React.FC = () => {
             className="btn-outline"
             disabled={loading}
           >
-            Cancel
+            {t('common.cancel', 'Cancel')}
           </button>
           <button
             type="submit"
             className="btn-primary"
             disabled={loading}
           >
-            {loading ? 'Saving...' : isEdit ? 'Update Product' : 'Create Product'}
+            {loading ? t('vendor.productForm.saving', 'Saving...') : isEdit ? t('vendor.productForm.updateProduct', 'Update Product') : t('vendor.productForm.createProduct', 'Create Product')}
           </button>
         </div>
       </form>

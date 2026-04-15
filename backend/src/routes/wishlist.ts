@@ -5,6 +5,7 @@ import {
   removeFromWishlist,
   removeFromWishlistByProductId,
   checkWishlistStatus,
+  getWishlistCount
 } from '../controllers/wishlist';
 import { authenticate } from '../middleware/auth';
 
@@ -15,9 +16,13 @@ router.use(authenticate);
 
 router.get('/', getWishlist);
 router.post('/', addToWishlist);
-router.delete('/:id', removeFromWishlist);
-router.delete('/product/:productId', removeFromWishlistByProductId);
+// M-10 Fix: specific routes MUST come before /:id wildcard
+// otherwise Express matches /check/abc and /product/abc against /:id first
+router.get('/count', getWishlistCount);
 router.get('/check/:productId', checkWishlistStatus);
+router.delete('/product/:productId', removeFromWishlistByProductId);
+router.delete('/:id', removeFromWishlist);
+
 
 export default router;
 

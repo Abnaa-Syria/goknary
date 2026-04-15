@@ -34,8 +34,8 @@ const CategoryPage: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [expandedFilters, setExpandedFilters] = useState<string[]>(['price', 'rating']);
   const [priceRange, setPriceRange] = useState({
-    min: searchParams.get('minPrice') || '',
-    max: searchParams.get('maxPrice') || '',
+    min: searchParams.get('priceMin') || searchParams.get('minPrice') || '',
+    max: searchParams.get('priceMax') || searchParams.get('maxPrice') || '',
   });
 
   // Helper to get localized category name
@@ -51,24 +51,36 @@ const CategoryPage: React.FC = () => {
   }, [slug, dispatch]);
 
   useEffect(() => {
-    const params: any = {
-      categoryId: currentCategory?.id,
+    // Normalization layer for Backend Alignment
+    const apiParams: any = {
+      category: currentCategory?.id, // mapped from categoryId
       page: searchParams.get('page') || '1',
-      sort: searchParams.get('sort') || 'relevance',
-      minPrice: searchParams.get('minPrice'),
-      maxPrice: searchParams.get('maxPrice'),
-      minRating: searchParams.get('minRating'),
-      brandId: searchParams.get('brandId'),
+      limit: searchParams.get('limit') || '24',
     };
 
-    Object.keys(params).forEach((key) => {
-      if (params[key] === null || params[key] === undefined) {
-        delete params[key];
-      }
-    });
+    // Correct Sort Mapping
+    let sortVal = searchParams.get('sort') || 'relevance';
+    if (sortVal === 'price_desc') sortVal = 'price_high';
+    if (sortVal === 'price_asc') sortVal = 'price_low';
+    apiParams.sort = sortVal;
 
-    dispatch(setFilters(params));
-    dispatch(fetchProducts(params));
+    // Correct Price Mapping
+    const pMin = searchParams.get('priceMin') || searchParams.get('minPrice');
+    if (pMin) apiParams.priceMin = pMin;
+    
+    const pMax = searchParams.get('priceMax') || searchParams.get('maxPrice');
+    if (pMax) apiParams.priceMax = pMax;
+
+    // Correct Rating Mapping
+    const rating = searchParams.get('rating') || searchParams.get('minRating');
+    if (rating) apiParams.rating = rating;
+
+    // Correct Brand Mapping
+    const brand = searchParams.get('brand') || searchParams.get('brandId');
+    if (brand) apiParams.brand = brand;
+
+    dispatch(setFilters(apiParams));
+    dispatch(fetchProducts(apiParams));
   }, [currentCategory, searchParams, dispatch]);
 
   const toggleFilterSection = (section: string) => {
@@ -87,13 +99,17 @@ const CategoryPage: React.FC = () => {
   const handlePriceFilter = () => {
     const newParams = new URLSearchParams(searchParams);
     if (priceRange.min) {
-      newParams.set('minPrice', priceRange.min);
+      newParams.set('priceMin', priceRange.min);
+      newParams.delete('minPrice');
     } else {
+      newParams.delete('priceMin');
       newParams.delete('minPrice');
     }
     if (priceRange.max) {
-      newParams.set('maxPrice', priceRange.max);
+      newParams.set('priceMax', priceRange.max);
+      newParams.delete('maxPrice');
     } else {
+      newParams.delete('priceMax');
       newParams.delete('maxPrice');
     }
     newParams.set('page', '1');
@@ -107,11 +123,11 @@ const CategoryPage: React.FC = () => {
 
   // Get active filters for display
   const activeFilters: string[] = [];
-  if (searchParams.get('minPrice') || searchParams.get('maxPrice')) {
+  if (searchParams.get('priceMin') || searchParams.get('priceMax') || searchParams.get('minPrice') || searchParams.get('maxPrice')) {
     activeFilters.push(isRTL ? 'السعر' : 'Price');
   }
-  if (searchParams.get('minRating')) {
-    const ratingLabel = searchParams.get('minRating');
+  if (searchParams.get('rating') || searchParams.get('minRating')) {
+    const ratingLabel = searchParams.get('rating') || searchParams.get('minRating');
     activeFilters.push(
       isRTL
         ? `تقييم ${ratingLabel}+`
@@ -340,10 +356,15 @@ const CategoryPage: React.FC = () => {
                           key={rating}
                           onClick={() => {
                             const newParams = new URLSearchParams(searchParams);
+                            const currentRating = newParams.get('rating') || newParams.get('minRating');
+                            const isActive = currentRating === rating.toString();
+                            
                             if (isActive) {
+                              newParams.delete('rating');
                               newParams.delete('minRating');
                             } else {
-                              newParams.set('minRating', rating.toString());
+                              newParams.set('rating', rating.toString());
+                              newParams.delete('minRating');
                             }
                             newParams.set('page', '1');
                             setSearchParams(newParams);
@@ -407,10 +428,10 @@ const CategoryPage: React.FC = () => {
                   <option value="relevance">
                     {isRTL ? 'الصلة' : 'Relevance'}
                   </option>
-                  <option value="price_asc">
+                  <option value="price_low">
                     {isRTL ? 'السعر: من الأقل للأعلى' : 'Price: Low to High'}
                   </option>
-                  <option value="price_desc">
+                  <option value="price_high">
                     {isRTL ? 'السعر: من الأعلى للأقل' : 'Price: High to Low'}
                   </option>
                   <option value="rating">

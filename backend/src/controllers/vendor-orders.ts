@@ -110,6 +110,11 @@ export const getVendorOrder = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Vendor not found' });
     }
 
+    // M-03 Fix: suspended vendors cannot view individual order details
+    if (vendor.status !== 'APPROVED') {
+      return res.status(403).json({ error: 'Vendor account is not approved or is suspended' });
+    }
+
     const { id } = req.params;
 
     const order = await prisma.order.findFirst({
@@ -153,7 +158,8 @@ export const getVendorOrder = async (req: AuthRequest, res: Response) => {
 
     res.json({
       ...order,
-      address: JSON.parse(order.addressJson),
+      // H-09 Fix: safe JSON.parse
+      address: (() => { try { return JSON.parse(order.addressJson); } catch { return {}; } })(),
       items: order.items.map((item) => ({
         ...item,
         product: {
@@ -202,19 +208,23 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response) => {
       throw new NotFoundError('Order not found');
     }
 
-    // Update order status
-    const updated = await prisma.order.update({
-      where: { id },
-      data: { status },
-    });
+    // H-08 Fix: wrap status update + history in a single atomic transaction
+    // If history creation fails, the status rollback is automatic
+    const updated = await prisma.$transaction(async (tx) => {
+      const updatedOrder = await tx.order.update({
+        where: { id },
+        data: { status },
+      });
 
-    // Add status history
-    await prisma.orderStatusHistory.create({
-      data: {
-        orderId: id,
-        status,
-        notes: notes || `Status updated to ${status}`,
-      },
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId: id,
+          status,
+          notes: notes || `Status updated to ${status}`,
+        },
+      });
+
+      return updatedOrder;
     });
 
     res.json({

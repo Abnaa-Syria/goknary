@@ -6,18 +6,18 @@ import {
   updateBanner,
   deleteBanner,
 } from '../controllers/admin-banners';
-import { authenticate, authorize } from '../middleware/auth';
+import { authenticate, authorize, requirePermission } from '../middleware/auth';
 
 const router = Router();
 
 router.use(authenticate);
-router.use(authorize('ADMIN'));
+router.use(authorize('ADMIN', 'STAFF'));
 
-router.get('/', getBanners);
-router.get('/:id', getBannerById);
-router.post('/', createBanner);
-router.patch('/:id', updateBanner);
-router.delete('/:id', deleteBanner);
+router.get('/', requirePermission('READ_BANNERS'), getBanners);
+router.get('/:id', requirePermission('READ_BANNERS'), getBannerById);
+router.post('/', requirePermission('CREATE_BANNERS'), createBanner);
+router.patch('/:id', requirePermission('UPDATE_BANNERS'), updateBanner);
+router.delete('/:id', requirePermission('DELETE_BANNERS'), deleteBanner);
 
 export default router;
 

@@ -8,6 +8,7 @@ import { formatPrice, calculateDiscountPercentage } from '../lib/utils';
 import { SEO } from '../components/common/SEO';
 import EmptyState from '../components/common/EmptyState';
 import { addToCart } from '../store/slices/cartSlice';
+import { getImageUrl } from '../utils/image';
 
 const ComparePage: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -132,7 +133,7 @@ const ComparePage: React.FC = () => {
                       <Link to={`/product/${item.product.slug}`} className="block">
                         <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
                           <img
-                            src={mainImage}
+                            src={getImageUrl(mainImage)}
                             alt={productName}
                             className="w-full h-full object-cover"
                           />

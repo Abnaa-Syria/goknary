@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { useAppDispatch } from '../../store/hooks';
+import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import api from '../../lib/api';
 
 interface VendorApplyPageProps {
-  onApplied: () => void;
+  onApplied?: () => void;
 }
 
 const VendorApplyPage: React.FC<VendorApplyPageProps> = ({ onApplied }) => {
-  const dispatch = useAppDispatch();
+  const { t } = useTranslation();
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     storeName: '',
     description: '',
@@ -33,10 +35,11 @@ const VendorApplyPage: React.FC<VendorApplyPageProps> = ({ onApplied }) => {
       await api.post('/vendor/apply', formData);
       setSuccess(true);
       setTimeout(() => {
-        onApplied();
+        if (onApplied) onApplied();
+        else navigate('/vendor');
       }, 2000);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to submit application');
+      setError(err.response?.data?.error || t('vendor.applyPage.failedSubmit', 'Failed to submit application'));
     } finally {
       setLoading(false);
     }
@@ -47,9 +50,9 @@ const VendorApplyPage: React.FC<VendorApplyPageProps> = ({ onApplied }) => {
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-2xl mx-auto card p-8 text-center">
           <div className="text-green-500 text-5xl mb-4">✓</div>
-          <h1 className="text-2xl font-bold mb-4">Application Submitted!</h1>
+          <h1 className="text-2xl font-bold mb-4">{t('vendor.applyPage.submittedTitle', 'Application Submitted!')}</h1>
           <p className="text-gray-600">
-            Your vendor application has been submitted successfully. We'll review it and notify you once it's approved.
+            {t('vendor.applyPage.submittedMessage', "Your vendor application has been submitted successfully. We'll review it and notify you once it's approved.")}
           </p>
         </div>
       </div>
@@ -59,11 +62,11 @@ const VendorApplyPage: React.FC<VendorApplyPageProps> = ({ onApplied }) => {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-2xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">Become a Vendor</h1>
+        <h1 className="text-3xl font-bold mb-6">{t('vendor.applyPage.title', 'Become a Vendor')}</h1>
 
         <div className="card p-6">
           <p className="text-gray-600 mb-6">
-            Apply to become a vendor and start selling your products on GoKnary. Fill out the form below and we'll review your application.
+            {t('vendor.applyPage.description', "Apply to become a vendor and start selling your products on GoKnary. Fill out the form below and we'll review your application.")}
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -75,7 +78,7 @@ const VendorApplyPage: React.FC<VendorApplyPageProps> = ({ onApplied }) => {
 
             <div>
               <label className="block text-sm font-medium mb-2">
-                Store Name <span className="text-red-500">*</span>
+                {t('vendor.settingsPage.storeName', 'Store Name')} <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -83,21 +86,21 @@ const VendorApplyPage: React.FC<VendorApplyPageProps> = ({ onApplied }) => {
                 value={formData.storeName}
                 onChange={handleChange}
                 className="input-field"
-                placeholder="My Awesome Store"
+                placeholder={t('vendor.settingsPage.storeNamePlaceholder', 'My Awesome Store')}
                 required
               />
-              <p className="text-xs text-gray-500 mt-1">This will be your store's public name</p>
+              <p className="text-xs text-gray-500 mt-1">{t('vendor.applyPage.storeNameHelp', "This will be your store's public name")}</p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Store Description</label>
+              <label className="block text-sm font-medium mb-2">{t('vendor.settingsPage.storeDescription', 'Store Description')}</label>
               <textarea
                 name="description"
                 value={formData.description}
                 onChange={handleChange}
                 className="input-field"
                 rows={4}
-                placeholder="Tell us about your store..."
+                placeholder={t('vendor.settingsPage.storeDescPlaceholder', 'Tell us about your store...')}
               />
             </div>
 
@@ -106,7 +109,7 @@ const VendorApplyPage: React.FC<VendorApplyPageProps> = ({ onApplied }) => {
               disabled={loading}
               className="btn-primary w-full disabled:opacity-50"
             >
-              {loading ? 'Submitting...' : 'Submit Application'}
+              {loading ? t('vendor.productForm.updating', 'Submitting...') : t('vendor.applyPage.submit', 'Submit Application')}
             </button>
           </form>
         </div>

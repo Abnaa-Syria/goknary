@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useParams, Link } from 'react-router-dom';
 import api from '../../lib/api';
 import { formatPrice } from '../../lib/utils';
+import { orderStatusMap, mapEnum } from '../../utils/localization';
 
 interface OrderDetails {
   id: string;
@@ -42,9 +44,16 @@ interface OrderDetails {
 }
 
 const AdminOrderDetailPage: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const [order, setOrder] = useState<OrderDetails | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString(i18n.language === 'ar' ? 'ar-EG' : 'en-US', {
+      year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
+  };
 
   useEffect(() => {
     if (id) {
@@ -83,15 +92,15 @@ const AdminOrderDetailPage: React.FC = () => {
   };
 
   if (loading) {
-    return <div className="text-center py-8">Loading order details...</div>;
+    return <div className="text-center py-8">{t('admin.orderDetail.loading')}</div>;
   }
 
   if (!order) {
     return (
       <div className="text-center py-8">
-        <p className="text-gray-500 mb-4">Order not found</p>
+        <p className="text-gray-500 mb-4">{t('admin.orderDetail.notFound')}</p>
         <Link to="/admin/orders" className="btn-primary inline-block">
-          Back to Orders
+          {t('admin.orderDetail.backToOrders')}
         </Link>
       </div>
     );
@@ -102,13 +111,13 @@ const AdminOrderDetailPage: React.FC = () => {
       <div className="flex items-center justify-between mb-6">
         <div>
           <Link to="/admin/orders" className="text-primary-500 hover:underline text-sm mb-2 inline-block">
-            ← Back to Orders
+            ← {t('admin.orderDetail.backToOrders')}
           </Link>
-          <h2 className="text-2xl font-bold">Order Details</h2>
-          <p className="text-gray-500">Order #{order.id.slice(0, 8)}</p>
+          <h2 className="text-2xl font-bold">{t('admin.orderDetail.title')}</h2>
+          <p className="text-gray-500">{t('admin.orderDetail.orderNumber', { id: order.id.slice(0, 8) })}</p>
         </div>
         <span className={`px-4 py-2 rounded-full text-sm font-medium ${getStatusColor(order.status)}`}>
-          {order.status}
+          {mapEnum(orderStatusMap, order.status)}
         </span>
       </div>
 
@@ -116,7 +125,7 @@ const AdminOrderDetailPage: React.FC = () => {
         <div className="lg:col-span-2 space-y-6">
           {/* Order Items */}
           <div className="card p-6">
-            <h3 className="text-lg font-bold mb-4">Order Items</h3>
+            <h3 className="text-lg font-bold mb-4">{t('admin.orderDetail.orderItems')}</h3>
             <div className="space-y-4">
               {order.items.map((item, index) => {
                 const displayPrice = item.discountPrice || item.price;
@@ -133,7 +142,7 @@ const AdminOrderDetailPage: React.FC = () => {
                     </div>
                     <div className="flex-grow">
                       <p className="font-medium">{item.product.name}</p>
-                      <p className="text-sm text-gray-500">Quantity: {item.quantity}</p>
+                      <p className="text-sm text-gray-500">{t('admin.orderDetail.quantity', { count: item.quantity })}</p>
                       <p className="font-medium mt-1">
                         {formatPrice(displayPrice)} × {item.quantity} ={' '}
                         {formatPrice(displayPrice * item.quantity)}
@@ -147,24 +156,24 @@ const AdminOrderDetailPage: React.FC = () => {
 
           {/* Status History */}
           <div className="card p-6">
-            <h3 className="text-lg font-bold mb-4">Order Status History</h3>
+            <h3 className="text-lg font-bold mb-4">{t('admin.orderDetail.statusHistory')}</h3>
             {order.statusHistory && order.statusHistory.length > 0 ? (
               <div className="space-y-3">
                 {order.statusHistory.map((history, index) => (
-                  <div key={index} className="flex items-start space-x-3">
+                  <div key={index} className="flex items-start gap-3">
                     <div className="flex-shrink-0 w-2 h-2 rounded-full bg-primary-500 mt-2"></div>
                     <div className="flex-grow">
-                      <p className="font-medium">{history.status}</p>
+                      <p className="font-medium">{mapEnum(orderStatusMap, history.status)}</p>
                       {history.notes && <p className="text-sm text-gray-500">{history.notes}</p>}
                       <p className="text-xs text-gray-400 mt-1">
-                        {new Date(history.createdAt).toLocaleString()}
+                        {formatDate(history.createdAt)}
                       </p>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500">No status history available</p>
+              <p className="text-gray-500">{t('admin.orderDetail.noStatusHistory')}</p>
             )}
           </div>
         </div>
@@ -174,9 +183,9 @@ const AdminOrderDetailPage: React.FC = () => {
           <div className="card p-6 sticky top-4 space-y-6">
             {/* Customer Info */}
             <div>
-              <h3 className="font-bold mb-2">Customer</h3>
+              <h3 className="font-bold mb-2">{t('admin.orderDetail.customer')}</h3>
               <div className="text-sm text-gray-600">
-                <p className="font-medium text-gray-900">{order.user.name || 'N/A'}</p>
+                <p className="font-medium text-gray-900">{order.user.name || t('admin.ordersPage.notSpecified')}</p>
                 <p>{order.user.email}</p>
                 {order.user.phone && <p>{order.user.phone}</p>}
               </div>
@@ -184,7 +193,7 @@ const AdminOrderDetailPage: React.FC = () => {
 
             {/* Vendor Info */}
             <div>
-              <h3 className="font-bold mb-2">Vendor</h3>
+              <h3 className="font-bold mb-2">{t('admin.orderDetail.vendor')}</h3>
               <Link
                 to={`/store/${order.vendor.slug}`}
                 className="text-primary-500 hover:underline"
@@ -195,7 +204,7 @@ const AdminOrderDetailPage: React.FC = () => {
 
             {/* Shipping Address */}
             <div>
-              <h3 className="font-bold mb-2">Shipping Address</h3>
+              <h3 className="font-bold mb-2">{t('admin.orderDetail.shippingAddress')}</h3>
               <div className="text-sm text-gray-600">
                 <p>{order.address.fullName}</p>
                 <p>{order.address.phone}</p>
@@ -211,25 +220,25 @@ const AdminOrderDetailPage: React.FC = () => {
 
             {/* Order Summary */}
             <div>
-              <h3 className="font-bold mb-4">Order Summary</h3>
+              <h3 className="font-bold mb-4">{t('admin.orderDetail.orderSummary')}</h3>
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span>Subtotal</span>
+                  <span>{t('admin.orderDetail.subtotal')}</span>
                   <span>{formatPrice(order.subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span>Shipping</span>
+                  <span>{t('admin.orderDetail.shipping')}</span>
                   <span>{formatPrice(order.shippingCost)}</span>
                 </div>
                 <div className="border-t pt-2 flex justify-between font-bold">
-                  <span>Total</span>
+                  <span>{t('admin.orderDetail.total')}</span>
                   <span>{formatPrice(order.total)}</span>
                 </div>
               </div>
             </div>
 
             <div className="text-sm text-gray-500">
-              <p>Placed on {new Date(order.createdAt).toLocaleDateString()}</p>
+              <p>{t('admin.orderDetail.placedOn', { date: formatDate(order.createdAt) })}</p>
             </div>
           </div>
         </div>
@@ -239,4 +248,3 @@ const AdminOrderDetailPage: React.FC = () => {
 };
 
 export default AdminOrderDetailPage;
-

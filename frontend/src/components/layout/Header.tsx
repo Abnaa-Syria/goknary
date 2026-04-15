@@ -8,6 +8,7 @@ import { fetchCategories } from '../../store/slices/categorySlice';
 import CartBadge from './CartBadge';
 import WishlistBadge from './WishlistBadge';
 import CompareBadge from './CompareBadge';
+import NotificationBadge from './NotificationBadge';
 import MegaMenu from '../common/MegaMenu';
 import MobileDrawer from '../common/MobileDrawer';
 import LanguageSwitcher from '../LanguageSwitcher';
@@ -107,9 +108,9 @@ const Header: React.FC = () => {
         <div className="hidden lg:block bg-secondary-900 text-white text-xs py-2">
           <div className="container mx-auto px-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-6 rtl:space-x-reverse">
+              <div className="flex items-center gap-6">
                 <div className="flex items-center gap-2">
-                  <FiTruck className="w-4 h-4" />
+                  <FiTruck className="w-4 h-4 rtl:-scale-x-100" />
                   <span>{t('home.freeShippingDesc')}</span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -132,10 +133,10 @@ const Header: React.FC = () => {
         <div className="container mx-auto px-3 sm:px-4">
           <div className="flex items-center justify-between py-3 sm:py-4">
             {/* Logo */}
-            <Link to="/" className="flex items-center space-x-2 flex-shrink-0">
+            <Link to="/" className="flex items-center gap-2 flex-shrink-0">
               <img 
                 src="/imgs/WhatsApp_Image_2025-06-01_at_1.44.50_PM-removebg-preview-e1748777559633.webp" 
-                alt="GoKnary Logo" 
+                alt={t('common.logo', 'GoKnary Logo')} 
                 className="h-12 sm:h-14 md:h-16 w-auto object-contain"
               />
             </Link>
@@ -149,7 +150,7 @@ const Header: React.FC = () => {
                 onMouseEnter={() => setShowMegaMenu(true)}
               >
                 <button
-                  className="flex items-center gap-2 px-4 py-2.5 bg-secondary-900 text-white rounded-s-lg hover:bg-secondary-800 transition-colors font-medium text-sm whitespace-nowrap"
+                  className="flex items-center gap-2 px-4 py-2.5 bg-secondary-900 text-white rounded-s-lg hover:bg-secondary-800 transition-colors font-medium text-sm whitespace-nowrap rtl:rounded-s-none rtl:rounded-e-lg"
                   onClick={() => setShowMegaMenu(!showMegaMenu)}
                 >
                   <FiMenu className="w-5 h-5" />
@@ -169,7 +170,7 @@ const Header: React.FC = () => {
                     }}
                     onFocus={() => setShowSearchSuggestions(searchQuery.length > 0)}
                     placeholder={t('common.searchPlaceholder')}
-                    className="w-full px-4 py-2.5 pe-12 border border-gray-300 rounded-e-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none text-sm"
+                    className="w-full px-4 py-2.5 pe-12 border border-gray-300 rounded-e-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none text-sm rtl:rounded-e-none rtl:rounded-s-lg"
                   />
                   <button
                     type="submit"
@@ -181,7 +182,7 @@ const Header: React.FC = () => {
 
                 {/* Search Suggestions Dropdown */}
                 {showSearchSuggestions && searchSuggestions.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-dropdown z-50 max-h-64 overflow-y-auto">
+                  <div className="absolute top-full start-0 end-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-dropdown z-50 max-h-64 overflow-y-auto">
                     {searchSuggestions.map((suggestion, idx) => (
                       <Link
                         key={idx}
@@ -192,7 +193,7 @@ const Header: React.FC = () => {
                           setSearchQuery('');
                         }}
                       >
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center gap-2">
                           <FiSearch className="w-4 h-4 text-gray-400" />
                           <span>{suggestion.text}</span>
                         </div>
@@ -213,6 +214,9 @@ const Header: React.FC = () => {
               >
                 <FiSearch className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
+
+              {/* Notifications */}
+              <NotificationBadge />
 
               {/* Account - Desktop */}
               <div className="hidden sm:block relative">
@@ -250,7 +254,7 @@ const Header: React.FC = () => {
                         >
                           {t('nav.myOrders')}
                         </Link>
-                        {(user?.role === 'VENDOR' || user?.role === 'ADMIN') && (
+                        {(user?.role === 'VENDOR' || user?.role === 'ADMIN' || user?.role === 'STAFF') && (
                           <>
                             <div className="border-t my-1"></div>
                             {user.role === 'VENDOR' && (
@@ -262,7 +266,7 @@ const Header: React.FC = () => {
                                 {t('nav.vendorDashboard')}
                               </Link>
                             )}
-                            {user.role === 'ADMIN' && (
+                            {(user.role === 'ADMIN' || user.role === 'STAFF') && (
                               <Link
                                 to="/admin"
                                 className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"

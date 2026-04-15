@@ -1,25 +1,22 @@
-import React, { useEffect, useRef } from 'react';
-import { useAppDispatch, useAppSelector } from '../../store/hooks';
-import { fetchWishlist } from '../../store/slices/wishlistSlice';
+import React, { useEffect, useState } from 'react';
+import { useAppSelector } from '../../store/hooks';
+import api from '../../lib/api';
 
 const WishlistBadge: React.FC = () => {
-  const dispatch = useAppDispatch();
-  const { count, loading } = useAppSelector((state) => state.wishlist);
   const { isAuthenticated } = useAppSelector((state) => state.auth);
-  const hasFetched = useRef(false);
+  const [count, setCount] = useState(0);
 
   useEffect(() => {
-    if (isAuthenticated && !hasFetched.current && !loading) {
-      hasFetched.current = true;
-      dispatch(fetchWishlist());
+    if (isAuthenticated) {
+      api.get('/wishlist/count')
+        .then(res => setCount(res.data.count))
+        .catch(err => console.error(err));
+    } else {
+      setCount(0);
     }
-    // Reset hasFetched when user logs out
-    if (!isAuthenticated) {
-      hasFetched.current = false;
-    }
-  }, [dispatch, isAuthenticated, loading]);
+  }, [isAuthenticated]);
 
-  if (!isAuthenticated || count === 0 || loading) return null;
+  if (!isAuthenticated || count === 0) return null;
 
   return (
     <span className="absolute -top-1 -right-1 bg-accent-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">

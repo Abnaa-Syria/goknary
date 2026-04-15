@@ -10,8 +10,27 @@ CREATE TABLE `users` (
     `email_verified` BOOLEAN NOT NULL DEFAULT false,
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updated_at` DATETIME(3) NOT NULL,
+    `otp_code` VARCHAR(255) NULL,
+    `otp_expires_at` DATETIME(3) NULL,
+    `otp_attempts` INTEGER NOT NULL DEFAULT 0,
+    `password_reset_token` VARCHAR(255) NULL,
+    `password_reset_expires` DATETIME(0) NULL,
 
     UNIQUE INDEX `users_email_key`(`email`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `refresh_token_blacklist` (
+    `id` VARCHAR(191) NOT NULL,
+    `token` TEXT NOT NULL,
+    `token_hash` VARCHAR(191) NOT NULL,
+    `expires_at` DATETIME(3) NOT NULL,
+    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    UNIQUE INDEX `refresh_token_blacklist_token_hash_key`(`token_hash`),
+    INDEX `refresh_token_blacklist_token_hash_idx`(`token_hash`),
+    INDEX `refresh_token_blacklist_expires_at_idx`(`expires_at`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -20,8 +39,10 @@ CREATE TABLE `vendors` (
     `id` VARCHAR(191) NOT NULL,
     `user_id` VARCHAR(191) NOT NULL,
     `store_name` VARCHAR(191) NOT NULL,
+    `store_name_ar` VARCHAR(191) NULL,
     `slug` VARCHAR(191) NOT NULL,
     `description` TEXT NULL,
+    `description_ar` TEXT NULL,
     `logo` VARCHAR(191) NULL,
     `banner` VARCHAR(191) NULL,
     `rating` DOUBLE NOT NULL DEFAULT 0,
@@ -41,8 +62,10 @@ CREATE TABLE `vendors` (
 CREATE TABLE `categories` (
     `id` VARCHAR(191) NOT NULL,
     `name` VARCHAR(191) NOT NULL,
+    `name_ar` VARCHAR(191) NULL,
     `slug` VARCHAR(191) NOT NULL,
     `description` TEXT NULL,
+    `description_ar` TEXT NULL,
     `image` VARCHAR(191) NULL,
     `parent_id` VARCHAR(191) NULL,
     `order_index` INTEGER NOT NULL DEFAULT 0,
@@ -50,6 +73,7 @@ CREATE TABLE `categories` (
     `updated_at` DATETIME(3) NOT NULL,
 
     UNIQUE INDEX `categories_slug_key`(`slug`),
+    INDEX `categories_parent_id_fkey`(`parent_id`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -57,9 +81,11 @@ CREATE TABLE `categories` (
 CREATE TABLE `brands` (
     `id` VARCHAR(191) NOT NULL,
     `name` VARCHAR(191) NOT NULL,
+    `name_ar` VARCHAR(191) NULL,
     `slug` VARCHAR(191) NOT NULL,
     `logo` VARCHAR(191) NULL,
     `description` TEXT NULL,
+    `description_ar` TEXT NULL,
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updated_at` DATETIME(3) NOT NULL,
 
@@ -75,8 +101,10 @@ CREATE TABLE `products` (
     `category_id` VARCHAR(191) NOT NULL,
     `brand_id` VARCHAR(191) NULL,
     `name` VARCHAR(191) NOT NULL,
+    `name_ar` VARCHAR(191) NULL,
     `slug` VARCHAR(191) NOT NULL,
     `description` TEXT NULL,
+    `description_ar` TEXT NULL,
     `sku` VARCHAR(191) NOT NULL,
     `price` DOUBLE NOT NULL,
     `discount_price` DOUBLE NULL,
@@ -86,6 +114,7 @@ CREATE TABLE `products` (
     `images` TEXT NOT NULL,
     `status` ENUM('DRAFT', 'ACTIVE', 'INACTIVE') NOT NULL DEFAULT 'DRAFT',
     `featured` BOOLEAN NOT NULL DEFAULT false,
+    `has_variants` BOOLEAN NOT NULL DEFAULT false,
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updated_at` DATETIME(3) NOT NULL,
 
@@ -94,6 +123,29 @@ CREATE TABLE `products` (
     INDEX `products_category_id_idx`(`category_id`),
     INDEX `products_vendor_id_idx`(`vendor_id`),
     INDEX `products_slug_idx`(`slug`),
+    INDEX `products_brand_id_fkey`(`brand_id`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `product_variants` (
+    `id` VARCHAR(191) NOT NULL,
+    `product_id` VARCHAR(191) NOT NULL,
+    `sku` VARCHAR(191) NOT NULL,
+    `name` VARCHAR(191) NOT NULL,
+    `name_ar` VARCHAR(191) NULL,
+    `price` DOUBLE NOT NULL,
+    `discount_price` DOUBLE NULL,
+    `stock` INTEGER NOT NULL DEFAULT 0,
+    `image` VARCHAR(191) NULL,
+    `attributes` TEXT NOT NULL,
+    `is_default` BOOLEAN NOT NULL DEFAULT false,
+    `status` BOOLEAN NOT NULL DEFAULT true,
+    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updated_at` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `product_variants_sku_key`(`sku`),
+    INDEX `product_variants_product_id_idx`(`product_id`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -123,11 +175,16 @@ CREATE TABLE `order_items` (
     `id` VARCHAR(191) NOT NULL,
     `order_id` VARCHAR(191) NOT NULL,
     `product_id` VARCHAR(191) NOT NULL,
+    `variant_id` VARCHAR(191) NULL,
     `quantity` INTEGER NOT NULL,
     `price` DOUBLE NOT NULL,
     `discount_price` DOUBLE NULL,
+    `variant_info` TEXT NULL,
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
+    INDEX `order_items_order_id_fkey`(`order_id`),
+    INDEX `order_items_product_id_fkey`(`product_id`),
+    INDEX `order_items_variant_id_fkey`(`variant_id`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -139,6 +196,7 @@ CREATE TABLE `order_status_history` (
     `notes` TEXT NULL,
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
+    INDEX `order_status_history_order_id_fkey`(`order_id`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -148,12 +206,15 @@ CREATE TABLE `cart_items` (
     `user_id` VARCHAR(191) NULL,
     `session_id` VARCHAR(191) NULL,
     `product_id` VARCHAR(191) NOT NULL,
+    `variant_id` VARCHAR(191) NULL,
     `quantity` INTEGER NOT NULL DEFAULT 1,
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updated_at` DATETIME(3) NOT NULL,
 
-    UNIQUE INDEX `cart_items_user_id_product_id_key`(`user_id`, `product_id`),
-    UNIQUE INDEX `cart_items_session_id_product_id_key`(`session_id`, `product_id`),
+    INDEX `cart_items_user_id_product_id_idx`(`user_id`, `product_id`),
+    INDEX `cart_items_session_id_product_id_idx`(`session_id`, `product_id`),
+    INDEX `cart_items_variant_id_idx`(`variant_id`),
+    INDEX `cart_items_product_id_fkey`(`product_id`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -170,6 +231,7 @@ CREATE TABLE `reviews` (
     `updated_at` DATETIME(3) NOT NULL,
 
     INDEX `reviews_product_id_idx`(`product_id`),
+    INDEX `reviews_user_id_fkey`(`user_id`),
     UNIQUE INDEX `reviews_product_id_user_id_key`(`product_id`, `user_id`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -191,6 +253,7 @@ CREATE TABLE `addresses` (
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updated_at` DATETIME(3) NOT NULL,
 
+    INDEX `addresses_user_id_fkey`(`user_id`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -198,6 +261,7 @@ CREATE TABLE `addresses` (
 CREATE TABLE `banners` (
     `id` VARCHAR(191) NOT NULL,
     `title` VARCHAR(191) NULL,
+    `title_ar` VARCHAR(191) NULL,
     `image_url` VARCHAR(191) NOT NULL,
     `link_url` VARCHAR(191) NULL,
     `type` ENUM('HERO', 'PROMO', 'CATEGORY') NOT NULL DEFAULT 'HERO',
@@ -216,6 +280,7 @@ CREATE TABLE `home_sections` (
     `id` VARCHAR(191) NOT NULL,
     `type` VARCHAR(191) NOT NULL,
     `title` VARCHAR(191) NOT NULL,
+    `title_ar` VARCHAR(191) NULL,
     `config_json` TEXT NOT NULL,
     `order_index` INTEGER NOT NULL DEFAULT 0,
     `status` BOOLEAN NOT NULL DEFAULT true,
@@ -257,47 +322,32 @@ CREATE TABLE `commissions` (
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
--- AddForeignKey
-ALTER TABLE `vendors` ADD CONSTRAINT `vendors_user_id_fkey` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+-- CreateTable
+CREATE TABLE `wishlist_items` (
+    `id` VARCHAR(191) NOT NULL,
+    `user_id` VARCHAR(191) NOT NULL,
+    `product_id` VARCHAR(191) NOT NULL,
+    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updated_at` DATETIME(3) NOT NULL,
 
--- AddForeignKey
-ALTER TABLE `categories` ADD CONSTRAINT `categories_parent_id_fkey` FOREIGN KEY (`parent_id`) REFERENCES `categories`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+    INDEX `wishlist_items_user_id_idx`(`user_id`),
+    INDEX `wishlist_items_product_id_fkey`(`product_id`),
+    UNIQUE INDEX `wishlist_items_user_id_product_id_key`(`user_id`, `product_id`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
--- AddForeignKey
-ALTER TABLE `products` ADD CONSTRAINT `products_vendor_id_fkey` FOREIGN KEY (`vendor_id`) REFERENCES `vendors`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+-- CreateTable
+CREATE TABLE `compare_items` (
+    `id` VARCHAR(191) NOT NULL,
+    `user_id` VARCHAR(191) NULL,
+    `session_id` VARCHAR(191) NULL,
+    `product_id` VARCHAR(191) NOT NULL,
+    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
--- AddForeignKey
-ALTER TABLE `products` ADD CONSTRAINT `products_category_id_fkey` FOREIGN KEY (`category_id`) REFERENCES `categories`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `products` ADD CONSTRAINT `products_brand_id_fkey` FOREIGN KEY (`brand_id`) REFERENCES `brands`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `orders` ADD CONSTRAINT `orders_user_id_fkey` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `orders` ADD CONSTRAINT `orders_vendor_id_fkey` FOREIGN KEY (`vendor_id`) REFERENCES `vendors`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `order_items` ADD CONSTRAINT `order_items_order_id_fkey` FOREIGN KEY (`order_id`) REFERENCES `orders`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `order_items` ADD CONSTRAINT `order_items_product_id_fkey` FOREIGN KEY (`product_id`) REFERENCES `products`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `order_status_history` ADD CONSTRAINT `order_status_history_order_id_fkey` FOREIGN KEY (`order_id`) REFERENCES `orders`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `cart_items` ADD CONSTRAINT `cart_items_user_id_fkey` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `cart_items` ADD CONSTRAINT `cart_items_product_id_fkey` FOREIGN KEY (`product_id`) REFERENCES `products`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `reviews` ADD CONSTRAINT `reviews_product_id_fkey` FOREIGN KEY (`product_id`) REFERENCES `products`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `reviews` ADD CONSTRAINT `reviews_user_id_fkey` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `addresses` ADD CONSTRAINT `addresses_user_id_fkey` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+    INDEX `compare_items_user_id_idx`(`user_id`),
+    INDEX `compare_items_session_id_idx`(`session_id`),
+    INDEX `compare_items_product_id_fkey`(`product_id`),
+    UNIQUE INDEX `compare_items_user_id_product_id_key`(`user_id`, `product_id`),
+    UNIQUE INDEX `compare_items_session_id_product_id_key`(`session_id`, `product_id`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

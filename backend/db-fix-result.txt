@@ -1,0 +1,5 @@
+Error: 
+Invalid `prisma.$executeRawUnsafe()` invocation:
+
+
+Raw query failed. Code: `1146`. Message: `Table 'gokanary.product' doesn't exist`

@@ -12,6 +12,7 @@ import ProductCard from '../components/product/ProductCard';
 import { SEO } from '../components/common/SEO';
 import Breadcrumbs from '../components/common/Breadcrumbs';
 import api from '../lib/api';
+import { getImageUrl } from '../utils/image';
 
 // Compare Icon (GitCompare style)
 const CompareIcon: React.FC<{ className?: string }> = ({ className = "w-5 h-5" }) => (
@@ -42,6 +43,9 @@ const ProductPage: React.FC = () => {
   const [reviews, setReviews] = useState<any[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [reviewsError, setReviewsError] = useState<string | null>(null);
+  
+  // Phase 4 Cross-Selling state
+  const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
 
   const isInWishlist = product ? wishlistItemIds.includes(product.id) : false;
   const isInCompare = product ? compareItemIds.includes(product.id) : false;
@@ -90,26 +94,28 @@ const ProductPage: React.FC = () => {
     }
   }, [product]);
 
-  // Fetch product reviews
+  // Fetch product reviews & related products
   useEffect(() => {
-    const fetchReviews = async () => {
+    const fetchMatrixData = async () => {
       if (!slug) return;
       setReviewsLoading(true);
       setReviewsError(null);
       try {
-        const response = await api.get(`/products/${slug}/reviews`, {
-          params: { page: 1, limit: 10 },
-        });
-        setReviews(response.data.reviews || []);
+        const [reviewsRes, relatedRes] = await Promise.all([
+          api.get(`/products/${slug}/reviews`, { params: { page: 1, limit: 10 } }),
+          api.get(`/products/${slug}/related`)
+        ]);
+        setReviews(reviewsRes.data.reviews || []);
+        setRelatedProducts(relatedRes.data.products || []);
       } catch (err: any) {
-        console.error('Failed to load reviews:', err);
+        console.error('Failed to load matrix data:', err);
         setReviewsError(err.response?.data?.error || 'Failed to load reviews');
       } finally {
         setReviewsLoading(false);
       }
     };
 
-    fetchReviews();
+    fetchMatrixData();
   }, [slug]);
 
   if (loading) {
@@ -273,7 +279,7 @@ const ProductPage: React.FC = () => {
               onMouseLeave={() => setImageZoom(false)}
             >
               <img
-                src={mainImage}
+                src={getImageUrl(mainImage)}
                 alt={product.name}
                 className={`w-full h-full object-cover transition-transform duration-300 ${
                   imageZoom ? 'scale-150' : 'scale-100'
@@ -303,7 +309,7 @@ const ProductPage: React.FC = () => {
                     }`}
                   >
                     <img
-                      src={img}
+                      src={getImageUrl(img)}
                       alt={`${product.name} ${index + 1}`}
                       className="w-full h-full object-cover"
                     />
@@ -803,15 +809,16 @@ const ProductPage: React.FC = () => {
           )}
         </div>
 
-        {/* Similar Products */}
-        {similarProducts && similarProducts.length > 0 && (
+        {/* Related Products - Affinity Cross Selling */}
+        {relatedProducts && relatedProducts.length > 0 && (
           <div>
-            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6">
-              {isRTL ? 'منتجات قد تعجبك أيضاً' : 'You May Also Like'}
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6 flex items-center gap-2">
+              <FiStar className="text-primary-500 fill-primary-500 w-6 h-6" />
+              {isRTL ? 'منتجات ذات صلة' : 'Related Products'}
             </h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-6 gap-3 sm:gap-4 lg:gap-6">
-              {similarProducts.map((similarProduct) => (
-                <ProductCard key={similarProduct.id} product={similarProduct} />
+              {relatedProducts.map((p) => (
+                <ProductCard key={p.id} product={p} />
               ))}
             </div>
           </div>

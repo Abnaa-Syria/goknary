@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Category } from '../../store/slices/categorySlice';
+import { getImageUrl } from '../../utils/image';
 
 interface MegaMenuProps {
   categories: Category[];
@@ -167,7 +168,7 @@ const MegaMenu: React.FC<MegaMenuProps> = ({ categories, isOpen, onClose }) => {
                     >
                       {category.image ? (
                         <img
-                          src={category.image}
+                          src={getImageUrl(category.image)}
                           alt={categoryName}
                           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                         />
