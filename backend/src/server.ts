@@ -67,6 +67,14 @@ import { getAdminVendorProducts } from './controllers/admin';
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Coolify/Reverse proxy support (required for express-rate-limit with X-Forwarded-For)
+app.set('trust proxy', 1);
+
+// Behind Coolify/Nginx reverse proxy, trust X-Forwarded-* headers.
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 // Security & parsing middleware
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
