@@ -29,6 +29,7 @@ import AdminOrderDetailPage from './AdminOrderDetailPage';
 import AdminShippingPage from './AdminShippingPage';
 import AdminAnnouncementPage from './AdminAnnouncementPage';
 import AdminRolesPage from './AdminRolesPage';
+import { DashboardFooter } from '../../components/layout/DashboardFooter';
 
 import { hasPermission, getRoleTheme } from '../../utils/permissions';
 
@@ -841,6 +842,7 @@ const AdminDashboard: React.FC = () => {
             <Route path="*"                        element={<Navigate to="/admin" replace />} />
           </Routes>
         </main>
+        <DashboardFooter />
       </div>
     </div>
   );

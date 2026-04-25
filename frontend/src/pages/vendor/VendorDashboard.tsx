@@ -21,6 +21,7 @@ import VendorOrderDetailsPage from './VendorOrderDetailsPage';
 import VendorAnalyticsPage from './VendorAnalyticsPage';
 import VendorApplyPage from './VendorApplyPage';
 import VendorSettingsPage from './VendorSettingsPage';
+import { DashboardFooter } from '../../components/layout/DashboardFooter';
 
 import {
   StatCard, ChartCard, DashboardSkeleton, EmptyState, DashboardTopNav
@@ -588,6 +589,7 @@ const VendorDashboard: React.FC = () => {
             <Route path="*" element={<Navigate to="/vendor" replace />} />
           </Routes>
         </main>
+        <DashboardFooter />
       </div>
     </div>
   );
