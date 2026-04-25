@@ -27,7 +27,7 @@
   "scripts": {
     "start": "react-scripts start",
     "dev": "npm run start",
-    "build": "DISABLE_ESLINT_PLUGIN=true npm run build",
+    "build": "DISABLE_ESLINT_PLUGIN=true react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
