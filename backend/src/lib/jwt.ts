@@ -8,7 +8,7 @@ export interface TokenPayload {
 
 export const generateAccessToken = (payload: TokenPayload): string => {
   const secret = process.env.JWT_SECRET;
-  const expiresIn = process.env.JWT_EXPIRES_IN || '15m';
+  const expiresIn = (process.env.JWT_EXPIRES_IN || '15m') as jwt.SignOptions['expiresIn'];
 
   if (!secret) {
     throw new Error('JWT_SECRET not configured');
@@ -19,7 +19,7 @@ export const generateAccessToken = (payload: TokenPayload): string => {
 
 export const generateRefreshToken = (payload: TokenPayload): string => {
   const secret = process.env.JWT_REFRESH_SECRET;
-  const expiresIn = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
+  const expiresIn = (process.env.JWT_REFRESH_EXPIRES_IN || '7d') as jwt.SignOptions['expiresIn'];
 
   if (!secret) {
     throw new Error('JWT_REFRESH_SECRET not configured');

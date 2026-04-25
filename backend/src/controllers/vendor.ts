@@ -15,6 +15,7 @@ const updateVendorSchema = z.object({
   description: z.string().optional(),
   logo: z.string().optional(),
   banner: z.string().optional(),
+  slug: z.string().optional(),
 }).partial();
 
 export const applyForVendor = async (req: AuthRequest, res: Response) => {
@@ -138,7 +139,7 @@ export const updateVendorProfile = async (req: AuthRequest, res: Response) => {
         return res.status(400).json({ error: 'Store name is already taken' });
       }
 
-      updateData.slug = newSlug as any;
+      updateData.slug = newSlug;
     }
 
     const updated = await prisma.vendor.update({

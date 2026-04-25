@@ -71,8 +71,8 @@ export const getProducts = async (req: Request, res: Response) => {
       const searchTerm = String(q).slice(0, 100);
       and.push({
         OR: [
-          { name: { contains: searchTerm, mode: 'insensitive' } },
-          { description: { contains: searchTerm, mode: 'insensitive' } },
+          { name: { contains: searchTerm } },
+          { description: { contains: searchTerm } },
         ]
       });
     }

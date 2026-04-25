@@ -33,7 +33,7 @@ export const getHomeSections = async (req: Request, res: Response) => {
     // Get products for each section
     const sectionsWithProducts = await Promise.all(
       sections.map(async (section) => {
-        let products = [];
+        let products: Awaited<ReturnType<typeof prisma.product.findMany>> = [];
 
         switch (section.type) {
           case 'top_deals':
