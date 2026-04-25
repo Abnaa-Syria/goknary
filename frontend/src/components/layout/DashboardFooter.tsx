@@ -6,35 +6,50 @@ export function DashboardFooter() {
       className="shrink-0 border-t border-gray-200 bg-white text-gray-500 transition-colors"
       role="contentinfo"
     >
-      <div className="mx-auto flex w-full max-w-7xl flex-col items-center justify-between gap-2 px-6 py-3 lg:px-8">
-        {/* Left: Copyright */}
-        <p className="order-2 text-center text-xs font-medium tracking-wide text-gray-500 sm:order-1 sm:text-left">
-          Copyright © {new Date().getFullYear()} · All Rights Reserved
+      <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-6 py-3 lg:px-8">
+
+        <p className="text-xs font-medium tracking-wide text-gray-400">
+          Copyright &copy; {new Date().getFullYear()} &middot; All Rights Reserved
         </p>
 
-        {/* Center: Brand pill */}
-        <a
-          href={QEEMA_SITE}
+        <a href={QEEMA_SITE}
           target="_blank"
           rel="noopener noreferrer"
-          className="order-1 flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-4 py-2 shadow-sm transition-all hover:border-primary-200 hover:bg-primary-50/40 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 sm:order-2"
-          aria-label="Qeema Tech - قيمة تك"
+          className="flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-4 py-1.5 text-sm font-medium text-gray-700 transition-all hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+          aria-label="Qeema Tech"
         >
-          <img
-            src="/qeema-logo.svg"
-            alt=""
-            className="h-7 w-auto object-contain"
-          />
-          <span className="text-sm font-semibold tracking-tight text-gray-700">
-            Qeema Tech
-          </span>
+          <QeemaLogo />
+          <span>Qeema Tech</span>
         </a>
 
-        {/* Right: Tagline */}
-        <p className="order-3 hidden text-right text-xs font-medium tracking-wide text-gray-500 sm:block">
-          Powered by <span className="text-gray-700">قيمة تك</span>
+        <p className="hidden text-xs font-medium tracking-wide text-gray-400 sm:block">
+          Powered by <span className="text-gray-600">قيمة تك</span>
         </p>
+
       </div>
     </footer>
+  );
+}
+
+function QeemaLogo() {
+  return (
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 22 22"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <rect width="22" height="22" rx="6" fill="#2563EB" />
+      <circle cx="11" cy="11" r="5" stroke="white" strokeWidth="1.5" />
+      <path
+        d="M11 8v3l2 1.5"
+        stroke="white"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
