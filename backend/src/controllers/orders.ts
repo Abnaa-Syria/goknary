@@ -3,7 +3,6 @@ import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { NotFoundError, ValidationError } from '../lib/errors';
 import { z } from 'zod';
-import { v4 as uuidv4 } from 'uuid';
 import { formatPrice } from '../lib/utils';
 
 const createOrderSchema = z.object({
