@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../lib/jwt';
+import { mergeGuestCartIntoUserCart } from './cart';
 import { generateOTP, hashOTP, verifyOTP } from '../lib/otp';
 import { sendWhatsAppOTP, sendWhatsAppPasswordReset } from '../lib/whatsapp';
 
@@ -262,6 +263,13 @@ export const verifyEmail = async (req: Request, res: Response): Promise<void> =>
     const accessToken  = generateAccessToken(tokenPayload);
     const refreshToken = generateRefreshToken(tokenPayload);
 
+    // M-03 Fix: Merge guest cart into user account upon verification
+    const sessionId = req.headers['x-session-id'] as string;
+    if (sessionId) {
+      // Non-blocking merge
+      mergeGuestCartIntoUserCart(sessionId, verifiedUser.id).catch(console.error);
+    }
+
     res.status(200).json({
       message: 'Phone verified successfully! Welcome to GoKanary.',
       user:    verifiedUser,
@@ -399,6 +407,13 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       customRoleId: _crid,
       ...safeUser
     } = user as any;
+
+    // M-03 Fix: Merge guest cart into user account upon login
+    const sessionId = req.headers['x-session-id'] as string;
+    if (sessionId) {
+      // Non-blocking merge
+      mergeGuestCartIntoUserCart(sessionId, user.id).catch(console.error);
+    }
 
     res.json({ user: safeUser, accessToken, refreshToken });
   } catch (error) {

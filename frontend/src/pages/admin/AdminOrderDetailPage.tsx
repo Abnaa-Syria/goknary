@@ -48,6 +48,7 @@ const AdminOrderDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [order, setOrder] = useState<OrderDetails | null>(null);
   const [loading, setLoading] = useState(true);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString(i18n.language === 'ar' ? 'ar-EG' : 'en-US', {
@@ -71,6 +72,23 @@ const AdminOrderDetailPage: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const handleUpdateStatus = async (newStatus: string) => {
+    if (!order) return;
+    try {
+      setUpdatingStatus(true);
+      await api.patch(`/admin/orders/${id}/status`, { status: newStatus });
+      // Refresh order data to get updated history
+      await fetchOrderDetails();
+    } catch (error) {
+      console.error('Failed to update order status:', error);
+      alert('Failed to update status');
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
+  const statuses = ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'];
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -116,9 +134,25 @@ const AdminOrderDetailPage: React.FC = () => {
           <h2 className="text-2xl font-bold">{t('admin.orderDetail.title')}</h2>
           <p className="text-gray-500">{t('admin.orderDetail.orderNumber', { id: order.id.slice(0, 8) })}</p>
         </div>
-        <span className={`px-4 py-2 rounded-full text-sm font-medium ${getStatusColor(order.status)}`}>
-          {mapEnum(orderStatusMap, order.status)}
-        </span>
+        <div className="relative group">
+          <select
+            disabled={updatingStatus}
+            value={order.status}
+            onChange={(e) => handleUpdateStatus(e.target.value)}
+            className={`px-4 py-2 rounded-full text-sm font-medium border-none outline-none cursor-pointer appearance-none ${getStatusColor(order.status)} ${updatingStatus ? 'opacity-50' : ''}`}
+          >
+            {statuses.map(s => (
+              <option key={s} value={s} className="bg-white text-gray-900 font-bold">
+                {mapEnum(orderStatusMap, s)}
+              </option>
+            ))}
+          </select>
+          {updatingStatus && (
+            <div className="absolute inset-0 flex items-center justify-center bg-white/20 rounded-full">
+              <div className="w-4 h-4 border-2 border-primary-500 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -102,17 +102,27 @@ export const approveVendor = async (req: Request, res: Response) => {
       throw new NotFoundError('Vendor not found');
     }
 
-    const updated = await prisma.vendor.update({
-      where: { id },
-      data: {
-        status: 'APPROVED',
-        verified: true,
-      },
+    // V-01 Fix: Use transaction to ensure User.role is elevated to VENDOR upon approval
+    const result = await prisma.$transaction(async (tx) => {
+      const updatedVendor = await tx.vendor.update({
+        where: { id },
+        data: {
+          status: 'APPROVED',
+          verified: true,
+        },
+      });
+
+      await tx.user.update({
+        where: { id: vendor.userId },
+        data: { role: 'VENDOR' },
+      });
+
+      return updatedVendor;
     });
 
     res.json({
-      message: 'Vendor approved successfully',
-      vendor: updated,
+      message: 'Vendor approved successfully and user role updated to VENDOR',
+      vendor: result,
     });
   } catch (error) {
     if (error instanceof NotFoundError) {
@@ -205,17 +215,29 @@ export const updateVendorStatus = async (req: Request, res: Response) => {
     const vendor = await prisma.vendor.findUnique({ where: { id } });
     if (!vendor) throw new NotFoundError('Vendor not found');
 
-    const updated = await prisma.vendor.update({
-      where: { id },
-      data: { 
-        status: status as VendorStatus,
-        verified: status === 'APPROVED' ? true : vendor.verified
-      },
+    // V-01 Fix: Use transaction for consistent Role/Status updates
+    const result = await prisma.$transaction(async (tx) => {
+      const updatedVendor = await tx.vendor.update({
+        where: { id },
+        data: { 
+          status: status as VendorStatus,
+          verified: status === 'APPROVED' ? true : vendor.verified
+        },
+      });
+
+      if (status === 'APPROVED') {
+        await tx.user.update({
+          where: { id: vendor.userId },
+          data: { role: 'VENDOR' },
+        });
+      }
+
+      return updatedVendor;
     });
 
     res.json({
-      message: `Vendor status updated to ${status}`,
-      vendor: updated,
+      message: `Vendor status updated to ${status}${status === 'APPROVED' ? ' and user role elevated to VENDOR' : ''}`,
+      vendor: result,
     });
   } catch (error) {
     if (error instanceof NotFoundError) return res.status(404).json({ error: error.message });

@@ -88,7 +88,8 @@ const AdminProductsPage: React.FC = () => {
     status: 'ACTIVE',
     discountType: '',
     discountValue: '',
-    discountPrice: ''
+    discountPrice: '',
+    isPlatform: false
   });
 
   // Real-time Discount Calculation Logic
@@ -186,7 +187,8 @@ const AdminProductsPage: React.FC = () => {
         status: product.status,
         discountType: product.discountType || '',
         discountValue: '',
-        discountPrice: product.discountPrice ? product.discountPrice.toString() : ''
+        discountPrice: product.discountPrice ? product.discountPrice.toString() : '',
+        isPlatform: false
       });
     } else {
       setEditingProduct(null);
@@ -201,7 +203,8 @@ const AdminProductsPage: React.FC = () => {
         status: 'ACTIVE',
         discountType: '',
         discountValue: '',
-        discountPrice: ''
+        discountPrice: '',
+        isPlatform: false
       });
     }
     setIsModalOpen(true);
@@ -236,6 +239,10 @@ const AdminProductsPage: React.FC = () => {
       if (editingProduct) {
         await api.patch(`/vendor/products/${editingProduct.id}`, payload);
         toast.success(t('admin.vendorProducts.updateSuccess', 'Product entity successfully modified'));
+      } else if (formData.isPlatform) {
+        // G-01 Fix: Call platform-specific endpoint for system products
+        await api.post('/admin/products/platform', payload);
+        toast.success(t('admin.vendorProducts.platformCreateSuccess', 'Official Platform Product successfully established'));
       } else {
         await api.post('/vendor/products', payload);
         toast.success(t('admin.vendorProducts.createSuccess', 'New product entry established in catalog'));
@@ -594,6 +601,28 @@ const AdminProductsPage: React.FC = () => {
                       ))}
                     </select>
                   </div>
+
+                  {/* Platform Toggle */}
+                  {!editingProduct && (
+                    <div className="p-6 bg-primary-50/50 rounded-3xl border border-primary-100/50">
+                      <label className="flex items-center gap-4 cursor-pointer group">
+                        <div className="relative">
+                          <input
+                            type="checkbox"
+                            className="sr-only"
+                            checked={formData.isPlatform}
+                            onChange={(e) => setFormData({ ...formData, isPlatform: e.target.checked })}
+                          />
+                          <div className={`block w-12 h-7 rounded-full transition-colors ${formData.isPlatform ? 'bg-primary-500' : 'bg-gray-300'}`}></div>
+                          <div className={`dot absolute left-1 top-1 bg-white w-5 h-5 rounded-full transition-transform ${formData.isPlatform ? 'translate-x-5' : ''}`}></div>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black text-gray-900 uppercase tracking-widest">{t('admin.vendorProducts.isPlatform', 'Platform Product')}</p>
+                          <p className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter mt-0.5">{t('admin.vendorProducts.isPlatformDesc', 'Own this product under the GoKanary official brand')}</p>
+                        </div>
+                      </label>
+                    </div>
+                  )}
 
                   {/* Premium Image Uploader Integration */}
                   <div className="bg-gray-50/50 p-6 rounded-3xl border border-gray-100 border-dashed">

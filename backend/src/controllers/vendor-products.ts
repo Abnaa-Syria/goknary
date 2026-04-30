@@ -260,6 +260,14 @@ export const createVendorProduct = async (req: AuthRequest, res: Response) => {
     const productId = `prod_${Date.now()}_${Math.random().toString(36).substring(7)}`;
     const sku = `SKU-${productData.categoryId.substring(0, 3).toUpperCase()}-${productId.substring(productId.length - 6).toUpperCase()}`;
 
+    // G-01 Fix: Enforce status governance for VENDOR role
+    let finalStatus = productData.status || 'ACTIVE';
+    if (req.user!.role === 'VENDOR') {
+      if (finalStatus === 'ACTIVE' || finalStatus === 'APPROVED') {
+        finalStatus = 'PENDING'; // Force review for vendor-created products
+      }
+    }
+
     const product = await prisma.product.create({
       data: {
         vendorId,
@@ -277,7 +285,7 @@ export const createVendorProduct = async (req: AuthRequest, res: Response) => {
         discountValue: productData.discountValue  ?? null,
         stock:         productData.stock,
         images:        JSON.stringify(productData.images),
-        status:        productData.status  || 'ACTIVE',
+        status:        finalStatus as any,
         featured:      productData.featured || false,
         hasVariants:   productData.hasVariants || false,
       },
@@ -387,8 +395,18 @@ export const updateVendorProduct = async (req: AuthRequest, res: Response) => {
     if (stock         !== undefined) updateData.stock         = stock;
     if (images        !== undefined) updateData.images        = JSON.stringify(images);
     if (featured      !== undefined) updateData.featured      = featured;
-    if (status        !== undefined) updateData.status        = status;
     if (hasVariants   !== undefined) updateData.hasVariants   = hasVariants;
+
+    // G-01 Fix: Enforce status governance for VENDOR role on update
+    if (status !== undefined) {
+      if (req.user!.role === 'VENDOR' && (status === 'ACTIVE' || status === 'APPROVED')) {
+        return res.status(400).json({ 
+          error: 'Restricted Status', 
+          message: 'Vendors cannot set products to ACTIVE or APPROVED. Please submit for review (PENDING).' 
+        });
+      }
+      updateData.status = status;
+    }
 
     if (name !== undefined) {
       updateData.name = name;

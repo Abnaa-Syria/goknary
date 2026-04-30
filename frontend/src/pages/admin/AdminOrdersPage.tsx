@@ -39,6 +39,8 @@ const OrdersList: React.FC = () => {
     totalPages: 1,
     totalCount: 0
   });
+  const [statusFilter, setStatusFilter] = useState('');
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString(i18n.language === 'ar' ? 'ar-EG' : 'en-US', {
@@ -48,13 +50,17 @@ const OrdersList: React.FC = () => {
 
   useEffect(() => {
     fetchOrders();
-  }, [pagination.page]);
+  }, [pagination.page, statusFilter]);
 
   const fetchOrders = async () => {
     try {
       setLoading(true);
       const response = await api.get('/admin/orders', {
-        params: { page: pagination.page, limit: 10 }
+        params: { 
+          page: pagination.page, 
+          limit: 10,
+          status: statusFilter || undefined
+        }
       });
       setOrders(response.data.orders);
       setPagination(prev => ({
@@ -68,6 +74,22 @@ const OrdersList: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const handleUpdateStatus = async (orderId: string, newStatus: string) => {
+    try {
+      setUpdatingId(orderId);
+      await api.patch(`/admin/orders/${orderId}/status`, { status: newStatus });
+      // Update local state
+      setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+    } catch (error) {
+      console.error('Failed to update order status:', error);
+      alert('Failed to update status');
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const statuses = ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'];
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -91,11 +113,29 @@ const OrdersList: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-black text-gray-900 tracking-tight uppercase">{t('admin.ordersPage.title')}</h1>
-        <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">
-          {t('admin.ordersPage.totalCount', { count: pagination.totalCount })}
-        </p>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-gray-900 tracking-tight uppercase">{t('admin.ordersPage.title')}</h1>
+          <p className="text-sm font-bold text-gray-400 uppercase tracking-widest mt-1">
+            {t('admin.ordersPage.totalCount', { count: pagination.totalCount })}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPagination(p => ({ ...p, page: 1 }));
+            }}
+            className="flex-1 sm:w-48 bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-xs font-black uppercase tracking-widest focus:ring-2 focus:ring-primary-500 outline-none appearance-none cursor-pointer"
+          >
+            <option value="">{t('admin.ordersPage.allStatuses', 'All Statuses')}</option>
+            {statuses.map(s => (
+              <option key={s} value={s}>{mapEnum(orderStatusMap, s)}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {orders.length === 0 ? (
@@ -136,9 +176,25 @@ const OrdersList: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`inline-flex px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${getStatusColor(order.status)}`}>
-                      {mapEnum(orderStatusMap, order.status)}
-                    </span>
+                    <div className="relative inline-block group">
+                      <select
+                        disabled={updatingId === order.id}
+                        value={order.status}
+                        onChange={(e) => handleUpdateStatus(order.id, e.target.value)}
+                        className={`inline-flex px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border-none outline-none cursor-pointer appearance-none ${getStatusColor(order.status)} ${updatingId === order.id ? 'opacity-50' : ''}`}
+                      >
+                        {statuses.map(s => (
+                          <option key={s} value={s} className="bg-white text-gray-900 font-bold">
+                            {mapEnum(orderStatusMap, s)}
+                          </option>
+                        ))}
+                      </select>
+                      {updatingId === order.id && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-white/20 rounded-lg">
+                          <div className="w-3 h-3 border-2 border-primary-500 border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 font-black text-sm">{formatPrice(order.total)}</td>
                   <td className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase">

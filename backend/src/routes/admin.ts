@@ -7,7 +7,9 @@ import {
   createUser,
   forceResetPassword,
   updateProductStatus,
-  deleteProduct
+  deleteProduct,
+  updateAdminOrderStatus,
+  createPlatformProduct
 } from '../controllers/admin';
 import {
   createCoupon,
@@ -31,6 +33,7 @@ router.get('/dashboard', requirePermission('READ_DASHBOARD'), getDashboardStats)
 // Orders
 router.get('/orders', requirePermission('READ_ORDERS'), getAdminOrders);
 router.get('/orders/:id', requirePermission('READ_ORDERS'), getAdminOrderById);
+router.patch('/orders/:id/status', requirePermission('UPDATE_ORDERS'), updateAdminOrderStatus);
 
 // User Management
 router.get('/users', requirePermission('READ_USERS'), getUsers);
@@ -40,6 +43,7 @@ router.patch('/users/:id/password', requirePermission('UPDATE_USERS'), forceRese
 
 // Catalog Governance (General)
 router.patch('/products/:id/status', requirePermission('UPDATE_PRODUCTS'), updateProductStatus);
+router.post('/products/platform', requirePermission('CREATE_PRODUCTS'), createPlatformProduct);
 router.delete('/products/:id', requirePermission('DELETE_PRODUCTS'), deleteProduct);
 
 // Coupon Governance

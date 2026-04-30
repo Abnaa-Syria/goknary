@@ -317,3 +317,56 @@ export const clearCart = async (req: AuthRequest, res: Response) => {
   }
 };
 
+/**
+ * Merges a guest cart into a user's permanent cart.
+ * Called upon successful login or OTP verification.
+ */
+export const mergeGuestCartIntoUserCart = async (sessionId: string, userId: string) => {
+  try {
+    // 1. Fetch guest items
+    const guestItems = await prisma.cartItem.findMany({
+      where: { sessionId },
+    });
+
+    if (guestItems.length === 0) return;
+
+    // 2. Perform merge in a transaction for data integrity
+    await prisma.$transaction(async (tx) => {
+      for (const item of guestItems) {
+        // Check if product already exists in user's cart
+        const existingUserItem = await tx.cartItem.findFirst({
+          where: {
+            userId,
+            productId: item.productId,
+            variantId: item.variantId,
+          },
+        });
+
+        if (existingUserItem) {
+          // Increment quantity
+          await tx.cartItem.update({
+            where: { id: existingUserItem.id },
+            data: { quantity: existingUserItem.quantity + item.quantity },
+          });
+          // Delete the guest item
+          await tx.cartItem.delete({ where: { id: item.id } });
+        } else {
+          // Move item to user
+          await tx.cartItem.update({
+            where: { id: item.id },
+            data: {
+              userId,
+              sessionId: null, // Detach from session
+            },
+          });
+        }
+      }
+    });
+
+    console.log(`Successfully merged cart for session ${sessionId} into user ${userId}`);
+  } catch (error) {
+    console.error('Failed to merge guest cart:', error);
+    // Non-critical error, we don't throw to avoid blocking the login flow
+  }
+};
+

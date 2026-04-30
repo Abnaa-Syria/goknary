@@ -4,6 +4,7 @@ import { useAppDispatch, useAppSelector } from './store/hooks';
 import { getCurrentUser } from './store/slices/authSlice';
 import { useTranslation } from 'react-i18next';
 import Layout from './components/layout/Layout';
+import ProtectedRoute from './components/routing/ProtectedRoute';
 import HomePage from './pages/HomePage';
 import CategoryPage from './pages/CategoryPage';
 import ProductPage from './pages/ProductPage';
@@ -115,8 +116,16 @@ function App() {
         </Route>
 
         {/* Dedicated Dashboard Routes (No public Header/Footer) */}
-        <Route path="vendor/*" element={<VendorDashboard />} />
-        <Route path="admin/*" element={<AdminDashboard />} />
+        <Route path="vendor/*" element={
+          <ProtectedRoute allowedRoles={['VENDOR']}>
+            <VendorDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="admin/*" element={
+          <ProtectedRoute allowedRoles={['ADMIN', 'STAFF']}>
+            <AdminDashboard />
+          </ProtectedRoute>
+        } />
       </Routes>
     </Router>
   );

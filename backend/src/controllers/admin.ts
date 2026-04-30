@@ -3,8 +3,9 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { NotFoundError } from '../lib/errors';
-import { ProductStatus } from '@prisma/client';
+import { ProductStatus, OrderStatus, UserRole, VendorStatus } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth';
+import { slugify } from '../lib/utils';
 
 /**
  * Fetch all orders across the ecosystem (Admin Paginated View)
@@ -601,5 +602,166 @@ export const deleteProduct = async (req: Request, res: Response) => {
     if (error instanceof NotFoundError) return res.status(404).json({ error: error.message });
     console.error('Error deleting product:', error);
     res.status(500).json({ error: 'Failed to decommission product entity' });
+  }
+};
+
+/**
+ * Admin: Update order status and record in history
+ */
+export const updateAdminOrderStatus = async (req: any, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status, notes } = req.body;
+
+    const validStatuses = Object.values(OrderStatus);
+    if (!status || !validStatuses.includes(status as OrderStatus)) {
+      return res.status(400).json({
+        error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
+      });
+    }
+
+    const order = await prisma.order.findUnique({
+      where: { id },
+    });
+
+    if (!order) {
+      throw new NotFoundError('Order not found');
+    }
+
+    // Update order status and create history entry in a transaction
+    const updatedOrder = await prisma.$transaction(async (tx) => {
+      const updated = await tx.order.update({
+        where: { id },
+        data: { status: status as OrderStatus },
+        include: {
+          user: { select: { name: true, email: true } },
+          vendor: { select: { storeName: true } },
+          items: { include: { product: true } },
+        }
+      });
+
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId: id,
+          status: status as OrderStatus,
+          notes: notes || `Status updated by administrator (${req.user?.email})`,
+        },
+      });
+
+      return updated;
+    });
+
+    res.json({
+      message: `Order status updated to ${status}`,
+      order: updatedOrder,
+    });
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
+    console.error('Error updating order status:', error);
+    res.status(500).json({ error: 'Failed to update order status' });
+  }
+};
+
+/**
+ * Admin: Create product under the platform's own "Vendor" account
+ */
+const platformProductSchema = z.object({
+  categoryId: z.string(),
+  brandId: z.string().optional().nullable(),
+  name: z.string().min(1),
+  nameAr: z.string().optional(),
+  description: z.string().optional(),
+  descriptionAr: z.string().optional(),
+  price: z.number().positive(),
+  discountPrice: z.number().positive().optional().nullable(),
+  stock: z.number().int().nonnegative(),
+  images: z.array(z.string()).min(1),
+});
+
+export const createPlatformProduct = async (req: AuthRequest, res: Response) => {
+  try {
+    const data = platformProductSchema.parse(req.body);
+    const PLATFORM_EMAIL = 'admin@goknary.com';
+
+    // 1. Resolve or create Platform Vendor
+    let platformVendor = await prisma.vendor.findFirst({
+      where: { user: { email: PLATFORM_EMAIL } },
+    });
+
+    if (!platformVendor) {
+      console.log('Initializing Platform Vendor account...');
+      platformVendor = await prisma.$transaction(async (tx) => {
+        let user = await tx.user.findUnique({ where: { email: PLATFORM_EMAIL } });
+        
+        if (!user) {
+          user = await tx.user.create({
+            data: {
+              email: PLATFORM_EMAIL,
+              name: 'GoKnary Platform',
+              passwordHash: await bcrypt.hash(`PLATFORM_${Math.random()}`, 12),
+              role: 'ADMIN',
+              phoneVerified: true,
+              emailVerified: true,
+            },
+          });
+        }
+
+        return await tx.vendor.create({
+          data: {
+            userId: user.id,
+            storeName: 'GoKnary Official',
+            slug: 'goknary-official',
+            status: 'APPROVED',
+            verified: true,
+          },
+        });
+      });
+    }
+
+    // 2. Create the product
+    const slug = slugify(data.name);
+    const existingSlug = await prisma.product.findUnique({ where: { slug } });
+    if (existingSlug) {
+      return res.status(400).json({ error: 'Product name is already taken' });
+    }
+
+    const productId = `plat_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const sku = `PLAT-${data.categoryId.substring(0, 3).toUpperCase()}-${productId.substring(productId.length - 6).toUpperCase()}`;
+
+    const product = await prisma.product.create({
+      data: {
+        vendorId:      platformVendor.id,
+        categoryId:    data.categoryId,
+        brandId:       data.brandId || null,
+        name:          data.name,
+        nameAr:        data.nameAr || null,
+        slug,
+        description:   data.description || '',
+        descriptionAr: data.descriptionAr || null,
+        sku,
+        price:         data.price,
+        discountPrice: data.discountPrice ?? null,
+        stock:         data.stock,
+        images:        JSON.stringify(data.images),
+        status:        'ACTIVE', // Platform products are automatically active
+        featured:      true,
+      },
+    });
+
+    res.status(201).json({
+      message: 'Platform product created successfully',
+      product: {
+        ...product,
+        images: data.images,
+      },
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid product data', details: error.errors });
+    }
+    console.error('Error creating platform product:', error);
+    res.status(500).json({ error: 'Failed to create platform product' });
   }
 };

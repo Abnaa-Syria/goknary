@@ -206,6 +206,11 @@ const Header: React.FC = () => {
 
             {/* Right Icons */}
             <div className="flex items-center gap-1 sm:gap-2 md:gap-4 flex-shrink-0">
+              {/* Language Switcher - Mobile/Tablet Only */}
+              <div className="lg:hidden flex items-center">
+                <LanguageSwitcher />
+              </div>
+
               {/* Search Icon - Mobile */}
               <button
                 onClick={() => navigate('/search')}

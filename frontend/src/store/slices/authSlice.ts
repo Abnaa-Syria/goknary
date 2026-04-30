@@ -141,12 +141,12 @@ export const logout = createAsyncThunk(
       await api.post('/auth/logout');
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
-      localStorage.removeItem('cart_session_id');
+      localStorage.removeItem('cartSessionId');
     } catch (error: any) {
       // Even if API call fails, clear local storage
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
-      localStorage.removeItem('cart_session_id');
+      localStorage.removeItem('cartSessionId');
     }
   }
 );
@@ -210,6 +210,9 @@ const authSlice = createSlice({
         state.accessToken = action.payload.accessToken;
         state.refreshToken = action.payload.refreshToken;
         state.isAuthenticated = true;
+        
+        // M-03 Fix: Clear guest session ID after successful merge-triggering login
+        localStorage.removeItem('cartSessionId');
       })
       .addCase(login.rejected, (state, action) => {
         state.loading = false;
@@ -257,6 +260,9 @@ const authSlice = createSlice({
         state.refreshToken = action.payload.refreshToken;
         state.isAuthenticated = true;
         state.error = null;
+
+        // M-03 Fix: Clear guest session ID after successful merge-triggering verification
+        localStorage.removeItem('cartSessionId');
       })
       .addCase(verifyEmail.rejected, (state, action) => {
         state.loading = false;
