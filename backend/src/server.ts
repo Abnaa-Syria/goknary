@@ -14,6 +14,11 @@ const REQUIRED_ENV_VARS = [
   'DATABASE_URL',
   'JWT_SECRET',
   'JWT_REFRESH_SECRET',
+  'KASHIER_MERCHANT_ID',
+  'KASHIER_PAYMENT_API_KEY',
+  'KASHIER_SECRET_KEY',
+  'KASHIER_REDIRECT_URL',
+  'KASHIER_WEBHOOK_URL',
 ];
 
 const missingEnv = REQUIRED_ENV_VARS.filter((key) => !process.env[key]);
@@ -40,6 +45,7 @@ import couponRoutes from './routes/coupons';
 import notificationRoutes from './routes/notifications';
 import announcementRoutes from './routes/announcements';
 import adminAnnouncementRoutes from './routes/admin-announcements';
+import paymentRoutes from './routes/payment';
 
 // ─── Vendor Routes (specific paths BEFORE parent path — H-03 Fix) ─────────────
 import vendorProductRoutes from './routes/vendor-products';
@@ -60,8 +66,8 @@ import reviewRoutes from './routes/reviews';
 import { authenticate, authorize, requirePermission } from './middleware/auth';
 import { getAdminVendorProducts } from './controllers/admin';
 
-// ─── WhatsApp / Twilio (OTP delivery) ───────────────────────────────────────
-// Twilio client is lazy-initialised inside lib/whatsapp.ts — nothing to call here.
+// ─── WhatsApp / WP Sender (OTP delivery) ───────────────────────────────────
+// WP Sender client details are configured in lib/wpsender.ts.
 
 // ─── App Setup ────────────────────────────────────────────────────────────────
 const app = express();
@@ -77,13 +83,29 @@ if (process.env.NODE_ENV === 'production') {
 
 // Security & parsing middleware
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://checkout.kashier.io", "https://sandbox.kashier.io"],
+      frameSrc: ["'self'", "https://checkout.kashier.io", "https://sandbox.kashier.io"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "https:", "http:"],
+      connectSrc: ["'self'", "https://checkout.kashier.io", "https://sandbox.kashier.io", "http://localhost:5000", "http://localhost:3000"]
+    }
+  }
 }));
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   credentials: true,
 }));
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({
+  limit: '10mb',
+  verify: (req: any, _res, buf) => {
+    req.rawBody = buf;
+  }
+}));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(morgan('dev'));
 
@@ -130,6 +152,7 @@ app.use('/api/coupons', couponRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/shipping', shippingRoutes);
 app.use('/api/announcements', announcementRoutes);
+app.use('/api/payment', paymentRoutes);
 
 // ─── Vendor Routes (specific subroutes BEFORE parent — H-03 Fix) ──────────────
 app.use('/api/vendor/products', vendorProductRoutes);
@@ -167,5 +190,5 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 app.listen(PORT, async () => {
   console.log(`\n🚀 Server running   → http://localhost:${PORT}`);
   console.log(`📊 Health check     → http://localhost:${PORT}/api/health`);
-  console.log(`📱 WhatsApp OTP     → Twilio Sandbox active`);
+  console.log(`📱 WhatsApp OTP     → WP Sender active`);
 });

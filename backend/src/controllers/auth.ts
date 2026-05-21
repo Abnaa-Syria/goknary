@@ -5,8 +5,7 @@ import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../lib/jwt';
 import { mergeGuestCartIntoUserCart } from './cart';
-import { generateOTP, hashOTP, verifyOTP } from '../lib/otp';
-import { sendWhatsAppOTP, sendWhatsAppPasswordReset } from '../lib/whatsapp';
+import { sendOtp, verifyOtp } from '../lib/wpsender';
 
 // ─── Validation Schemas ───────────────────────────────────────────────────────
 
@@ -84,21 +83,17 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     if (existingByEmail) {
       if (!existingByEmail.phoneVerified) {
         // Re-registration on unverified account → fresh OTP to same phone
-        const otp          = generateOTP();
-        const hashedOTP    = await hashOTP(otp);
-        const otpExpiresAt = new Date(Date.now() + OTP_EXPIRES_MINUTES * 60 * 1000);
-
         await prisma.user.update({
           where: { id: existingByEmail.id },
-          data:  { otpCode: hashedOTP, otpExpiresAt, otpAttempts: 0 },
+          data:  { otpCode: null, otpExpiresAt: null, otpAttempts: 0 },
         });
 
         try {
           if (existingByEmail.phone) {
-            await sendWhatsAppOTP(existingByEmail.phone, otp, OTP_EXPIRES_MINUTES);
+            await sendOtp(existingByEmail.phone);
           }
         } catch (wa) {
-          console.error('[WhatsApp] Failed to resend OTP:', wa);
+          console.error('[WP Sender] Failed to resend OTP:', wa);
         }
 
         res.status(200).json({
@@ -117,19 +112,15 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     if (existingByPhone) {
       if (!existingByPhone.phoneVerified) {
         // Same phone, different email, unverified → resend
-        const otp          = generateOTP();
-        const hashedOTP    = await hashOTP(otp);
-        const otpExpiresAt = new Date(Date.now() + OTP_EXPIRES_MINUTES * 60 * 1000);
-
         await prisma.user.update({
           where: { id: existingByPhone.id },
-          data:  { otpCode: hashedOTP, otpExpiresAt, otpAttempts: 0 },
+          data:  { otpCode: null, otpExpiresAt: null, otpAttempts: 0 },
         });
 
         try {
-          await sendWhatsAppOTP(phone, otp, OTP_EXPIRES_MINUTES);
+          await sendOtp(phone);
         } catch (wa) {
-          console.error('[WhatsApp] Failed to resend OTP:', wa);
+          console.error('[WP Sender] Failed to resend OTP:', wa);
         }
 
         res.status(200).json({
@@ -145,9 +136,6 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
     // ── Create new user ──────────────────────────────────────────────────────
     const hashedPassword = await bcrypt.hash(password, 12);
-    const otp            = generateOTP();
-    const hashedOTP      = await hashOTP(otp);
-    const otpExpiresAt   = new Date(Date.now() + OTP_EXPIRES_MINUTES * 60 * 1000);
 
     const user = await prisma.user.create({
       data: {
@@ -158,17 +146,17 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         phone,
         emailVerified:  false,
         phoneVerified:  false,
-        otpCode:        hashedOTP,
-        otpExpiresAt,
+        otpCode:        null,
+        otpExpiresAt:   null,
         otpAttempts:    0,
       },
     });
 
     // Send OTP via WhatsApp (non-blocking — registration succeeds even if WA is down)
     try {
-      await sendWhatsAppOTP(phone, otp, OTP_EXPIRES_MINUTES);
+      await sendOtp(phone);
     } catch (wa) {
-      console.error('[WhatsApp] Failed to send OTP on register:', wa);
+      console.error('[WP Sender] Failed to send OTP on register:', wa);
     }
 
     res.status(201).json({
@@ -204,34 +192,23 @@ export const verifyEmail = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    // Attempt limit
-    if (user.otpAttempts >= OTP_MAX_ATTEMPTS) {
-      res.status(429).json({
-        error: 'Too many failed attempts. Please use the resend code option.',
-      });
+    if (!user.phone) {
+      res.status(400).json({ error: 'No WhatsApp number on file. Please re-register.' });
       return;
     }
 
-    // Expiry check
-    if (!user.otpCode || !user.otpExpiresAt || user.otpExpiresAt < new Date()) {
-      res.status(400).json({
-        error:   'Verification code has expired. Please request a new one.',
-        expired: true,
-      });
-      return;
+    // Verify OTP using WP Sender API
+    let isValid = false;
+    try {
+      const verificationResult = await verifyOtp(user.phone, otp);
+      isValid = verificationResult && (verificationResult.status === 'success' || verificationResult.success === true);
+    } catch (err) {
+      console.error('[WP Sender] Verification error:', err);
     }
-
-    const isValid = await verifyOTP(otp, user.otpCode);
 
     if (!isValid) {
-      await prisma.user.update({
-        where: { id: userId },
-        data:  { otpAttempts: { increment: 1 } },
-      });
-      const remaining = OTP_MAX_ATTEMPTS - (user.otpAttempts + 1);
       res.status(400).json({
-        error:            `Invalid verification code. ${remaining > 0 ? `${remaining} attempts remaining.` : 'No attempts remaining.'}`,
-        attemptsRemaining: remaining,
+        error: 'Invalid verification code.',
       });
       return;
     }
@@ -309,19 +286,15 @@ export const resendOTP = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const otp          = generateOTP();
-    const hashedOTP    = await hashOTP(otp);
-    const otpExpiresAt = new Date(Date.now() + OTP_EXPIRES_MINUTES * 60 * 1000);
-
     await prisma.user.update({
       where: { id: userId },
-      data:  { otpCode: hashedOTP, otpExpiresAt, otpAttempts: 0 },
+      data:  { otpCode: null, otpExpiresAt: null, otpAttempts: 0 },
     });
 
     try {
-      await sendWhatsAppOTP(user.phone, otp, OTP_EXPIRES_MINUTES);
+      await sendOtp(user.phone);
     } catch (wa) {
-      console.error('[WhatsApp] Failed to resend OTP:', wa);
+      console.error('[WP Sender] Failed to resend OTP:', wa);
       res.status(500).json({ error: 'Failed to send WhatsApp message. Please try again.' });
       return;
     }
@@ -368,18 +341,14 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     // Check phone verification
     if (!user.phoneVerified) {
       // Auto-resend a fresh OTP
-      const otp          = generateOTP();
-      const hashedOTP    = await hashOTP(otp);
-      const otpExpiresAt = new Date(Date.now() + OTP_EXPIRES_MINUTES * 60 * 1000);
-
       await prisma.user.update({
         where: { id: user.id },
-        data:  { otpCode: hashedOTP, otpExpiresAt, otpAttempts: 0 },
+        data:  { otpCode: null, otpExpiresAt: null, otpAttempts: 0 },
       });
 
       if (user.phone) {
-        sendWhatsAppOTP(user.phone, otp, OTP_EXPIRES_MINUTES).catch((err) =>
-          console.error('[WhatsApp] Failed to send OTP on login:', err)
+        sendOtp(user.phone).catch((err) =>
+          console.error('[WP Sender] Failed to send OTP on login:', err)
         );
       }
 
@@ -673,20 +642,16 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    const otp            = generateOTP();
-    const hashedOTP      = await hashOTP(otp);
-    const otpExpiresAt   = new Date(Date.now() + OTP_EXPIRES_MINUTES * 60 * 1000);
-
     await prisma.user.update({
       where: { id: user.id },
       data:  {
-        passwordResetOtp:        hashedOTP,
-        passwordResetOtpExpires: otpExpiresAt,
+        passwordResetOtp:        null,
+        passwordResetOtpExpires: null,
       },
     });
 
-    sendWhatsAppPasswordReset(phone, otp, OTP_EXPIRES_MINUTES).catch((err) =>
-      console.error('[WhatsApp] Failed to send password reset OTP:', err)
+    sendOtp(phone).catch((err) =>
+      console.error('[WP Sender] Failed to send password reset OTP:', err)
     );
 
     res.status(200).json({ message: GENERIC_MSG });
@@ -713,17 +678,14 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    if (!user.passwordResetOtp || !user.passwordResetOtpExpires) {
-      res.status(400).json({ error: 'No reset code found. Please request a new one.' });
-      return;
+    let isValid = false;
+    try {
+      const verificationResult = await verifyOtp(phone, otp);
+      isValid = verificationResult && (verificationResult.status === 'success' || verificationResult.success === true);
+    } catch (err) {
+      console.error('[WP Sender] Verification error:', err);
     }
 
-    if (user.passwordResetOtpExpires < new Date()) {
-      res.status(400).json({ error: 'Reset code has expired. Please request a new one.' });
-      return;
-    }
-
-    const isValid = await verifyOTP(otp, user.passwordResetOtp);
     if (!isValid) {
       res.status(400).json({ error: 'Invalid reset code.' });
       return;

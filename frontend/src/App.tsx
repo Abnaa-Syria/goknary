@@ -23,6 +23,7 @@ import OrderDetailsPage from './pages/account/OrderDetailsPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 import LogoutPage from './pages/LogoutPage';
 import SearchPage from './pages/SearchPage';
+import PaymentSuccess from './pages/PaymentSuccess';
 import ShopPage from './pages/ShopPage';
 import StorePage from './pages/StorePage';
 import SupportContactPage from './pages/SupportContactPage';
@@ -92,6 +93,7 @@ function App() {
           <Route path="search" element={<SearchPage />} />
           <Route path="shop" element={<ShopPage />} />
           <Route path="store/:vendorSlug" element={<StorePage />} />
+          <Route path="payment-success" element={<PaymentSuccess />} />
 
           {/* Static / Info Pages */}
           <Route path="support/contact" element={<SupportContactPage />} />

@@ -8,6 +8,8 @@ import api from '../lib/api';
 import toast from 'react-hot-toast';
 import { Plus, Truck } from 'lucide-react';
 import { getImageUrl } from '../utils/image';
+// @ts-ignore
+import PaymentButton from '../components/PaymentButton';
 
 interface Address {
   id?: string;
@@ -36,7 +38,7 @@ const CheckoutPage: React.FC = () => {
   const { appliedPromo } = location.state || {};
 
   const { items, subtotal, itemCount, loading } = useAppSelector((state) => state.cart);
-  const { isAuthenticated: authStatus } = useAppSelector((state) => state.auth);
+  const { user, isAuthenticated: authStatus } = useAppSelector((state) => state.auth);
   
   const [step, setStep] = useState<'address' | 'review'>('address');
   const [submitting, setSubmitting] = useState(false);
@@ -44,6 +46,7 @@ const CheckoutPage: React.FC = () => {
   const [savedAddresses, setSavedAddresses] = useState<Address[]>([]);
   const [shippingRates, setShippingRates] = useState<ShippingRate[]>([]);
   const [selectedRate, setSelectedRate] = useState<ShippingRate | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'kashier'>('cod');
   
   const [orderNotes, setOrderNotes] = useState('');
   const [address, setAddress] = useState<Address>({
@@ -117,6 +120,54 @@ const CheckoutPage: React.FC = () => {
       localStorage.setItem('cart_session_id', sessionId);
     }
     return sessionId;
+  };
+
+  const handleKashierInitiate = async () => {
+    try {
+      if (saveAddress && !address.id) {
+        try {
+          await api.post('/addresses', address);
+        } catch (err) {
+          console.error('Failed to save address to profile:', err);
+        }
+      }
+
+      const sessionId = getSessionId();
+      const mappedItems = items.map(item => ({
+        productId: item.product.id,
+        quantity: item.quantity,
+        price: item.discountPrice || item.price,
+      }));
+
+      const orderPayload = {
+        address,
+        shippingMethod: 'Standard',
+        couponCode: appliedPromo?.code,
+        items: mappedItems,
+        notes: orderNotes,
+        paymentStatus: 'PENDING',
+        paymentMethod: 'KASHIER'
+      };
+
+      const response = await api.post('/orders', orderPayload, {
+        headers: {
+          'x-session-id': sessionId,
+        },
+      });
+
+      const orderId = response.data.orders[0]?.id;
+      
+      return {
+        orderId: orderId,
+        amount: total,
+        customerName: address.fullName,
+        customerEmail: user?.email || 'customer@example.com'
+      };
+    } catch (error: any) {
+      console.error('Error creating order for Kashier:', error);
+      toast.error('Failed to prepare order for payment.');
+      return null;
+    }
   };
 
   const handlePlaceOrder = async () => {
@@ -438,6 +489,46 @@ const CheckoutPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Payment Method Selection */}
+              <div className="mb-12">
+                <h3 className="text-xl font-black text-gray-900 border-b border-gray-50 pb-5 mb-6">{t('checkout.paymentMethod')}</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div 
+                    onClick={() => setPaymentMethod('cod')}
+                    className={`p-5 rounded-2xl border-2 cursor-pointer transition-all duration-300 flex items-center gap-4 ${
+                      paymentMethod === 'cod' 
+                        ? 'border-primary-500 bg-primary-50/50' 
+                        : 'border-gray-50 bg-gray-50/40 hover:border-gray-200'
+                    }`}
+                  >
+                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${paymentMethod === 'cod' ? 'border-primary-600 bg-primary-600' : 'border-gray-300'}`}>
+                      {paymentMethod === 'cod' && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                    </div>
+                    <div>
+                      <p className="font-bold text-gray-900">{t('checkout.cod')}</p>
+                      <p className="text-xs text-gray-400">{t('checkout.codDesc')}</p>
+                    </div>
+                  </div>
+
+                  <div 
+                    onClick={() => setPaymentMethod('kashier')}
+                    className={`p-5 rounded-2xl border-2 cursor-pointer transition-all duration-300 flex items-center gap-4 ${
+                      paymentMethod === 'kashier' 
+                        ? 'border-primary-500 bg-primary-50/50' 
+                        : 'border-gray-50 bg-gray-50/40 hover:border-gray-200'
+                    }`}
+                  >
+                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${paymentMethod === 'kashier' ? 'border-primary-600 bg-primary-600' : 'border-gray-300'}`}>
+                      {paymentMethod === 'kashier' && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                    </div>
+                    <div>
+                      <p className="font-bold text-gray-900">Kashier</p>
+                      <p className="text-xs text-gray-400">{t('checkout.payOnlineSecurely')}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-6 mb-12">
                 <h3 className="text-xl font-black text-gray-900 border-b border-gray-50 pb-5">{t('checkout.manifestSummary')}</h3>
                 <div className="grid grid-cols-1 gap-4 max-h-[300px] overflow-y-auto pe-2 custom-scrollbar">
@@ -470,20 +561,30 @@ const CheckoutPage: React.FC = () => {
                 >
                   {t('checkout.adjust')}
                 </button>
-                <button 
-                  onClick={handlePlaceOrder} 
-                  disabled={submitting} 
-                  className="flex-1 py-5 px-6 bg-green-600 text-white rounded-2xl shadow-xl shadow-green-200 hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center gap-3 text-xs tracking-widest uppercase font-black"
-                >
-                  {submitting ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                  ) : (
-                    <>
-                      {t('checkout.placeOrder')}
-                      <svg className="w-4 h-4 rtl:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-                    </>
-                  )}
-                </button>
+                
+                {paymentMethod === 'kashier' ? (
+                  <div className="flex-1">
+                    <PaymentButton 
+                      orderData={{ total, currency: 'EGP', customerName: address.fullName }} 
+                      onInitiate={handleKashierInitiate}
+                    />
+                  </div>
+                ) : (
+                  <button 
+                    onClick={handlePlaceOrder} 
+                    disabled={submitting} 
+                    className="flex-1 py-5 px-6 bg-green-600 text-white rounded-2xl shadow-xl shadow-green-200 hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center gap-3 text-xs tracking-widest uppercase font-black"
+                  >
+                    {submitting ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                    ) : (
+                      <>
+                        {t('checkout.placeOrder')}
+                        <svg className="w-4 h-4 rtl:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
           )}
