@@ -16,6 +16,8 @@ const createOrderSchema = z.object({
     quantity: z.number().int().positive(),
     price: z.number().optional()
   })),
+  paymentMethod: z.string().optional(),
+  paymentStatus: z.string().optional(),
 });
 
 // Helper to read guest session id (same header used by cart controller)
@@ -34,7 +36,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
     const userId = req.user.id;
     
     // Explicit parsing with Zod bounds
-    const { address, shippingMethod, couponCode, items, notes } = createOrderSchema.parse(req.body);
+    const { address, shippingMethod, couponCode, items, notes, paymentMethod, paymentStatus } = createOrderSchema.parse(req.body);
 
     const cartWhere = { userId };
 
@@ -171,6 +173,8 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
             addressJson: JSON.stringify(orderAddress),
             shippingMethod: shippingMethod || 'Standard',
             notes,
+            paymentMethod: paymentMethod || 'COD',
+            paymentStatus: paymentStatus || 'PENDING',
             items: {
               create: orderItemsData,
             },

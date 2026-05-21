@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+import { clearCartState } from '../store/slices/cartSlice';
 
 /**
  * PaymentSuccess Page
@@ -8,6 +10,13 @@ import { Link, useSearchParams } from 'react-router-dom';
 const PaymentSuccess = () => {
   const [searchParams] = useSearchParams();
   const orderId = searchParams.get('merchantOrderId') || searchParams.get('orderId') || searchParams.get('order_id');
+  const dispatch = useDispatch();
+
+  useEffect(() => {
+    dispatch(clearCartState());
+    localStorage.removeItem('cart_session_id');
+    localStorage.removeItem('cartSessionId');
+  }, [dispatch]);
 
   return (
     <div className="min-h-[60vh] flex items-center justify-center px-4">

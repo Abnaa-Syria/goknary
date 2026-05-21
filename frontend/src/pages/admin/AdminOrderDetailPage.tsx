@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useParams, Link } from 'react-router-dom';
 import api from '../../lib/api';
 import { formatPrice } from '../../lib/utils';
-import { orderStatusMap, mapEnum } from '../../utils/localization';
+import { orderStatusMap, paymentMethodMap, paymentStatusMap, mapEnum } from '../../utils/localization';
 
 interface OrderDetails {
   id: string;
@@ -14,6 +14,8 @@ interface OrderDetails {
   createdAt: string;
   address: any;
   shippingMethod: string;
+  paymentMethod?: string;
+  paymentStatus?: string;
   user: {
     id: string;
     name: string;
@@ -249,6 +251,35 @@ const AdminOrderDetailPage: React.FC = () => {
                   {order.address.state && `, ${order.address.state}`} {order.address.postalCode}
                 </p>
                 <p>{order.address.country}</p>
+              </div>
+            </div>
+
+            {/* Payment Details */}
+            <div>
+              <h3 className="font-bold mb-2">{t('admin.orderDetail.paymentMethod')}</h3>
+              <div className="text-sm text-gray-600 space-y-1">
+                <p>
+                  <span className="font-medium text-gray-900">
+                    {t('admin.orderDetail.paymentMethod')}:{' '}
+                  </span>
+                  {i18n.language === 'ar' 
+                    ? mapEnum(paymentMethodMap, order.paymentMethod || 'COD') 
+                    : (order.paymentMethod || 'COD')}
+                </p>
+                <p>
+                  <span className="font-medium text-gray-900">
+                    {t('admin.orderDetail.paymentStatus')}:{' '}
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                    order.paymentStatus === 'PAID' 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {i18n.language === 'ar' 
+                      ? mapEnum(paymentStatusMap, order.paymentStatus || 'PENDING') 
+                      : (order.paymentStatus || 'PENDING')}
+                  </span>
+                </p>
               </div>
             </div>
 

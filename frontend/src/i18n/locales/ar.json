@@ -540,7 +540,9 @@
       "subtotal": "المجموع الفرعي",
       "shipping": "الشحن",
       "total": "الإجمالي",
-      "placedOn": "تاريخ الطلب: {{date}}"
+      "placedOn": "تاريخ الطلب: {{date}}",
+      "paymentMethod": "طريقة الدفع",
+      "paymentStatus": "حالة الدفع"
     },
     "vendorsPage": {
       "title": "البائعون",

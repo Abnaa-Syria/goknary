@@ -209,6 +209,8 @@ model Order {
   addressJson    String      @map("address_json") @db.Text
   shippingMethod String?     @map("shipping_method")
   notes          String?     @db.Text
+  paymentMethod  String?     @default("COD") @map("payment_method")
+  paymentStatus  String?     @default("PENDING") @map("payment_status")
   createdAt      DateTime    @default(now()) @map("created_at")
   updatedAt      DateTime    @updatedAt @map("updated_at")
 

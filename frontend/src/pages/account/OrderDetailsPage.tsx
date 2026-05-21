@@ -15,6 +15,8 @@ interface OrderDetails {
   createdAt: string;
   address: any;
   shippingMethod: string;
+  paymentMethod?: string;
+  paymentStatus?: string;
   vendor: {
     storeName: string;
     slug: string;
@@ -41,6 +43,30 @@ const OrderDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [order, setOrder] = useState<OrderDetails | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const getPaymentMethodLabel = (method?: string) => {
+    switch (method) {
+      case 'COD':
+        return 'Cash on Delivery';
+      case 'KASHIER':
+        return 'Kashier';
+      default:
+        return method || 'Cash on Delivery';
+    }
+  };
+
+  const getPaymentStatusLabel = (status?: string) => {
+    switch (status) {
+      case 'PENDING':
+        return 'Pending';
+      case 'PAID':
+        return 'Paid';
+      case 'FAILED':
+        return 'Failed';
+      default:
+        return status || 'Pending';
+    }
+  };
 
   useEffect(() => {
     if (id) {
@@ -223,6 +249,27 @@ const OrderDetailsPage: React.FC = () => {
                   {order.address.state && `, ${order.address.state}`} {order.address.postalCode}
                 </p>
                 <p>{order.address.country}</p>
+              </div>
+            </div>
+
+            {/* Payment Details */}
+            <div>
+              <h3 className="font-bold mb-2">Payment Info</h3>
+              <div className="text-sm text-gray-600 space-y-1">
+                <p>
+                  <span className="font-medium text-gray-900">Method: </span>
+                  {getPaymentMethodLabel(order.paymentMethod)}
+                </p>
+                <p>
+                  <span className="font-medium text-gray-900">Status: </span>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                    order.paymentStatus === 'PAID' 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {getPaymentStatusLabel(order.paymentStatus)}
+                  </span>
+                </p>
               </div>
             </div>
 

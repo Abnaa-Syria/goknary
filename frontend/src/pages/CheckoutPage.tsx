@@ -194,6 +194,8 @@ const CheckoutPage: React.FC = () => {
         couponCode: appliedPromo?.code,
         items: mappedItems,
         notes: orderNotes,
+        paymentMethod: 'COD',
+        paymentStatus: 'PENDING',
       };
 
       const response = await api.post('/orders', orderPayload, {

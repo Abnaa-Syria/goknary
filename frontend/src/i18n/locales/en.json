@@ -539,7 +539,9 @@
       "subtotal": "Subtotal",
       "shipping": "Shipping",
       "total": "Total",
-      "placedOn": "Placed on: {{date}}"
+      "placedOn": "Placed on: {{date}}",
+      "paymentMethod": "Payment Method",
+      "paymentStatus": "Payment Status"
     },
     "vendorsPage": {
       "title": "Vendors",

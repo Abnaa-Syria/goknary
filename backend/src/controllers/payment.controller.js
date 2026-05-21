@@ -86,6 +86,7 @@ export const handleWebhook = async (req, res) => {
             where: { id: orderId },
             data: {
               status: 'CONFIRMED',
+              paymentStatus: 'PAID',
               statusHistory: {
                 create: {
                   status: 'CONFIRMED',
@@ -94,7 +95,7 @@ export const handleWebhook = async (req, res) => {
               }
             }
           });
-          console.log(`✅ Order ${orderId} status successfully updated to CONFIRMED.`);
+          console.log(`✅ Order ${orderId} status and paymentStatus successfully updated.`);
         } else {
           console.error(`❌ Order ${orderId} not found in DB.`);
         }

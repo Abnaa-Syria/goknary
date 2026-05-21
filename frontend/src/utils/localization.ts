@@ -98,4 +98,14 @@ export const paymentMethodMap: Record<string, string> = {
   COD: 'الدفع عند الاستلام',
   CARD: 'بطاقة ائتمان',
   WALLET: 'محفظة إلكترونية',
+  KASHIER: 'كاشير',
 };
+
+// ─── Payment Status ──────────────────────────────────────────────────────────
+
+export const paymentStatusMap: Record<string, string> = {
+  PENDING: 'قيد الانتظار',
+  PAID: 'تم الدفع',
+  FAILED: 'فشل الدفع',
+};
+
