@@ -70,10 +70,14 @@ export const handleWebhook = async (req, res) => {
     console.log(`🔔 Kashier Webhook received. Event: ${event || 'payment_update'}`);
 
     // 3. Perform DB update logic
-    const orderId = orderData.orderId || orderData.merchantOrderId;
+    const orderId = orderData.orderId || orderData.merchantOrderId || orderData.order || payload.orderId;
     const status = orderData.status;
 
-    if (status === 'SUCCESS' || event === 'pay_conf') {
+    const isSuccess = 
+      (status && ['success', 'completed'].includes(String(status).toLowerCase())) || 
+      (event && ['pay_conf', 'transaction.completed'].includes(event));
+
+    if (isSuccess) {
       console.log(`✅ SUCCESS: Order ${orderId} has been PAID.`);
       try {
         const order = await prisma.order.findUnique({ where: { id: orderId } });
