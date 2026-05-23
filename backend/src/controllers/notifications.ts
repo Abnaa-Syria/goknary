@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 
 export const getUserNotifications = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.userId;
+    const userId = (req as any).user.id;
     
     // Fetch notifications ordered by newest first, limit to 50
     const notifications = await prisma.notification.findMany({
@@ -27,7 +27,7 @@ export const getUserNotifications = async (req: Request, res: Response) => {
 
 export const markNotificationRead = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.userId;
+    const userId = (req as any).user.id;
     const { id } = req.params;
 
     // Verify ownership
@@ -50,7 +50,7 @@ export const markNotificationRead = async (req: Request, res: Response) => {
 
 export const markAllNotificationsRead = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.userId;
+    const userId = (req as any).user.id;
 
     const result = await prisma.notification.updateMany({
       where: { userId, read: false },
@@ -66,7 +66,7 @@ export const markAllNotificationsRead = async (req: Request, res: Response) => {
 
 export const deleteNotification = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.userId;
+    const userId = (req as any).user.id;
     const { id } = req.params;
 
     const notification = await prisma.notification.findUnique({ where: { id } });
