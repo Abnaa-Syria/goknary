@@ -15,6 +15,7 @@ import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { logout } from '../../store/slices/authSlice';
 import api from '../../lib/api';
 import AdminVendorsPage from './AdminVendorsPage';
+import AdminVendorDetailPage from './AdminVendorDetailPage';
 import AdminUsersPage from './AdminUsersPage';
 import AdminCategoriesPage from './AdminCategoriesPage';
 import AdminBrandsPage from './AdminBrandsPage';
@@ -826,6 +827,7 @@ const AdminDashboard: React.FC = () => {
             />
             <Route path="users" element={<Guard perm="READ_USERS"><AdminUsersPage /></Guard>} />
             <Route path="vendors" element={<Guard perm="READ_VENDORS"><AdminVendorsPage /></Guard>} />
+            <Route path="vendors/:vendorId" element={<Guard perm="READ_VENDORS"><AdminVendorDetailPage /></Guard>} />
             <Route path="vendors/:vendorId/products" element={<Guard perm="READ_VENDORS"><AdminVendorProductsPage /></Guard>} />
             <Route path="products" element={<Guard perm="READ_PRODUCTS"><AdminProductsPage /></Guard>} />
             <Route path="categories" element={<Guard perm="READ_CATEGORIES"><AdminCategoriesPage /></Guard>} />

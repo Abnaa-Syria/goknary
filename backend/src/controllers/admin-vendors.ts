@@ -43,8 +43,57 @@ export const getVendors = async (req: Request, res: Response) => {
       prisma.vendor.count({ where }),
     ]);
 
+    const vendorIds = vendors.map((v) => v.id);
+
+    // Fetch totalSales and totalOrders count in a single groupBy query
+    const salesStats = await prisma.order.groupBy({
+      by: ['vendorId'],
+      where: {
+        vendorId: { in: vendorIds },
+        status: { not: 'CANCELLED' },
+      },
+      _sum: {
+        total: true,
+      },
+      _count: {
+        id: true,
+      },
+    });
+
+    // Fetch totalProducts count in a single groupBy query
+    const productsStats = await prisma.product.groupBy({
+      by: ['vendorId'],
+      where: {
+        vendorId: { in: vendorIds },
+      },
+      _count: {
+        id: true,
+      },
+    });
+
+    const salesMap = new Map(
+      salesStats.map((s) => [
+        s.vendorId,
+        { totalSales: s._sum.total || 0, totalOrders: s._count.id },
+      ])
+    );
+    const productsMap = new Map(
+      productsStats.map((p) => [p.vendorId, p._count.id])
+    );
+
+    const vendorsWithStats = vendors.map((vendor) => {
+      const stats = salesMap.get(vendor.id) || { totalSales: 0, totalOrders: 0 };
+      const productCount = productsMap.get(vendor.id) || 0;
+      return {
+        ...vendor,
+        totalSales: Math.round(stats.totalSales * 100) / 100,
+        totalOrders: stats.totalOrders,
+        totalProducts: productCount,
+      };
+    });
+
     res.json({
-      vendors,
+      vendors: vendorsWithStats,
       pagination: {
         page: pageNum,
         limit: limitNum,
@@ -80,7 +129,85 @@ export const getVendorById = async (req: Request, res: Response) => {
       throw new NotFoundError('Vendor not found');
     }
 
-    res.json({ vendor });
+    const [
+      totalOrders,
+      totalProducts,
+      salesResult,
+      ordersByStatusRaw,
+      recentOrders,
+      products,
+    ] = await Promise.all([
+      prisma.order.count({ where: { vendorId: id } }),
+      prisma.product.count({ where: { vendorId: id } }),
+      prisma.order.aggregate({
+        where: { vendorId: id, status: { not: 'CANCELLED' } },
+        _sum: { total: true },
+      }),
+      prisma.order.groupBy({
+        by: ['status'],
+        where: { vendorId: id },
+        _count: { id: true },
+      }),
+      prisma.order.findMany({
+        where: { vendorId: id },
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: { select: { name: true, email: true } },
+        },
+      }),
+      prisma.product.findMany({
+        where: { vendorId: id },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          category: { select: { name: true } },
+          brand: { select: { name: true } },
+        },
+      }),
+    ]);
+
+    const totalSales = salesResult._sum.total || 0;
+    const commissionRate = vendor.commissionRate ?? 10;
+    const commissionAmount = Math.round(totalSales * (commissionRate / 100) * 100) / 100;
+    const netEarnings = Math.round((totalSales - commissionAmount) * 100) / 100;
+
+    const ordersByStatus = ordersByStatusRaw.map((s) => ({
+      status: s.status,
+      count: s._count.id,
+    }));
+
+    res.json({
+      vendor,
+      stats: {
+        totalOrders,
+        totalProducts,
+        totalSales: Math.round(totalSales * 100) / 100,
+        commissionRate,
+        commissionAmount,
+        netEarnings,
+      },
+      ordersByStatus,
+      recentOrders: recentOrders.map((order) => ({
+        ...order,
+        address: (() => {
+          try {
+            return JSON.parse(order.addressJson);
+          } catch {
+            return {};
+          }
+        })(),
+      })),
+      products: products.map((product) => ({
+        ...product,
+        images: (() => {
+          try {
+            return JSON.parse(product.images);
+          } catch {
+            return [];
+          }
+        })(),
+      })),
+    });
   } catch (error) {
     if (error instanceof NotFoundError) {
       return res.status(error.statusCode).json({ error: error.message });

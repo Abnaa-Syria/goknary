@@ -4,7 +4,9 @@ import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { vendorStatusMap, mapEnum } from '../../utils/localization';
 import { FiCheckCircle, FiXCircle, FiPauseCircle, FiPackage } from 'react-icons/fi';
+import { Eye } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { formatPrice } from '../../lib/utils';
 
 interface Vendor {
   id: string;
@@ -16,6 +18,9 @@ interface Vendor {
     email: string;
     name: string;
   };
+  totalSales?: number;
+  totalOrders?: number;
+  totalProducts?: number;
 }
 
 const AdminVendorsPage: React.FC = () => {
@@ -140,6 +145,7 @@ const AdminVendorsPage: React.FC = () => {
                 <th className="px-6 py-3 text-start text-xs font-medium text-gray-500 uppercase">{t('admin.vendorsPage.store')}</th>
                 <th className="px-6 py-3 text-start text-xs font-medium text-gray-500 uppercase">{t('admin.vendorsPage.owner')}</th>
                 <th className="px-6 py-3 text-start text-xs font-medium text-gray-500 uppercase">{t('admin.vendorsPage.status')}</th>
+                <th className="px-6 py-3 text-start text-xs font-medium text-gray-500 uppercase">{t('admin.vendor.totalSales', 'Total Sales')}</th>
                 <th className="px-6 py-3 text-start text-xs font-medium text-gray-500 uppercase">{t('admin.vendorsPage.rating')}</th>
                 <th className="px-6 py-3 text-start text-xs font-medium text-gray-500 uppercase">{t('admin.vendorsPage.actions')}</th>
               </tr>
@@ -160,11 +166,22 @@ const AdminVendorsPage: React.FC = () => {
                       {mapEnum(vendorStatusMap, vendor.status)}
                     </span>
                   </td>
+                  <td className="px-6 py-4 font-bold text-gray-900">
+                    {formatPrice(vendor.totalSales || 0)}
+                  </td>
                   <td className="px-6 py-4">
                     <span className="font-medium">{vendor.rating.toFixed(1)} ⭐</span>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex gap-2">
+                      <button
+                        onClick={() => navigate(`/admin/vendors/${vendor.id}`)}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                        title={t('admin.vendorsPage.viewDetails', 'View Details')}
+                      >
+                        <Eye className="w-5 h-5" />
+                      </button>
+
                       <button
                         onClick={() => navigate(`/admin/vendors/${vendor.id}/products`)}
                         className="p-2 text-primary-600 hover:bg-primary-50 rounded"
