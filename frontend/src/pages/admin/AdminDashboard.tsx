@@ -30,6 +30,10 @@ import AdminOrderDetailPage from './AdminOrderDetailPage';
 import AdminShippingPage from './AdminShippingPage';
 import AdminAnnouncementPage from './AdminAnnouncementPage';
 import AdminRolesPage from './AdminRolesPage';
+import AdminPayoutsPage from './AdminPayoutsPage';
+import AdminRefundsPage from './AdminRefundsPage';
+import AdminTicketsPage from './AdminTicketsPage';
+import AdminTicketDetailsPage from './AdminTicketDetailsPage';
 import { DashboardFooter } from '../../components/layout/DashboardFooter';
 
 import { hasPermission, getRoleTheme } from '../../utils/permissions';
@@ -691,12 +695,15 @@ const AdminDashboard: React.FC = () => {
     { path: '/admin',               name: t('admin.overview',   'Overview'),       icon: LayoutDashboard, permission: 'READ_DASHBOARD'    },
     { path: '/admin/users',         name: t('admin.users',      'Users'),           icon: Users,           permission: 'READ_USERS'         },
     { path: '/admin/vendors',       name: t('admin.vendors',    'Vendors'),         icon: Briefcase,       permission: 'READ_VENDORS',  countKey: 'pendingVendors' },
+    { path: '/admin/payouts',       name: t('admin.payouts',    'Payout Requests'), icon: DollarSign,      permission: 'READ_VENDORS'       },
     { path: '/admin/products',      name: t('admin.products',   'Products'),        icon: Package,         permission: 'READ_PRODUCTS'      },
     { path: '/admin/categories',    name: t('admin.categories', 'Categories'),      icon: Tag,             permission: 'READ_CATEGORIES'    },
     { path: '/admin/brands',        name: t('admin.brands',     'Brands'),          icon: ShoppingBag,     permission: 'READ_BRANDS'        },
     { path: '/admin/banners',       name: t('admin.banners',    'Banners'),         icon: ImageIcon,       permission: 'READ_BANNERS'       },
     { path: '/admin/orders',        name: t('admin.orders',     'Orders'),          icon: Package,         permission: 'READ_ORDERS'        },
+    { path: '/admin/refunds',       name: t('admin.refunds',    'Refund Requests'), icon: RefreshCw,       permission: 'READ_ORDERS'        },
     { path: '/admin/reviews',       name: t('admin.reviews',    'Reviews'),         icon: MessageSquare,   permission: 'READ_REVIEWS'       },
+    { path: '/admin/tickets',       name: t('admin.tickets',    'Support Tickets'), icon: MessageSquare,   permission: 'READ_USERS'         },
     { path: '/admin/coupons',       name: t('admin.coupons',    'Coupons'),         icon: Percent,         permission: 'READ_COUPONS'       },
     { path: '/admin/shipping',      name: t('admin.shipping',   'Shipping Rates'),  icon: Truck,           permission: 'READ_SHIPPING'      },
     { path: '/admin/announcements', name: t('admin.broadcast',  'Site Broadcast'),  icon: Megaphone,       permission: 'READ_ANNOUNCEMENTS' },
@@ -829,13 +836,17 @@ const AdminDashboard: React.FC = () => {
             <Route path="vendors" element={<Guard perm="READ_VENDORS"><AdminVendorsPage /></Guard>} />
             <Route path="vendors/:vendorId" element={<Guard perm="READ_VENDORS"><AdminVendorDetailPage /></Guard>} />
             <Route path="vendors/:vendorId/products" element={<Guard perm="READ_VENDORS"><AdminVendorProductsPage /></Guard>} />
+            <Route path="payouts" element={<Guard perm="READ_VENDORS"><AdminPayoutsPage /></Guard>} />
             <Route path="products" element={<Guard perm="READ_PRODUCTS"><AdminProductsPage /></Guard>} />
             <Route path="categories" element={<Guard perm="READ_CATEGORIES"><AdminCategoriesPage /></Guard>} />
             <Route path="brands" element={<Guard perm="READ_BRANDS"><AdminBrandsPage /></Guard>} />
             <Route path="banners" element={<Guard perm="READ_BANNERS"><AdminBannersPage /></Guard>} />
             <Route path="orders" element={<Guard perm="READ_ORDERS"><AdminOrdersPage /></Guard>} />
             <Route path="orders/:id" element={<Guard perm="READ_ORDERS"><AdminOrderDetailPage /></Guard>} />
+            <Route path="refunds" element={<Guard perm="READ_ORDERS"><AdminRefundsPage /></Guard>} />
             <Route path="reviews" element={<Guard perm="READ_REVIEWS"><AdminReviewsPage /></Guard>} />
+            <Route path="tickets" element={<Guard perm="READ_USERS"><AdminTicketsPage /></Guard>} />
+            <Route path="tickets/:id" element={<Guard perm="READ_USERS"><AdminTicketDetailsPage /></Guard>} />
             <Route path="coupons" element={<Guard perm="READ_COUPONS"><AdminCouponsPage /></Guard>} />
             <Route path="shipping" element={<Guard perm="READ_SHIPPING"><AdminShippingPage /></Guard>} />
             <Route path="announcements" element={<Guard perm="READ_ANNOUNCEMENTS"><AdminAnnouncementPage /></Guard>} />

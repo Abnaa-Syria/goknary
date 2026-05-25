@@ -116,6 +116,12 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
     // Create orders for each vendor (multi-vendor support)
     const orders = [];
 
+    // Fetch free shipping threshold from settings
+    const thresholdSetting = await prisma.setting.findUnique({
+      where: { key: 'free_shipping_threshold' }
+    });
+    const freeShippingThreshold = thresholdSetting ? parseFloat(thresholdSetting.value) : 500;
+
     for (const [vendorId, vendorItems] of itemsByVendor.entries()) {
       // Calculate totals
       let subtotal = 0;
@@ -140,7 +146,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       const orderShare = globalSubtotal > 0 ? (subtotal / globalSubtotal) : 0;
       const orderDiscountAmount = globalDiscount * orderShare;
 
-      const shippingCost = subtotal >= 500 ? 0 : 50; // Free shipping over 500 EGP
+      const shippingCost = subtotal >= freeShippingThreshold ? 0 : 50; // Free shipping threshold from settings
       const total = (subtotal - orderDiscountAmount) + shippingCost;
 
       // C-01 Fix: Wrap order creation + stock decrement in a single transaction
@@ -399,6 +405,7 @@ export const getOrderById = async (req: AuthRequest, res: Response) => {
                 },
               },
             },
+            refundRequest: true,
           },
         },
         vendor: {

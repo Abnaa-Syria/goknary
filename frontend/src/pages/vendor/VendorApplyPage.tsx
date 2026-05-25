@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import api from '../../lib/api';
+import { useAppSelector } from '../../store/hooks';
 
 interface VendorApplyPageProps {
   onApplied?: () => void;
@@ -10,6 +11,7 @@ interface VendorApplyPageProps {
 const VendorApplyPage: React.FC<VendorApplyPageProps> = ({ onApplied }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { isAuthenticated, isInitialized, user } = useAppSelector((state) => state.auth);
   const [formData, setFormData] = useState({
     storeName: '',
     description: '',
@@ -36,8 +38,8 @@ const VendorApplyPage: React.FC<VendorApplyPageProps> = ({ onApplied }) => {
       setSuccess(true);
       setTimeout(() => {
         if (onApplied) onApplied();
-        else navigate('/vendor');
-      }, 2000);
+        else navigate('/');
+      }, 3000);
     } catch (err: any) {
       setError(err.response?.data?.error || t('vendor.applyPage.failedSubmit', 'Failed to submit application'));
     } finally {
@@ -45,9 +47,74 @@ const VendorApplyPage: React.FC<VendorApplyPageProps> = ({ onApplied }) => {
     }
   };
 
+  // Show loading spinner while auth state initializes
+  if (!isInitialized) {
+    return (
+      <div className="container mx-auto px-4 py-16 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500" />
+      </div>
+    );
+  }
+
+  // Not logged in — show login/register prompt
+  if (!isAuthenticated) {
+    return (
+      <div className="container mx-auto px-4 py-12">
+        <div className="max-w-lg mx-auto text-center">
+          <div className="card p-8">
+            <div className="w-16 h-16 rounded-full bg-primary-50 flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h1 className="text-2xl font-bold mb-3">{t('vendor.applyPage.title', 'Become a Vendor')}</h1>
+            <p className="text-gray-600 mb-6">
+              {t('vendor.applyPage.loginRequired', 'You need to have an account and be logged in to apply as a vendor. Please log in or create an account first.')}
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Link
+                to="/login"
+                state={{ from: { pathname: '/become-vendor' } }}
+                className="btn-primary px-6 py-3 text-center"
+              >
+                {t('auth.signIn', 'Sign In')}
+              </Link>
+              <Link
+                to="/register"
+                state={{ from: { pathname: '/become-vendor' } }}
+                className="px-6 py-3 border border-gray-300 rounded-lg font-semibold hover:bg-gray-50 transition-colors text-center"
+              >
+                {t('auth.createAccount', 'Create Account')}
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Already a vendor
+  if (user?.role === 'VENDOR') {
+    return (
+      <div className="container mx-auto px-4 py-12">
+        <div className="max-w-lg mx-auto text-center card p-8">
+          <div className="text-green-500 text-5xl mb-4">✓</div>
+          <h1 className="text-2xl font-bold mb-3">{t('vendor.applyPage.alreadyVendor', 'You are already a vendor!')}</h1>
+          <p className="text-gray-600 mb-6">
+            {t('vendor.applyPage.goToDashboard', 'Head to your vendor dashboard to manage your store.')}
+          </p>
+          <Link to="/vendor" className="btn-primary px-6 py-3">
+            {t('vendor.dashboard', 'Vendor Dashboard')}
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // Success state
   if (success) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-12">
         <div className="max-w-2xl mx-auto card p-8 text-center">
           <div className="text-green-500 text-5xl mb-4">✓</div>
           <h1 className="text-2xl font-bold mb-4">{t('vendor.applyPage.submittedTitle', 'Application Submitted!')}</h1>
@@ -59,6 +126,7 @@ const VendorApplyPage: React.FC<VendorApplyPageProps> = ({ onApplied }) => {
     );
   }
 
+  // Main form — authenticated customer
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-2xl mx-auto">

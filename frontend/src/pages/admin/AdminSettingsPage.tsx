@@ -7,12 +7,16 @@ import {
   Shield, 
   Save, 
   Loader2,
-  Key
+  Key,
+  Phone,
+  Globe,
+  Settings
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { getCurrentUser } from '../../store/slices/authSlice';
+import { fetchPublicSettings } from '../../store/slices/settingsSlice';
 
 const AdminSettingsPage: React.FC = () => {
   const { t } = useTranslation();
@@ -34,6 +38,18 @@ const AdminSettingsPage: React.FC = () => {
     confirmPassword: '',
   });
 
+  // Settings states
+  const [settings, setSettings] = useState({
+    free_shipping_threshold: '500',
+    support_phone: '',
+    facebook_url: '',
+    instagram_url: '',
+    linkedin_url: '',
+    twitter_url: '',
+  });
+  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+
   useEffect(() => {
     if (user) {
       setProfileData({
@@ -41,7 +57,40 @@ const AdminSettingsPage: React.FC = () => {
         email: user.email || '',
       });
     }
+    fetchSettings();
   }, [user]);
+
+  const fetchSettings = async () => {
+    try {
+      const response = await api.get('/settings');
+      setSettings({
+        free_shipping_threshold: response.data.freeShippingThreshold?.toString() || '500',
+        support_phone: response.data.supportPhone || '',
+        facebook_url: response.data.facebookUrl || '',
+        instagram_url: response.data.instagramUrl || '',
+        linkedin_url: response.data.linkedinUrl || '',
+        twitter_url: response.data.twitterUrl || '',
+      });
+    } catch (error) {
+      toast.error(t('admin.settingsPage.settingsLoadFailed'));
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  const handleSettingsSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSettingsSaving(true);
+    try {
+      await api.put('/settings', settings);
+      toast.success(t('admin.settingsPage.settingsUpdateSuccess'));
+      dispatch(fetchPublicSettings()); // Update Redux state dynamically for Header/Footer/etc.
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || t('admin.settingsPage.settingsUpdateFailed'));
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
 
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -245,6 +294,141 @@ const AdminSettingsPage: React.FC = () => {
           </form>
         </section>
       </div>
+
+      {/* Card 3: Platform Global Settings */}
+      <section className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+        <div className="p-6 border-b border-gray-50 bg-gray-50/50 flex items-center gap-3">
+          <div className="p-2 bg-primary-100 text-primary-600 rounded-xl">
+            <Settings size={20} />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">{t('admin.settingsPage.globalTitle')}</h2>
+            <p className="text-xs text-gray-400 font-medium uppercase tracking-tighter">{t('admin.settingsPage.globalSubtitle')}</p>
+          </div>
+        </div>
+
+        {settingsLoading ? (
+          <div className="p-8 text-center text-gray-400 flex items-center justify-center gap-2">
+            <Loader2 className="animate-spin text-primary-600" size={20} />
+            <span>{t('common.loading')}</span>
+          </div>
+        ) : (
+          <form onSubmit={handleSettingsSubmit} className="p-8 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* Free Shipping Threshold */}
+              <div className="space-y-1.5 group">
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ms-1 group-focus-within:text-primary-600 transition-colors">
+                  {t('admin.settingsPage.freeShippingThreshold')}
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={settings.free_shipping_threshold}
+                  onChange={e => setSettings({ ...settings, free_shipping_threshold: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all font-mono font-bold"
+                  required
+                />
+              </div>
+
+              {/* Support Phone */}
+              <div className="space-y-1.5 group">
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ms-1 group-focus-within:text-primary-600 transition-colors">
+                  {t('admin.settingsPage.supportPhone')}
+                </label>
+                <div className="relative">
+                  <Phone className="absolute start-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-600 transition-colors" size={18} />
+                  <input
+                    type="text"
+                    value={settings.support_phone}
+                    onChange={e => setSettings({ ...settings, support_phone: e.target.value })}
+                    className="w-full ps-12 pe-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all font-medium"
+                    placeholder="+20 100 000 0000"
+                  />
+                </div>
+              </div>
+
+              {/* Facebook URL */}
+              <div className="space-y-1.5 group">
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ms-1 group-focus-within:text-primary-600 transition-colors">
+                  {t('admin.settingsPage.facebookUrl')}
+                </label>
+                <div className="relative">
+                  <Globe className="absolute start-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-600 transition-colors" size={18} />
+                  <input
+                    type="url"
+                    value={settings.facebook_url}
+                    onChange={e => setSettings({ ...settings, facebook_url: e.target.value })}
+                    className="w-full ps-12 pe-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
+                    placeholder="https://facebook.com/page"
+                  />
+                </div>
+              </div>
+
+              {/* Instagram URL */}
+              <div className="space-y-1.5 group">
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ms-1 group-focus-within:text-primary-600 transition-colors">
+                  {t('admin.settingsPage.instagramUrl')}
+                </label>
+                <div className="relative">
+                  <Globe className="absolute start-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-600 transition-colors" size={18} />
+                  <input
+                    type="url"
+                    value={settings.instagram_url}
+                    onChange={e => setSettings({ ...settings, instagram_url: e.target.value })}
+                    className="w-full ps-12 pe-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
+                    placeholder="https://instagram.com/profile"
+                  />
+                </div>
+              </div>
+
+              {/* LinkedIn URL */}
+              <div className="space-y-1.5 group">
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ms-1 group-focus-within:text-primary-600 transition-colors">
+                  {t('admin.settingsPage.linkedinUrl')}
+                </label>
+                <div className="relative">
+                  <Globe className="absolute start-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-600 transition-colors" size={18} />
+                  <input
+                    type="url"
+                    value={settings.linkedin_url}
+                    onChange={e => setSettings({ ...settings, linkedin_url: e.target.value })}
+                    className="w-full ps-12 pe-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
+                    placeholder="https://linkedin.com/company"
+                  />
+                </div>
+              </div>
+
+              {/* Twitter URL */}
+              <div className="space-y-1.5 group">
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ms-1 group-focus-within:text-primary-600 transition-colors">
+                  {t('admin.settingsPage.twitterUrl')}
+                </label>
+                <div className="relative">
+                  <Globe className="absolute start-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-600 transition-colors" size={18} />
+                  <input
+                    type="url"
+                    value={settings.twitter_url}
+                    onChange={e => setSettings({ ...settings, twitter_url: e.target.value })}
+                    className="w-full ps-12 pe-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
+                    placeholder="https://twitter.com/profile"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-4">
+              <button
+                type="submit"
+                disabled={settingsSaving}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3.5 bg-primary-600 text-white font-bold rounded-2xl hover:bg-primary-700 disabled:opacity-50 transition-all shadow-lg shadow-primary-100"
+              >
+                {settingsSaving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
+                <span>{settingsSaving ? t('admin.settingsPage.savingSettings') : t('admin.settingsPage.saveSettings')}</span>
+              </button>
+            </div>
+          </form>
+        )}
+      </section>
     </div>
   );
 };

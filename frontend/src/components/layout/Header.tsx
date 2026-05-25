@@ -47,6 +47,7 @@ const Header: React.FC = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAppSelector((state) => state.auth);
   const { categories } = useAppSelector((state) => state.categories);
+  const { freeShippingThreshold } = useAppSelector((state) => state.settings);
   const [searchQuery, setSearchQuery] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -111,7 +112,7 @@ const Header: React.FC = () => {
               <div className="flex items-center gap-6">
                 <div className="flex items-center gap-2">
                   <FiTruck className="w-4 h-4 rtl:-scale-x-100" />
-                  <span>{t('home.freeShippingDesc')}</span>
+                  <span>{t('home.freeShippingDesc', { amount: freeShippingThreshold })}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <GiftIcon />

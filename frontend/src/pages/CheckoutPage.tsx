@@ -39,6 +39,7 @@ const CheckoutPage: React.FC = () => {
 
   const { items, subtotal, itemCount, loading } = useAppSelector((state) => state.cart);
   const { user, isAuthenticated: authStatus } = useAppSelector((state) => state.auth);
+  const { freeShippingThreshold } = useAppSelector((state) => state.settings);
   
   const [step, setStep] = useState<'address' | 'review'>('address');
   const [submitting, setSubmitting] = useState(false);
@@ -218,7 +219,7 @@ const CheckoutPage: React.FC = () => {
 
   const promoDiscount = appliedPromo?.discountAmount || 0;
   const baseShippingCost = selectedRate ? selectedRate.cost : 50;
-  const shippingCost = subtotal >= 500 ? 0 : baseShippingCost;
+  const shippingCost = subtotal >= freeShippingThreshold ? 0 : baseShippingCost;
   const total = (subtotal - promoDiscount) + shippingCost;
 
   if (loading || items.length === 0) {
@@ -631,13 +632,13 @@ const CheckoutPage: React.FC = () => {
                 </div>
               </div>
 
-              {subtotal < 500 ? (
+              {subtotal < freeShippingThreshold ? (
                 <div className="p-4 bg-amber-50 rounded-3xl border border-amber-100/50 flex gap-4 animate-in fade-in zoom-in duration-700">
                   <div className="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center flex-shrink-0 text-amber-600 text-2xl shadow-sm">🚚</div>
                   <div>
                     <p className="text-[10px] font-black text-amber-800 tracking-widest uppercase mb-1">{t('checkout.freeDeliveryProgress')}</p>
                     <p className="text-[11px] font-medium text-amber-700 leading-relaxed">
-                      {t('checkout.freeDeliveryQualify', { amount: formatPrice(500 - subtotal) })}
+                      {t('checkout.freeDeliveryQualify', { amount: formatPrice(freeShippingThreshold - subtotal) })}
                     </p>
                   </div>
                 </div>

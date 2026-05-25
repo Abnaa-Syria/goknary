@@ -9,6 +9,7 @@ import {
   createProductVariant,
   updateProductVariant,
   deleteProductVariant,
+  importProducts,
 } from '../controllers/vendor-products';
 import { authenticate, authorize, requirePermission } from '../middleware/auth';
 
@@ -25,6 +26,13 @@ router.get(
   authorize('VENDOR', 'ADMIN', 'STAFF'),
   requirePermission('READ_PRODUCTS'),
   getVendorProducts
+);
+
+router.post(
+  '/import',
+  authorize('VENDOR', 'ADMIN', 'STAFF'),
+  requirePermission('CREATE_PRODUCTS'),
+  importProducts
 );
 
 router.get(

@@ -1,7 +1,9 @@
 import React from 'react';
 import { SEO } from '../components/common/SEO';
+import { useAppSelector } from '../store/hooks';
 
 const SupportContactPage: React.FC = () => {
+  const { supportPhone } = useAppSelector((state) => state.settings);
   return (
     <>
       <SEO
@@ -74,6 +76,7 @@ const SupportContactPage: React.FC = () => {
             <div>
               <h2 className="font-semibold text-gray-900 mb-1">Customer Support</h2>
               <p>Email: support@goknary.com</p>
+              {supportPhone && <p>Phone: {supportPhone}</p>}
               <p>Hours: 9:00 AM – 9:00 PM (All week)</p>
             </div>
             <div>

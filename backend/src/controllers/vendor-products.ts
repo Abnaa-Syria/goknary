@@ -643,3 +643,130 @@ export const deleteProductVariant = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ error: 'Failed to delete variant' });
   }
 };
+
+const bulkImportSchema = z.object({
+  products: z.array(
+    z.object({
+      name: z.string().min(1),
+      nameAr: z.string().optional(),
+      description: z.string().optional(),
+      descriptionAr: z.string().optional(),
+      price: z.number().positive(),
+      discountPrice: z.number().positive().optional().nullable(),
+      discountType: z.enum(['PERCENTAGE', 'FIXED']).optional().nullable(),
+      discountValue: z.number().nonnegative().optional().nullable(),
+      stock: z.number().int().nonnegative().default(0),
+      lowStockThreshold: z.number().int().nonnegative().optional().default(5),
+      categoryId: z.string().min(1),
+      brandId: z.string().optional().nullable(),
+      images: z.array(z.string()).optional(),
+      featured: z.boolean().optional().default(false),
+    })
+  ).min(1),
+  vendorId: z.string().optional(),
+});
+
+// POST /api/vendor/products/import
+export const importProducts = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { products, vendorId: bodyVendorId } = bulkImportSchema.parse(req.body);
+
+    // Resolve vendorId based on user role (Admin can specify bodyVendorId)
+    const vendorId = await resolveVendorId(req, res, 'body');
+    if (!vendorId) return;
+
+    // Validate Categories exist
+    const categoryIds = Array.from(new Set(products.map((p) => p.categoryId)));
+    const existingCategories = await prisma.category.findMany({
+      where: { id: { in: categoryIds } },
+      select: { id: true },
+    });
+    const existingCategoryIds = new Set(existingCategories.map((c) => c.id));
+    const invalidCategories = categoryIds.filter((id) => !existingCategoryIds.has(id));
+    if (invalidCategories.length > 0) {
+      return res.status(400).json({
+        error: 'Invalid categoryId(s) provided in batch',
+        invalidCategoryIds: invalidCategories,
+      });
+    }
+
+    // Validate Brands exist if provided
+    const brandIds = Array.from(new Set(products.map((p) => p.brandId).filter(Boolean) as string[]));
+    if (brandIds.length > 0) {
+      const existingBrands = await prisma.brand.findMany({
+        where: { id: { in: brandIds } },
+        select: { id: true },
+      });
+      const existingBrandIds = new Set(existingBrands.map((b) => b.id));
+      const invalidBrands = brandIds.filter((id) => !existingBrandIds.has(id));
+      if (invalidBrands.length > 0) {
+        return res.status(400).json({
+          error: 'Invalid brandId(s) provided in batch',
+          invalidBrandIds: invalidBrands,
+        });
+      }
+    }
+
+    // Determine initial status based on role
+    const initialStatus = req.user.role === 'VENDOR' ? 'PENDING' : 'ACTIVE';
+
+    const batchSize = 100;
+    let totalImported = 0;
+
+    for (let i = 0; i < products.length; i += batchSize) {
+      const chunk = products.slice(i, i + batchSize);
+
+      const mappedChunk = chunk.map((p, idx) => {
+        const id = `prod_${Date.now()}_${Math.random().toString(36).substring(7)}_${i + idx}`;
+        const slug = `${slugify(p.name)}-${Math.random().toString(36).substring(2, 7)}`;
+        const sku = `SKU-${p.categoryId.substring(0, 3).toUpperCase()}-${id.substring(id.length - 6).toUpperCase()}`;
+
+        return {
+          id,
+          vendorId,
+          categoryId: p.categoryId,
+          brandId: p.brandId || null,
+          name: p.name,
+          nameAr: p.nameAr || null,
+          slug,
+          description: p.description || '',
+          descriptionAr: p.descriptionAr || null,
+          sku,
+          price: p.price,
+          discountPrice: p.discountPrice || null,
+          discountType: p.discountType || null,
+          discountValue: p.discountValue || null,
+          stock: p.stock,
+          lowStockThreshold: p.lowStockThreshold ?? 5,
+          images: JSON.stringify(p.images || []),
+          status: initialStatus as any,
+          featured: p.featured || false,
+          hasVariants: false,
+        };
+      });
+
+      await prisma.product.createMany({
+        data: mappedChunk,
+      });
+
+      totalImported += mappedChunk.length;
+
+      // Yield execution back to the Event Loop to keep the server responsive
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+
+    res.status(201).json({
+      message: `Bulk import completed successfully. Imported ${totalImported} products.`,
+      count: totalImported,
+      status: initialStatus,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid input data', details: error.errors });
+    }
+    console.error('Error in bulk import:', error);
+    res.status(500).json({ error: 'Failed to import products' });
+  }
+};

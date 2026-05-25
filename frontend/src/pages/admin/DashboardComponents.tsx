@@ -142,6 +142,12 @@ export const DashboardTopNav: React.FC<{
     document.documentElement.lang = newLang;
   };
 
+  const getLocalizedLabel = (label: string) => {
+    if (label === 'SUPER ADMIN') return t('admin.superAdmin', 'SUPER ADMIN');
+    if (label === 'STAFF WORKSPACE') return t('admin.staffWorkspace', 'STAFF WORKSPACE');
+    return label;
+  };
+
   const settingsPath = role === 'Admin' ? '/admin/settings' : '/vendor/settings';
 
   return (
@@ -161,11 +167,11 @@ export const DashboardTopNav: React.FC<{
               className={`px-2 py-0.5 rounded-md text-[10px] uppercase font-bold me-2`}
               style={roleTheme ? { backgroundColor: roleTheme.badgeBg, color: roleTheme.badgeText } : { backgroundColor: '#f3e8ff', color: '#9333ea' }}
             >
-              {roleTheme ? roleTheme.label : t(`common.${role.toLowerCase()}`, role)}
+              {roleTheme ? getLocalizedLabel(roleTheme.label) : t(`common.${role.toLowerCase()}`, role)}
             </span>
             <ChevronRight size={14} className="mx-2 rtl:rotate-180" style={roleTheme ? { color: 'rgba(255,255,255,0.5)' } : { color: '#d1d5db' }} />
             <span className="font-semibold" style={roleTheme ? { color: '#fff' } : { color: '#111827' }}>
-              {title || t('common.dashboardTitle', { role: t(`common.${role.toLowerCase()}`, role), defaultValue: '{{role}} Dashboard' })}
+              {title || t('common.dashboardTitle', { role: roleTheme ? getLocalizedLabel(roleTheme.label) : t(`common.${role.toLowerCase()}`, role), defaultValue: '{{role}} Dashboard' })}
             </span>
           </div>
         </div>
@@ -213,7 +219,7 @@ export const DashboardTopNav: React.FC<{
               <div className="hidden lg:flex flex-col items-start leading-tight">
                 <span className="text-sm font-bold" style={roleTheme ? { color: '#fff' } : { color: '#1f2937' }}>{userName}</span>
                 <span className="text-[10px] font-bold uppercase tracking-wider" style={roleTheme ? { color: roleTheme.badgeText } : { color: '#9ca3af' }}>
-                  {roleTheme ? roleTheme.label : t('common.roleMode', { role: t(`common.${role.toLowerCase()}`, role), defaultValue: '{{role}} Mode' })}
+                  {roleTheme ? getLocalizedLabel(roleTheme.label) : t('common.roleMode', { role: t(`common.${role.toLowerCase()}`, role), defaultValue: '{{role}} Mode' })}
                 </span>
               </div>
               <ChevronDown size={14} className={`transition-transform duration-300 ${showProfileMenu ? 'rotate-180' : ''}`} style={roleTheme ? { color: '#fff' } : { color: '#9ca3af' }} />

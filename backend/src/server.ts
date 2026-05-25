@@ -46,6 +46,9 @@ import notificationRoutes from './routes/notifications';
 import announcementRoutes from './routes/announcements';
 import adminAnnouncementRoutes from './routes/admin-announcements';
 import paymentRoutes from './routes/payment';
+import payoutRoutes from './routes/payouts';
+import refundRoutes from './routes/refunds';
+import ticketRoutes from './routes/tickets';
 
 // ─── Vendor Routes (specific paths BEFORE parent path — H-03 Fix) ─────────────
 import vendorProductRoutes from './routes/vendor-products';
@@ -168,9 +171,15 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/coupons', couponRoutes);
 app.use('/api/notifications', notificationRoutes);
+import settingsRoutes from './routes/settings';
+
 app.use('/api/shipping', shippingRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/payment', paymentRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/payouts', payoutRoutes);
+app.use('/api/refunds', refundRoutes);
+app.use('/api/tickets', ticketRoutes);
 
 // ─── Vendor Routes (specific subroutes BEFORE parent — H-03 Fix) ──────────────
 app.use('/api/vendor/products', vendorProductRoutes);

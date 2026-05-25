@@ -20,6 +20,10 @@ interface OrderItem {
       name: string;
     } | null;
   };
+  refundRequest?: {
+    id: string;
+    status: string;
+  } | null;
 }
 
 interface OrderDetails {
@@ -310,7 +314,14 @@ const VendorOrderDetailsPage: React.FC = () => {
                   <img src={getImageUrl(mainImage)} alt={item.product.name} className="w-full h-full object-cover" />
                 </div>
                 <div className="flex-grow min-w-0">
-                  <p className="font-black text-gray-900 truncate tracking-tight">{item.product.name}</p>
+                  <div className="flex justify-between items-start gap-4">
+                    <p className="font-black text-gray-900 truncate tracking-tight">{item.product.name}</p>
+                    {item.refundRequest && (
+                      <span className="text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded uppercase flex-shrink-0">
+                        Refund: {item.refundRequest.status.replace('_', ' ')}
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-3 mt-1.5">
                     <span className="text-[10px] font-black uppercase bg-gray-100 text-gray-500 px-2 py-0.5 rounded">{t('product.quantity', 'Qty')}: {item.quantity}</span>
                     <span className="text-[10px] font-black uppercase bg-primary-100 text-primary-600 px-2 py-0.5 rounded">{formatPrice(unitPrice)} / {t('vendor.ordersPage.unit', 'unit')}</span>

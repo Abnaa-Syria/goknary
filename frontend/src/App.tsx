@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from './store/hooks';
 import { getCurrentUser } from './store/slices/authSlice';
+import { fetchPublicSettings } from './store/slices/settingsSlice';
 import { useTranslation } from 'react-i18next';
 import Layout from './components/layout/Layout';
 import ProtectedRoute from './components/routing/ProtectedRoute';
@@ -18,8 +19,6 @@ import LoginPage from './pages/LoginPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import RegisterPage from './pages/RegisterPage';
-import MyOrdersPage from './pages/MyOrdersPage';
-import OrderDetailsPage from './pages/account/OrderDetailsPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 import LogoutPage from './pages/LogoutPage';
 import SearchPage from './pages/SearchPage';
@@ -36,8 +35,7 @@ import CookiePolicyPage from './pages/CookiePolicyPage';
 
 // Vendor routes
 import VendorDashboard from './pages/vendor/VendorDashboard';
-import VendorProducts from './pages/vendor/VendorProducts';
-import VendorOrders from './pages/vendor/VendorOrders';
+import VendorApplyPage from './pages/vendor/VendorApplyPage';
 
 import { Toaster } from 'react-hot-toast';
 
@@ -63,6 +61,7 @@ function App() {
   const { i18n } = useTranslation();
 
   useEffect(() => {
+    dispatch(fetchPublicSettings()).catch(() => {});
     const token = localStorage.getItem('accessToken');
     if (token) {
       dispatch(getCurrentUser()).catch(() => {});
@@ -112,6 +111,8 @@ function App() {
           <Route path="register" element={<RegisterPage />} />
           <Route path="verify-email" element={<VerifyEmailPage />} />
           <Route path="logout" element={<LogoutPage />} />
+          
+          <Route path="become-vendor" element={<VendorApplyPage />} />
           
           {/* Account Routes */}
           <Route path="account/*" element={<AccountPage />} />

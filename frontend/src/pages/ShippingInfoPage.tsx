@@ -1,7 +1,12 @@
 import React from 'react';
 import { SEO } from '../components/common/SEO';
+import { useTranslation } from 'react-i18next';
+import { useAppSelector } from '../store/hooks';
 
 const ShippingInfoPage: React.FC = () => {
+  const { t } = useTranslation();
+  const { freeShippingThreshold } = useAppSelector((state) => state.settings);
+
   return (
     <>
       <SEO
@@ -26,8 +31,8 @@ const ShippingInfoPage: React.FC = () => {
           <div>
             <h2 className="font-semibold text-gray-900 mb-1">Shipping Fees</h2>
             <ul className="list-disc pl-5 space-y-1">
-              <li>Orders above EGP 500: <span className="font-semibold text-green-600">Free shipping</span></li>
-              <li>Orders below EGP 500: Standard shipping fee applies at checkout</li>
+              <li>{t('checkout.shippingInfoFree', { amount: freeShippingThreshold })}</li>
+              <li>{t('checkout.shippingInfoPaid', { amount: freeShippingThreshold })}</li>
             </ul>
           </div>
 

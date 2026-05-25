@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   LayoutDashboard, ShoppingBag, Package, Settings, BarChart2,
   LogOut, DollarSign, Plus, Store, Clock, ArrowUpRight, X,
-  RefreshCw, TrendingUp
+  RefreshCw, TrendingUp, MessageSquare
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -22,6 +22,10 @@ import VendorAnalyticsPage from './VendorAnalyticsPage';
 import VendorApplyPage from './VendorApplyPage';
 import VendorSettingsPage from './VendorSettingsPage';
 import { DashboardFooter } from '../../components/layout/DashboardFooter';
+import VendorPayoutsPage from './VendorPayoutsPage';
+import VendorRefundsPage from './VendorRefundsPage';
+import VendorTicketsPage from './VendorTicketsPage';
+import VendorTicketDetailsPage from './VendorTicketDetailsPage';
 
 import {
   StatCard, ChartCard, DashboardSkeleton, EmptyState, DashboardTopNav
@@ -475,6 +479,9 @@ const VendorDashboard: React.FC = () => {
     { path: '/vendor', name: t('vendor.overview', 'Overview'), icon: LayoutDashboard },
     { path: '/vendor/products', name: t('vendor.products', 'Products'), icon: Package },
     { path: '/vendor/orders', name: t('vendor.orders', 'Orders'), icon: ShoppingBag },
+    { path: '/vendor/payouts', name: t('vendor.payoutsMenu', 'Payouts & Wallet'), icon: DollarSign },
+    { path: '/vendor/refunds', name: t('vendor.refunds', 'Refund Requests'), icon: RefreshCw },
+    { path: '/vendor/tickets', name: t('vendor.tickets', 'Support Tickets'), icon: MessageSquare },
     { path: '/vendor/analytics', name: t('vendor.analytics', 'Analytics'), icon: BarChart2 },
     { path: '/vendor/settings', name: t('vendor.settings', 'Settings'), icon: Settings },
   ];
@@ -583,6 +590,10 @@ const VendorDashboard: React.FC = () => {
             <Route path="products/:id/edit" element={<VendorProductFormPage />} />
             <Route path="orders" element={<VendorOrdersPage />} />
             <Route path="orders/:id" element={<VendorOrderDetailsPage />} />
+            <Route path="payouts" element={<VendorPayoutsPage />} />
+            <Route path="refunds" element={<VendorRefundsPage />} />
+            <Route path="tickets" element={<VendorTicketsPage />} />
+            <Route path="tickets/:id" element={<VendorTicketDetailsPage />} />
             <Route path="analytics" element={<VendorAnalyticsPage />} />
             <Route path="apply" element={<VendorApplyPage />} />
             <Route path="settings" element={<VendorSettingsPage />} />

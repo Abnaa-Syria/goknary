@@ -441,6 +441,7 @@ export const getAdminOrderById = async (req: Request, res: Response) => {
                 },
               },
             },
+            refundRequest: true,
           },
         },
         vendor: {
@@ -630,6 +631,35 @@ export const updateAdminOrderStatus = async (req: any, res: Response) => {
 
     // Update order status and create history entry in a transaction
     const updatedOrder = await prisma.$transaction(async (tx) => {
+      if (status === 'DELIVERED' && order.status !== 'DELIVERED') {
+        const vendor = await tx.vendor.findUnique({
+          where: { id: order.vendorId },
+        });
+        if (vendor) {
+          const rate = vendor.commissionRate ?? 10;
+          const commissionAmount = order.total * (rate / 100);
+          const netEarnings = order.total - commissionAmount;
+
+          await tx.vendor.update({
+            where: { id: vendor.id },
+            data: {
+              balance: { increment: netEarnings },
+            },
+          });
+
+          await tx.commission.create({
+            data: {
+              vendorId: vendor.id,
+              orderId: order.id,
+              commissionRate: rate,
+              commissionAmount,
+              status: 'paid',
+              paidAt: new Date(),
+            },
+          });
+        }
+      }
+
       const updated = await tx.order.update({
         where: { id },
         data: { status: status as OrderStatus },

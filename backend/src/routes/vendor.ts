@@ -6,9 +6,11 @@ const router = Router();
 
 // H-05 Fix: authenticate applied ONCE at router level — removed duplicate on /apply route
 router.use(authenticate);
-router.use(authorize('VENDOR', 'ADMIN'));
 
 router.post('/apply', applyForVendor);
+
+// Restrict subsequent profile endpoints to VENDOR and ADMIN
+router.use(authorize('VENDOR', 'ADMIN'));
 router.get('/me', getVendorProfile);
 router.patch('/me', updateVendorProfile);
 

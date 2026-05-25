@@ -48,6 +48,11 @@ async function main() {
 
   // Clear existing data
   console.log('🧹 Cleaning existing data...');
+  await prisma.ticketMessage.deleteMany();
+  await prisma.supportTicket.deleteMany();
+  await prisma.refundRequest.deleteMany();
+  await prisma.payoutRequest.deleteMany();
+  await prisma.setting.deleteMany();
   await prisma.commission.deleteMany();
   await prisma.orderStatusHistory.deleteMany();
   await prisma.orderItem.deleteMany();
@@ -65,6 +70,19 @@ async function main() {
   await prisma.user.deleteMany();
 
   const passwordHash = await bcrypt.hash('password123', 10);
+
+  // Create settings
+  console.log('⚙️ Seeding system settings...');
+  await prisma.setting.createMany({
+    data: [
+      { key: 'free_shipping_threshold', value: '500' },
+      { key: 'support_phone', value: '+20 100 000 0000' },
+      { key: 'facebook_url', value: 'https://facebook.com' },
+      { key: 'instagram_url', value: 'https://instagram.com' },
+      { key: 'linkedin_url', value: 'https://linkedin.com' },
+      { key: 'twitter_url', value: 'https://twitter.com' },
+    ]
+  });
 
   // Create Admin User
   console.log('👤 Creating admin user...');

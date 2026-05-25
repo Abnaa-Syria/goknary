@@ -4,6 +4,7 @@ import { Plus, Truck, Trash2, Edit, CheckCircle, XCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
+import { useAppDispatch } from '../../store/hooks';
 
 interface ShippingRate {
   id: string;

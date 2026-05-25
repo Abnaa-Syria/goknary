@@ -142,6 +142,7 @@ export const getVendorOrder = async (req: AuthRequest, res: Response) => {
                 },
               },
             },
+            refundRequest: true,
           },
         },
         statusHistory: {
@@ -211,6 +212,31 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response) => {
     // H-08 Fix: wrap status update + history in a single atomic transaction
     // If history creation fails, the status rollback is automatic
     const updated = await prisma.$transaction(async (tx) => {
+      // If updating to DELIVERED and it wasn't delivered yet, credit vendor balance
+      if (status === 'DELIVERED' && order.status !== 'DELIVERED') {
+        const rate = vendor.commissionRate ?? 10;
+        const commissionAmount = order.total * (rate / 100);
+        const netEarnings = order.total - commissionAmount;
+
+        await tx.vendor.update({
+          where: { id: vendor.id },
+          data: {
+            balance: { increment: netEarnings },
+          },
+        });
+
+        await tx.commission.create({
+          data: {
+            vendorId: vendor.id,
+            orderId: order.id,
+            commissionRate: rate,
+            commissionAmount,
+            status: 'paid',
+            paidAt: new Date(),
+          },
+        });
+      }
+
       const updatedOrder = await tx.order.update({
         where: { id },
         data: { status },

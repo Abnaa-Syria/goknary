@@ -6,6 +6,9 @@ import ProfilePage from './account/ProfilePage';
 import AddressesPage from './account/AddressesPage';
 import MyOrdersPage from './MyOrdersPage';
 import OrderDetailsPage from './account/OrderDetailsPage';
+import RefundsPage from './account/RefundsPage';
+import TicketsPage from './account/TicketsPage';
+import TicketDetailsPage from './account/TicketDetailsPage';
 
 const AccountPage: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -44,7 +47,7 @@ const AccountPage: React.FC = () => {
               <div className="w-12 h-12 rounded-full bg-primary-500 flex items-center justify-center text-white font-bold text-xl">
                 {user?.name?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase()}
               </div>
-              <div>
+              <div className="text-start">
                 <p className="font-medium">{user?.name || 'User'}</p>
                 <p className="text-sm text-gray-500">{user?.email}</p>
               </div>
@@ -75,6 +78,22 @@ const AccountPage: React.FC = () => {
                   className="block px-4 py-2 hover:bg-gray-100 rounded-lg transition-colors"
                 >
                   Orders
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/account/refunds"
+                  className="block px-4 py-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  Returns &amp; Refunds
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/account/tickets"
+                  className="block px-4 py-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  Support Tickets
                 </Link>
               </li>
               {user?.role === 'VENDOR' && (
@@ -115,6 +134,9 @@ const AccountPage: React.FC = () => {
             <Route path="addresses" element={<AddressesPage />} />
             <Route path="orders" element={<MyOrdersPage />} />
             <Route path="orders/:id" element={<OrderDetailsPage />} />
+            <Route path="refunds" element={<RefundsPage />} />
+            <Route path="tickets" element={<TicketsPage />} />
+            <Route path="tickets/:id" element={<TicketDetailsPage />} />
             <Route path="*" element={<Navigate to="/account" replace />} />
           </Routes>
         </main>

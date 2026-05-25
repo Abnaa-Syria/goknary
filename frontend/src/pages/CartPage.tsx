@@ -18,6 +18,7 @@ const CartPage: React.FC = () => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const { items, subtotal, total, itemCount, loading } = useAppSelector((state) => state.cart);
+  const { freeShippingThreshold } = useAppSelector((state) => state.settings);
 
   const [promoCode, setPromoCode] = React.useState('');
   const [applyingPromo, setApplyingPromo] = React.useState(false);
@@ -56,7 +57,7 @@ const CartPage: React.FC = () => {
     }
   };
 
-  const currentShipping = subtotal >= 500 ? 0 : 50;
+  const currentShipping = subtotal >= freeShippingThreshold ? 0 : 50;
   const finalCalculatedTotal = (subtotal - (appliedPromo?.discountAmount || 0)) + currentShipping;
 
   if (loading && items.length === 0) {
@@ -194,7 +195,7 @@ const CartPage: React.FC = () => {
                 <div className="flex justify-between">
                   <span className="text-gray-600">{t('cart.shipping')}</span>
                   <span className="font-medium">
-                    {subtotal >= 500 ? (
+                    {subtotal >= freeShippingThreshold ? (
                       <span className="text-green-600">{t('cart.freeShipping')}</span>
                     ) : (
                       formatPrice(50)
@@ -258,9 +259,9 @@ const CartPage: React.FC = () => {
                 {t('cart.continueShopping')}
               </Link>
 
-              {subtotal < 500 && (
+              {subtotal < freeShippingThreshold && (
                 <p className="text-sm text-gray-500 mt-4 text-center">
-                  {t('home.freeShippingDesc')}
+                  {t('home.freeShippingDesc', { amount: freeShippingThreshold })}
                 </p>
               )}
             </div>

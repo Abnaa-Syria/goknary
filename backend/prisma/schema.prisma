@@ -28,6 +28,7 @@ model User {
   passwordResetExpires DateTime? @map("password_reset_expires") @db.DateTime(0)
 
   customRoleId  String?     @map("custom_role_id")
+  walletBalance Float       @default(0) @map("wallet_balance")
 
   vendor        Vendor?
   reviews       Review[]
@@ -36,6 +37,9 @@ model User {
   notifications Notification[]
   wishlistItems WishlistItem[]
   customRole    CustomRole? @relation(fields: [customRoleId], references: [id])
+  tickets       SupportTicket[]
+  ticketMessages TicketMessage[]
+  refunds       RefundRequest[]
 
   @@index([customRoleId])
   @@map("users")
@@ -83,12 +87,16 @@ model Vendor {
   status         VendorStatus @default(PENDING)
   verified       Boolean      @default(false)
   commissionRate Float        @default(10) @map("commission_rate")
+  balance        Float        @default(0)
+  pendingBalance Float        @default(0) @map("pending_balance")
+  withdrawnAmount Float       @default(0) @map("withdrawn_amount")
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
 
-  user     User      @relation(fields: [userId], references: [id])
-  products Product[]
-  orders   Order[]
+  user           User            @relation(fields: [userId], references: [id])
+  products       Product[]
+  orders         Order[]
+  payoutRequests PayoutRequest[]
 
   @@map("vendors")
 }
@@ -149,11 +157,12 @@ model Product {
   ratingAvg     Float         @default(0) @map("rating_avg")
   ratingCount   Int           @default(0) @map("rating_count")
   images        String        @db.Text
-  status        ProductStatus @default(DRAFT)
-  featured      Boolean       @default(false)
-  hasVariants   Boolean       @default(false) @map("has_variants")
-  createdAt     DateTime      @default(now()) @map("created_at")
-  updatedAt     DateTime      @updatedAt @map("updated_at")
+  status            ProductStatus @default(DRAFT)
+  featured          Boolean       @default(false)
+  hasVariants       Boolean       @default(false) @map("has_variants")
+  lowStockThreshold Int           @default(5) @map("low_stock_threshold")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
 
   vendor        Vendor           @relation(fields: [vendorId], references: [id])
   category      Category         @relation(fields: [categoryId], references: [id])
@@ -214,10 +223,11 @@ model Order {
   createdAt      DateTime    @default(now()) @map("created_at")
   updatedAt      DateTime    @updatedAt @map("updated_at")
 
-  user          User                 @relation(fields: [userId], references: [id])
-  vendor        Vendor               @relation(fields: [vendorId], references: [id])
-  items         OrderItem[]
-  statusHistory OrderStatusHistory[]
+  user           User                 @relation(fields: [userId], references: [id])
+  vendor         Vendor               @relation(fields: [vendorId], references: [id])
+  items          OrderItem[]
+  statusHistory  OrderStatusHistory[]
+  refundRequests RefundRequest[]
 
   @@index([userId])
   @@index([vendorId])
@@ -236,9 +246,10 @@ model OrderItem {
   variantInfo   String?  @map("variant_info") @db.Text
   createdAt     DateTime @default(now()) @map("created_at")
 
-  order   Order           @relation(fields: [orderId], references: [id])
-  product Product         @relation(fields: [productId], references: [id])
-  variant ProductVariant? @relation(fields: [variantId], references: [id])
+  order         Order           @relation(fields: [orderId], references: [id])
+  product       Product         @relation(fields: [productId], references: [id])
+  variant       ProductVariant? @relation(fields: [variantId], references: [id])
+  refundRequest RefundRequest?
 
   @@index([orderId])
   @@index([productId])
@@ -491,3 +502,115 @@ enum DiscountType {
   PERCENTAGE
   FIXED
 }
+
+model Setting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
+
+model PayoutRequest {
+  id             String       @id @default(cuid())
+  vendorId       String       @map("vendor_id")
+  amount         Float
+  paymentMethod  String       @map("payment_method")
+  paymentDetails String       @map("payment_details") @db.Text
+  status         PayoutStatus @default(PENDING)
+  notes          String?      @db.Text
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  vendor         Vendor       @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([vendorId])
+  @@map("payout_requests")
+}
+
+enum PayoutStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model RefundRequest {
+  id          String       @id @default(cuid())
+  orderId     String       @map("order_id")
+  orderItemId String       @unique @map("order_item_id")
+  customerId  String       @map("customer_id")
+  vendorId    String       @map("vendor_id")
+  reason      String       @db.Text
+  amount      Float
+  status      RefundStatus @default(PENDING)
+  vendorNotes String?      @map("vendor_notes") @db.Text
+  adminNotes  String?      @map("admin_notes") @db.Text
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  order       Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItem   OrderItem    @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  customer    User         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([vendorId])
+  @@index([orderId])
+  @@map("refund_requests")
+}
+
+enum RefundStatus {
+  PENDING
+  VENDOR_APPROVED
+  VENDOR_REJECTED
+  ADMIN_APPROVED
+  ADMIN_REJECTED
+}
+
+model SupportTicket {
+  id        String         @id @default(cuid())
+  userId    String         @map("user_id")
+  subject   String
+  message   String         @db.Text
+  status    TicketStatus   @default(OPEN)
+  priority  TicketPriority @default(MEDIUM)
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
+
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  TicketMessage[]
+
+  @@index([userId])
+  @@map("support_tickets")
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model TicketMessage {
+  id        String   @id @default(cuid())
+  ticketId  String   @map("ticket_id")
+  senderId  String   @map("sender_id")
+  message   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  sender    User          @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@index([senderId])
+  @@map("ticket_messages")
+}
+
+

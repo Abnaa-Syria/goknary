@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useAppSelector } from '../../store/hooks';
 
 // Social Media Icons
 const FacebookIcon: React.FC<{ className?: string }> = ({ className = "w-4 h-4" }) => (
@@ -29,6 +30,7 @@ const LinkedInIcon: React.FC<{ className?: string }> = ({ className = "w-4 h-4" 
 
 const Footer: React.FC = () => {
   const { t } = useTranslation();
+  const { facebookUrl, twitterUrl, instagramUrl, linkedinUrl } = useAppSelector((state) => state.settings);
   
   return (
     <footer className="bg-secondary-900 text-white mt-auto">
@@ -62,16 +64,16 @@ const Footer: React.FC = () => {
             </div>
             {/* Social Media */}
             <div className="flex gap-2">
-              <a href="#" className="w-8 h-8 flex items-center justify-center bg-gray-800/50 hover:bg-primary-500 border border-gray-700/50 hover:border-primary-500 rounded transition-all" aria-label="Facebook">
+              <a href={facebookUrl || "#"} target="_blank" rel="noopener noreferrer" className="w-8 h-8 flex items-center justify-center bg-gray-800/50 hover:bg-primary-500 border border-gray-700/50 hover:border-primary-500 rounded transition-all" aria-label="Facebook">
                 <FacebookIcon />
               </a>
-              <a href="#" className="w-8 h-8 flex items-center justify-center bg-gray-800/50 hover:bg-primary-500 border border-gray-700/50 hover:border-primary-500 rounded transition-all" aria-label="Twitter">
+              <a href={twitterUrl || "#"} target="_blank" rel="noopener noreferrer" className="w-8 h-8 flex items-center justify-center bg-gray-800/50 hover:bg-primary-500 border border-gray-700/50 hover:border-primary-500 rounded transition-all" aria-label="Twitter">
                 <TwitterIcon />
               </a>
-              <a href="#" className="w-8 h-8 flex items-center justify-center bg-gray-800/50 hover:bg-primary-500 border border-gray-700/50 hover:border-primary-500 rounded transition-all" aria-label="Instagram">
+              <a href={instagramUrl || "#"} target="_blank" rel="noopener noreferrer" className="w-8 h-8 flex items-center justify-center bg-gray-800/50 hover:bg-primary-500 border border-gray-700/50 hover:border-primary-500 rounded transition-all" aria-label="Instagram">
                 <InstagramIcon />
               </a>
-              <a href="#" className="w-8 h-8 flex items-center justify-center bg-gray-800/50 hover:bg-primary-500 border border-gray-700/50 hover:border-primary-500 rounded transition-all" aria-label="LinkedIn">
+              <a href={linkedinUrl || "#"} target="_blank" rel="noopener noreferrer" className="w-8 h-8 flex items-center justify-center bg-gray-800/50 hover:bg-primary-500 border border-gray-700/50 hover:border-primary-500 rounded transition-all" aria-label="LinkedIn">
                 <LinkedInIcon />
               </a>
             </div>
@@ -84,7 +86,7 @@ const Footer: React.FC = () => {
               <li><Link to="/" className="text-gray-300 hover:text-primary-400 transition-colors text-xs">{t('common.home')}</Link></li>
               <li><Link to="/account" className="text-gray-300 hover:text-primary-400 transition-colors text-xs">{t('footer.myAccount')}</Link></li>
               <li><Link to="/cart" className="text-gray-300 hover:text-primary-400 transition-colors text-xs">{t('common.cart')}</Link></li>
-              <li><Link to="/vendor/apply" className="text-gray-300 hover:text-primary-400 transition-colors text-xs">{t('auth.registerAsVendor')}</Link></li>
+              <li><Link to="/become-vendor" className="text-gray-300 hover:text-primary-400 transition-colors text-xs">{t('auth.registerAsVendor')}</Link></li>
             </ul>
           </div>
 
