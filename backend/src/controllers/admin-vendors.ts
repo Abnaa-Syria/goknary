@@ -373,3 +373,33 @@ export const updateVendorStatus = async (req: Request, res: Response) => {
   }
 };
 
+export const updateVendorCommission = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { commissionRate } = req.body;
+
+    const rate = parseFloat(commissionRate);
+    if (isNaN(rate) || rate < 0 || rate > 100) {
+      return res.status(400).json({ error: 'Commission rate must be a number between 0 and 100' });
+    }
+
+    const vendor = await prisma.vendor.findUnique({ where: { id } });
+    if (!vendor) throw new NotFoundError('Vendor not found');
+
+    const updated = await prisma.vendor.update({
+      where: { id },
+      data: { commissionRate: rate },
+    });
+
+    res.json({
+      message: 'Vendor commission rate updated successfully',
+      vendor: updated,
+    });
+  } catch (error) {
+    if (error instanceof NotFoundError) return res.status(404).json({ error: error.message });
+    console.error('Error updating vendor commission:', error);
+    res.status(500).json({ error: 'Failed to update vendor commission rate' });
+  }
+};
+
+

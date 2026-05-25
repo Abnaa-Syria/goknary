@@ -68,6 +68,7 @@ import shippingRoutes from './routes/shipping';
 import reviewRoutes from './routes/reviews';
 import { authenticate, authorize, requirePermission } from './middleware/auth';
 import { getAdminVendorProducts } from './controllers/admin';
+import { updateVendorCommission } from './controllers/admin-vendors';
 
 // ─── WhatsApp / WP Sender (OTP delivery) ───────────────────────────────────
 // WP Sender client details are configured in lib/wpsender.ts.
@@ -189,6 +190,7 @@ app.use('/api/vendor', vendorProfileRoutes); // parent LAST
 
 // ─── Admin Governance Direct Routes (H-03 Route Prioritization) ───────────────
 app.get('/api/admin/vendors/:vendorId/products', authenticate, authorize('ADMIN', 'STAFF'), requirePermission('READ_PRODUCTS'), getAdminVendorProducts);
+app.patch('/api/admin/vendors/:id/commission', authenticate, authorize('ADMIN', 'STAFF'), requirePermission('UPDATE_VENDORS'), updateVendorCommission);
 
 // ─── Admin Routes (specific subroutes BEFORE parent) ─────────────────────────
 app.use('/api/admin/vendors', adminVendorRoutes);

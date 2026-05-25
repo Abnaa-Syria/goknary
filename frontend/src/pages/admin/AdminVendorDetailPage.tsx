@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowLeft, Store, DollarSign, Percent, ShieldAlert,
   Briefcase, Package, ShoppingBag, Star, Mail, Phone,
@@ -84,6 +85,9 @@ const AdminVendorDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'orders'>('overview');
   const [actionLoading, setActionLoading] = useState(false);
+  const [commissionModalOpen, setCommissionModalOpen] = useState(false);
+  const [newCommissionRate, setNewCommissionRate] = useState('10');
+  const [commissionSaving, setCommissionSaving] = useState(false);
 
   useEffect(() => {
     if (vendorId) {
@@ -96,11 +100,33 @@ const AdminVendorDetailPage: React.FC = () => {
       setLoading(true);
       const response = await api.get(`/admin/vendors/${vendorId}`);
       setData(response.data);
+      setNewCommissionRate(response.data.vendor.commissionRate?.toString() || '10');
     } catch (error: any) {
       console.error('Failed to fetch vendor details:', error);
       toast.error(error.response?.data?.error || 'Failed to fetch vendor details');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCommissionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const rate = parseFloat(newCommissionRate);
+    if (isNaN(rate) || rate < 0 || rate > 100) {
+      toast.error(isRTL ? 'يجب أن تكون النسبة رقماً بين 0 و 100' : 'Commission rate must be a number between 0 and 100');
+      return;
+    }
+
+    try {
+      setCommissionSaving(true);
+      await api.patch(`/admin/vendors/${vendorId}/commission`, { commissionRate: rate });
+      toast.success(isRTL ? 'تم تحديث نسبة العمولة بنجاح' : 'Commission rate updated successfully');
+      setCommissionModalOpen(false);
+      fetchVendorDetails();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || (isRTL ? 'فشل تحديث نسبة العمولة' : 'Failed to update commission rate'));
+    } finally {
+      setCommissionSaving(false);
     }
   };
 
@@ -235,7 +261,15 @@ const AdminVendorDetailPage: React.FC = () => {
         </div>
 
         {/* Administration Actions */}
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <button
+            disabled={actionLoading}
+            onClick={() => setCommissionModalOpen(true)}
+            className="px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-semibold rounded-xl text-sm transition-all flex items-center gap-1.5"
+          >
+            <Percent size={16} />
+            {isRTL ? 'تعديل نسبة العمولة' : 'Edit Commission'}
+          </button>
           {vendor.status === 'PENDING' && (
             <>
               <button
@@ -395,7 +429,7 @@ const AdminVendorDetailPage: React.FC = () => {
               color="success"
             />
             <StatCard
-              title={isRTL ? 'عمولة المنصة' : 'Platform Commission'}
+              title={isRTL ? `عمولة المنصة (${stats.commissionRate}%)` : `Platform Commission (${stats.commissionRate}%)`}
               value={formatPrice(stats.commissionAmount)}
               icon={Percent}
               color="warning"
@@ -647,6 +681,71 @@ const AdminVendorDetailPage: React.FC = () => {
           )}
         </div>
       )}
+      {/* Commission Edit Modal */}
+      <AnimatePresence>
+        {commissionModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
+              onClick={() => setCommissionModalOpen(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-gray-100"
+            >
+              <div className="p-6 border-b border-gray-50 bg-gray-50/50">
+                <h3 className="text-xl font-bold text-gray-900">
+                  {isRTL ? 'تعديل نسبة عمولة المنصة' : 'Edit Platform Commission Rate'}
+                </h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  {isRTL ? 'تحديد النسبة المئوية التي تقتطعها المنصة من مبيعات هذا التاجر.' : 'Set the percentage rate the platform takes from this vendor\'s sales.'}
+                </p>
+              </div>
+
+              <form onSubmit={handleCommissionSubmit} className="p-6 space-y-6">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1.5">
+                    {isRTL ? 'نسبة العمولة (%)' : 'Commission Rate (%)'}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      value={newCommissionRate}
+                      onChange={e => setNewCommissionRate(e.target.value)}
+                      className="w-full ps-4 pe-12 py-2.5 rounded-xl border border-gray-200 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 transition-all font-mono font-bold"
+                    />
+                    <div className="absolute end-4 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-400">%</div>
+                  </div>
+                </div>
+
+                <div className="pt-4 flex justify-end gap-3 border-t border-gray-50">
+                  <button 
+                    type="button" 
+                    onClick={() => setCommissionModalOpen(false)} 
+                    className="px-5 py-2.5 text-gray-600 font-medium hover:bg-gray-50 rounded-xl transition-colors"
+                  >
+                    {t('common.cancel')}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={commissionSaving}
+                    className="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-black rounded-xl transition-all shadow-lg shadow-primary-200 disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {commissionSaving ? t('common.loading') : (isRTL ? 'حفظ التغييرات' : 'Save Changes')}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
