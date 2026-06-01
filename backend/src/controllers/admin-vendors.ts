@@ -5,7 +5,7 @@ import { NotFoundError } from '../lib/errors';
 
 export const getVendors = async (req: Request, res: Response) => {
   try {
-    const { status, page = '1', limit = '20' } = req.query;
+    const { status, q, page = '1', limit = '20' } = req.query;
     const pageNum = parseInt(page as string, 10);
     const limitNum = parseInt(limit as string, 10);
     const skip = (pageNum - 1) * limitNum;
@@ -20,6 +20,21 @@ export const getVendors = async (req: Request, res: Response) => {
       return res.status(400).json({
         error: `Invalid status value. Must be one of: ${validStatusValues.join(', ')}`,
       });
+    }
+
+    if (q) {
+      where.OR = [
+        { storeName: { contains: q as string } },
+        { slug: { contains: q as string } },
+        {
+          user: {
+            OR: [
+              { name: { contains: q as string } },
+              { email: { contains: q as string } },
+            ]
+          }
+        }
+      ];
     }
 
     const [vendors, total] = await Promise.all([

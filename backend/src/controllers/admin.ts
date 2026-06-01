@@ -136,9 +136,12 @@ export const getUsers = async (req: Request, res: Response) => {
 export const updateUser = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, email, role, customRoleId } = req.body;
+    const { name, email, role, customRoleId, vendorStatus } = req.body;
 
-    const user = await prisma.user.findUnique({ where: { id } });
+    const user = await prisma.user.findUnique({
+      where: { id },
+      include: { vendor: true },
+    });
     if (!user) throw new NotFoundError('User not found');
 
     const data: any = {};
@@ -153,18 +156,55 @@ export const updateUser = async (req: Request, res: Response) => {
       data.customRoleId = null; // Clear role assignment when leaving STAFF
     }
 
-    const updated = await prisma.user.update({
-      where: { id },
-      data,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        customRole: {
-          select: { id: true, name: true },
+    const updated = await prisma.$transaction(async (tx) => {
+      const updatedUser = await tx.user.update({
+        where: { id },
+        data,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          customRole: {
+            select: { id: true, name: true },
+          },
         },
-      },
+      });
+
+      if (role === 'VENDOR') {
+        const status = vendorStatus || 'APPROVED';
+        if (!user.vendor) {
+          const storeName = name || user.name || 'Vendor Store';
+          const slug = `${slugify(storeName)}-${Math.random().toString(36).substring(2, 7)}`;
+          await tx.vendor.create({
+            data: {
+              userId: id,
+              storeName,
+              slug,
+              status,
+              verified: status === 'APPROVED',
+            },
+          });
+        } else {
+          await tx.vendor.update({
+            where: { id: user.vendor.id },
+            data: {
+              status,
+              verified: status === 'APPROVED' ? true : user.vendor.verified,
+            },
+          });
+        }
+      } else if (user.vendor && role !== undefined && role !== 'VENDOR') {
+        // If they had a vendor record but their role was changed away from VENDOR, suspend the vendor record
+        await tx.vendor.update({
+          where: { id: user.vendor.id },
+          data: {
+            status: 'SUSPENDED',
+          },
+        });
+      }
+
+      return updatedUser;
     });
 
     res.json({ message: 'User updated successfully', user: updated });

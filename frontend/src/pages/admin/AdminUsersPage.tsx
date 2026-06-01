@@ -708,14 +708,12 @@ const EditUserModal: React.FC<{ isOpen: boolean; onClose: () => void; user: User
       if (formData.role === 'STAFF') {
         payload.customRoleId = formData.customRoleId;
       }
-      
-      // 1. Update general user profile
-      await api.patch(`/admin/users/${user.id}`, payload);
-      
-      // 2. If it's a vendor, update status
-      if (formData.role === 'VENDOR' && user.vendor?.id) {
-        await api.patch(`/admin/vendors/${user.vendor.id}/status`, { status: formData.status });
+      if (formData.role === 'VENDOR') {
+        payload.vendorStatus = formData.status;
       }
+      
+      // Update general user profile (which now also handles creating/updating vendor status inside a transaction)
+      await api.patch(`/admin/users/${user.id}`, payload);
 
       toast.success('Identity state updated');
       onSuccess();
