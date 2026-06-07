@@ -742,6 +742,7 @@ const platformProductSchema = z.object({
   brandId: z.string().optional().nullable(),
   name: z.string().min(1),
   nameAr: z.string().optional(),
+  slug: z.string().optional().nullable(),
   description: z.string().optional(),
   descriptionAr: z.string().optional(),
   price: z.number().positive(),
@@ -791,10 +792,11 @@ export const createPlatformProduct = async (req: AuthRequest, res: Response) => 
     }
 
     // 2. Create the product
-    const slug = slugify(data.name);
+    const rawSlug = data.slug ? data.slug.trim() : '';
+    const slug = rawSlug ? slugify(rawSlug) : slugify(data.name);
     const existingSlug = await prisma.product.findUnique({ where: { slug } });
     if (existingSlug) {
-      return res.status(400).json({ error: 'Product name is already taken' });
+      return res.status(400).json({ error: 'Slug or product name is already taken' });
     }
 
     const productId = `plat_${Date.now()}_${Math.random().toString(36).substring(7)}`;

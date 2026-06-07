@@ -55,6 +55,7 @@ const VendorProductFormPage: React.FC = () => {
     brandId: '',
     name: '',
     nameAr: '', // Arabic name
+    slug: '',
     description: '',
     descriptionAr: '', // Arabic description
     price: '',
@@ -83,6 +84,19 @@ const VendorProductFormPage: React.FC = () => {
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false);
+
+  const slugify = (text: string): string => {
+    return text
+      .toString()
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(new RegExp('[^\\p{L}\\p{N}\\-_]+', 'gu'), '')
+      .replace(/\-\-+/g, '-')
+      .replace(/^-+/, '')
+      .replace(/-+$/, '');
+  };
 
   useEffect(() => {
     fetchCategories();
@@ -127,6 +141,7 @@ const VendorProductFormPage: React.FC = () => {
         brandId: product.brandId || '',
         name: product.name || '',
         nameAr: product.nameAr || '',
+        slug: product.slug || '',
         description: product.description || '',
         descriptionAr: product.descriptionAr || '',
         price: product.price?.toString() || '',
@@ -139,6 +154,7 @@ const VendorProductFormPage: React.FC = () => {
         status: product.status || 'DRAFT',
         hasVariants: product.hasVariants || false,
       });
+      setIsSlugManuallyEdited(true);
 
       // Set variants if any
       if (product.variants && product.variants.length > 0) {
@@ -162,7 +178,17 @@ const VendorProductFormPage: React.FC = () => {
       setFormData({ ...formData, [name]: value === '' ? '' : parseFloat(value) });
     } else {
       setFormData({ ...formData, [name]: value });
+      if (name === 'name' && !isSlugManuallyEdited && !isEdit) {
+        setFormData(prev => ({ ...prev, slug: slugify(value) }));
+      }
+      if (name === 'slug') {
+        setIsSlugManuallyEdited(true);
+      }
     }
+  };
+
+  const handleSlugBlur = () => {
+    setFormData(prev => ({ ...prev, slug: slugify(prev.slug) }));
   };
 
   useEffect(() => {
@@ -216,6 +242,7 @@ const VendorProductFormPage: React.FC = () => {
         brandId: formData.brandId || undefined,
         name: formData.name,
         nameAr: formData.nameAr || undefined, // Arabic name
+        slug: formData.slug || undefined,
         description: formData.description,
         descriptionAr: formData.descriptionAr || undefined, // Arabic description
         price: parseFloat(formData.price),
@@ -388,6 +415,26 @@ const VendorProductFormPage: React.FC = () => {
               dir="rtl"
               placeholder={t('vendor.productForm.productNameArPlaceholder', 'اسم المنتج بالعربية')}
             />
+          </div>
+
+          {/* Product Slug */}
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              {t('vendor.productSlug', 'Product Slug / URL Path')} <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              name="slug"
+              value={formData.slug}
+              onChange={handleChange}
+              onBlur={handleSlugBlur}
+              className="input-field w-full"
+              required
+              placeholder={t('vendor.productForm.slugPlaceholder', 'e.g. my-product-slug')}
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              {t('vendor.productForm.slugHelp', 'Used in URL path (supports Arabic and English).')}
+            </p>
           </div>
 
           {/* Description (English) */}

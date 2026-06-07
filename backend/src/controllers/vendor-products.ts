@@ -32,6 +32,7 @@ const productSchema = z.object({
   brandId: z.string().optional().nullable(),
   name: z.string().min(1),
   nameAr: z.string().optional(),
+  slug: z.string().optional().nullable(),
   description: z.string().optional(),
   descriptionAr: z.string().optional(),
   price: z.number().positive(),
@@ -251,10 +252,11 @@ export const createVendorProduct = async (req: AuthRequest, res: Response) => {
     const vendorId = await resolveVendorId(req, res, 'body');
     if (!vendorId) return;
 
-    const slug = slugify(productData.name);
+    const rawSlug = productData.slug ? productData.slug.trim() : '';
+    const slug = rawSlug ? slugify(rawSlug) : slugify(productData.name);
     const existingSlug = await prisma.product.findUnique({ where: { slug } });
     if (existingSlug) {
-      return res.status(400).json({ error: 'Product name is already taken' });
+      return res.status(400).json({ error: 'Slug or product name is already taken' });
     }
 
     const productId = `prod_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -368,6 +370,7 @@ export const updateVendorProduct = async (req: AuthRequest, res: Response) => {
       brandId,
       name,
       nameAr,
+      slug,
       description,
       descriptionAr,
       price,
@@ -400,24 +403,34 @@ export const updateVendorProduct = async (req: AuthRequest, res: Response) => {
     // G-01 Fix: Enforce status governance for VENDOR role on update
     if (status !== undefined) {
       if (req.user!.role === 'VENDOR' && (status === 'ACTIVE' || status === 'APPROVED')) {
-        return res.status(400).json({ 
-          error: 'Restricted Status', 
-          message: 'Vendors cannot set products to ACTIVE or APPROVED. Please submit for review (PENDING).' 
-        });
+        if (product.status === 'ACTIVE' || product.status === 'APPROVED') {
+          updateData.status = product.status; // Keep existing approved status
+        } else {
+          updateData.status = 'PENDING'; // Force review if transitioning from inactive/draft
+        }
+      } else {
+        updateData.status = status;
       }
-      updateData.status = status;
     }
 
-    if (name !== undefined) {
-      updateData.name = name;
-      if (name !== product.name) {
-        const newSlug = slugify(name);
+    const rawSlug = slug !== undefined ? (slug ? slug.trim() : '') : undefined;
+
+    if (rawSlug !== undefined) {
+      const newSlug = rawSlug ? slugify(rawSlug) : slugify(name || product.name);
+      if (newSlug !== product.slug) {
         const existingSlug = await prisma.product.findUnique({ where: { slug: newSlug } });
         if (existingSlug && existingSlug.id !== id) {
-          return res.status(400).json({ error: 'Product name is already taken' });
+          return res.status(400).json({ error: 'Slug is already taken' });
         }
         updateData.slug = newSlug;
       }
+    } else if (name !== undefined && name !== product.name) {
+      const newSlug = slugify(name);
+      const existingSlug = await prisma.product.findUnique({ where: { slug: newSlug } });
+      if (existingSlug && existingSlug.id !== id) {
+        return res.status(400).json({ error: 'Product name is already taken' });
+      }
+      updateData.slug = newSlug;
     }
 
     const updated = await prisma.product.update({

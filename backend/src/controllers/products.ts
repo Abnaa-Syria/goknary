@@ -201,7 +201,7 @@ export const getProductBySlug = async (req: Request, res: Response) => {
       where: {
         categoryId: product.categoryId,
         id: { not: product.id },
-        status: 'ACTIVE',
+        status: { in: ['ACTIVE' as any, 'APPROVED' as any] },
       },
       take: 8,
       include: {

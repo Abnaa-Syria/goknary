@@ -39,7 +39,7 @@ export const getHomeSections = async (req: Request, res: Response) => {
           case 'top_deals':
             products = await prisma.product.findMany({
               where: {
-                status: 'ACTIVE',
+                status: { in: ['ACTIVE' as any, 'APPROVED' as any] },
                 discountPrice: { not: null },
               },
               include: {
@@ -66,7 +66,7 @@ export const getHomeSections = async (req: Request, res: Response) => {
           case 'trending':
             products = await prisma.product.findMany({
               where: {
-                status: 'ACTIVE',
+                status: { in: ['ACTIVE' as any, 'APPROVED' as any] },
               },
               include: {
                 vendor: {
@@ -93,7 +93,7 @@ export const getHomeSections = async (req: Request, res: Response) => {
             // This would ideally use order data, but for now use rating
             products = await prisma.product.findMany({
               where: {
-                status: 'ACTIVE',
+                status: { in: ['ACTIVE' as any, 'APPROVED' as any] },
               },
               include: {
                 vendor: {
@@ -119,7 +119,7 @@ export const getHomeSections = async (req: Request, res: Response) => {
           case 'recommended':
             products = await prisma.product.findMany({
               where: {
-                status: 'ACTIVE',
+                status: { in: ['ACTIVE' as any, 'APPROVED' as any] },
                 featured: true,
               },
               include: {

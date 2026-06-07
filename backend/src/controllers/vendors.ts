@@ -56,7 +56,7 @@ export const getVendorProducts = async (req: Request, res: Response) => {
       prisma.product.findMany({
         where: {
           vendorId: vendor.id,
-          status: 'ACTIVE',
+          status: { in: ['ACTIVE' as any, 'APPROVED' as any] },
         },
         include: {
           category: {
@@ -81,7 +81,7 @@ export const getVendorProducts = async (req: Request, res: Response) => {
       prisma.product.count({
         where: {
           vendorId: vendor.id,
-          status: 'ACTIVE',
+          status: { in: ['ACTIVE' as any, 'APPROVED' as any] },
         },
       }),
     ]);

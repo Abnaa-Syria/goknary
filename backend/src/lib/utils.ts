@@ -1,15 +1,20 @@
 import { Prisma } from '@prisma/client';
 
 export const slugify = (text: string): string => {
-  return text
+  let slug = text
     .toString()
     .toLowerCase()
     .trim()
     .replace(/\s+/g, '-')
-    .replace(/[^\w\-]+/g, '')
+    .replace(/[^\p{L}\p{N}\-_]+/gu, '')
     .replace(/\-\-+/g, '-')
     .replace(/^-+/, '')
     .replace(/-+$/, '');
+
+  if (!slug) {
+    slug = Math.random().toString(36).substring(2, 10);
+  }
+  return slug;
 };
 
 export const generateSKU = (categoryId: string, productId: string): string => {

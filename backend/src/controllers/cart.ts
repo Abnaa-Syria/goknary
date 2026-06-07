@@ -96,7 +96,7 @@ export const addToCart = async (req: AuthRequest, res: Response) => {
       where: { id: productId },
     });
 
-    if (!product || product.status !== 'ACTIVE') {
+    if (!product || !['ACTIVE', 'APPROVED'].includes(product.status)) {
       return res.status(404).json({ error: 'Product not found' });
     }
 

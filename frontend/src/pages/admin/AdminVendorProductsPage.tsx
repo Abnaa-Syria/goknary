@@ -22,10 +22,12 @@ import { mapEnum, productStatusMap } from 'utils/localization';
 interface Product {
   id: string;
   name: string;
+  slug: string;
   sku: string;
   price: number;
   discountPrice?: number;
   discountType?: string;
+  discountValue?: number;
   stock: number;
   status: string;
   description?: string;
@@ -65,6 +67,19 @@ const AdminVendorProductsPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false);
+
+  const slugify = (text: string): string => {
+    return text
+      .toString()
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(new RegExp('[^\\p{L}\\p{N}\\-_]+', 'gu'), '')
+      .replace(/\-\-+/g, '-')
+      .replace(/^-+/, '')
+      .replace(/-+$/, '');
+  };
 
   // Dropdown Data
   const [categories, setCategories] = useState<Category[]>([]);
@@ -82,7 +97,8 @@ const AdminVendorProductsPage: React.FC = () => {
     status: 'ACTIVE',
     discountType: '',
     discountValue: '',
-    discountPrice: ''
+    discountPrice: '',
+    slug: ''
   });
 
   // Real-time Discount Calculation Logic
@@ -162,9 +178,11 @@ const AdminVendorProductsPage: React.FC = () => {
         images: typeof product.images === 'string' ? JSON.parse(product.images) : product.images,
         status: product.status,
         discountType: product.discountType || '',
-        discountValue: '',
-        discountPrice: product.discountPrice ? product.discountPrice.toString() : ''
+        discountValue: product.discountValue ? product.discountValue.toString() : '',
+        discountPrice: product.discountPrice ? product.discountPrice.toString() : '',
+        slug: product.slug || ''
       });
+      setIsSlugManuallyEdited(true);
     } else {
       setEditingProduct(null);
       setFormData({
@@ -178,8 +196,10 @@ const AdminVendorProductsPage: React.FC = () => {
         status: 'ACTIVE',
         discountType: '',
         discountValue: '',
-        discountPrice: ''
+        discountPrice: '',
+        slug: ''
       });
+      setIsSlugManuallyEdited(false);
     }
     setIsModalOpen(true);
   };
@@ -430,9 +450,33 @@ const AdminVendorProductsPage: React.FC = () => {
                     <input
                       required
                       value={formData.name}
-                      onChange={e => setFormData({ ...formData, name: e.target.value })}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setFormData(prev => ({
+                          ...prev,
+                          name: val,
+                          slug: !isSlugManuallyEdited && !editingProduct ? slugify(val) : prev.slug
+                        }));
+                      }}
                       className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
                       placeholder={t('common.placeholder.name', 'Enter product title...')}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ms-1">{t('common.slug', 'Product URL Slug')}</label>
+                    <input
+                      required
+                      value={formData.slug}
+                      onChange={e => {
+                        setIsSlugManuallyEdited(true);
+                        setFormData({ ...formData, slug: e.target.value });
+                      }}
+                      onBlur={() => {
+                        setFormData(prev => ({ ...prev, slug: slugify(prev.slug) }));
+                      }}
+                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+                      placeholder={t('common.placeholder.slug', 'e.g. my-product-slug')}
                     />
                   </div>
 

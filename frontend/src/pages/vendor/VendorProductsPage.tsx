@@ -286,7 +286,7 @@ const VendorProductsPage: React.FC = () => {
                       
                       {hasDiscount && (
                         <span className="bg-red-500/90 text-white px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur-md">
-                          {t('common.discountPercent', { percent: discountPercentage })}
+                          {t('product.discountPercent', { percent: discountPercentage })}
                         </span>
                       )}
 
