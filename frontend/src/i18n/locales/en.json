@@ -235,7 +235,13 @@
     "verifyAndContinue": "Verify and continue",
     "resendCode": "Resend code",
     "verifyCodeResent": "A new code has been sent to your email.",
-    "verifyResendFailed": "Could not resend the code. Please try again later."
+    "verifyResendFailed": "Could not resend the code. Please try again later.",
+    "verifyWhatsAppTitle": "Verify Your WhatsApp",
+    "whatsappVerificationCode": "WhatsApp Verification Code",
+    "resendCodeWhatsApp": "Resend Code via WhatsApp",
+    "newPassPlaceholder": "Min. 8 characters",
+    "confirmPassPlaceholder": "Repeat new password",
+    "resettingPassword": "Resetting Password…"
   },
   "account": {
     "myAccount": "My Account",

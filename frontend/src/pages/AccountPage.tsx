@@ -37,11 +37,11 @@ const AccountPage: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-8">My Account</h1>
+    <div className="container mx-auto px-4 py-8 print:p-0 print:m-0 print:max-w-none print:w-full">
+      <h1 className="text-3xl font-bold mb-8 print:hidden">My Account</h1>
 
-      <div className="flex flex-col md:flex-row gap-8">
-        <aside className="w-full md:w-64">
+      <div className="flex flex-col md:flex-row gap-8 print:gap-0">
+        <aside className="w-full md:w-64 print:hidden">
           <div className="card p-4 mb-4">
             <div className="flex items-center space-x-3 mb-4">
               <div className="w-12 h-12 rounded-full bg-primary-500 flex items-center justify-center text-white font-bold text-xl">

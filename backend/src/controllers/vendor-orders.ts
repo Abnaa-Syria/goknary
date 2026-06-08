@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { NotFoundError } from '../lib/errors';
 import { z } from 'zod';
+import { sendOrderStatusNotification } from '../services/whatsapp.service';
 
 const updateStatusSchema = z.object({
   status: z.enum(['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED']),
@@ -203,6 +204,9 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response) => {
         id,
         vendorId: vendor.id,
       },
+      include: {
+        user: true,
+      },
     });
 
     if (!order) {
@@ -252,6 +256,16 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response) => {
 
       return updatedOrder;
     });
+
+    // Send WhatsApp order status update notification to the customer
+    if (order.user && order.user.phone && order.user.name) {
+      sendOrderStatusNotification(
+        order.user.phone,
+        order.user.name,
+        order.id,
+        status
+      ).catch((err) => console.error('Failed to send WhatsApp status notification:', err));
+    }
 
     res.json({
       message: 'Order status updated successfully',

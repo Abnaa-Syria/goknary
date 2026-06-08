@@ -170,7 +170,7 @@ const VerifyEmailPage: React.FC = () => {
             <label className="block text-sm font-medium text-gray-700 text-center mb-4">
               {t('auth.verificationCode', 'Verification Code')}
             </label>
-            <div className="flex gap-3 justify-center" onPaste={handlePaste}>
+            <div className="flex gap-2 sm:gap-3 justify-center" dir="ltr" onPaste={handlePaste}>
               {digits.map((d, i) => (
                 <input
                   key={i}
@@ -182,9 +182,9 @@ const VerifyEmailPage: React.FC = () => {
                   value={d}
                   onChange={(e) => handleDigitChange(i, e.target.value)}
                   onKeyDown={(e) => handleKeyDown(i, e)}
-                  className={`w-12 h-14 text-center text-2xl font-bold border-2 rounded-xl transition-all outline-none
-                    ${d ? 'border-green-500 bg-green-50 text-green-900' : 'border-gray-200 bg-gray-50 text-gray-900'}
-                    focus:border-green-400 focus:ring-2 focus:ring-green-100 focus:bg-white`}
+                  className={`w-10 h-12 sm:w-14 sm:h-16 text-center text-xl sm:text-3xl font-extrabold border-2 rounded-xl sm:rounded-2xl transition-all duration-200 outline-none
+                    ${d ? 'border-green-600 bg-green-50/50 text-green-900 shadow-sm shadow-green-100/50' : 'border-gray-200 bg-gray-50 text-gray-800'}
+                    focus:border-green-500 focus:ring-4 focus:ring-green-100 focus:bg-white focus:shadow-md`}
                 />
               ))}
             </div>
@@ -223,7 +223,7 @@ const VerifyEmailPage: React.FC = () => {
                 ? `Resend in ${resendCooldown}s`
                 : resendStatus === 'sending'
                 ? 'Sending…'
-                : t('auth.resendCode', 'Resend Code via WhatsApp')}
+                : t('auth.resendCodeWhatsApp', 'Resend Code via WhatsApp')}
             </button>
           </div>
 

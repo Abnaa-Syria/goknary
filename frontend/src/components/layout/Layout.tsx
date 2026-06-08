@@ -7,12 +7,16 @@ import AnnouncementBar from './AnnouncementBar';
 const Layout: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col">
-      <AnnouncementBar />
-      <Header />
+      <div className="print:hidden">
+        <AnnouncementBar />
+        <Header />
+      </div>
       <main className="flex-grow">
         <Outlet />
       </main>
-      <Footer />
+      <div className="print:hidden">
+        <Footer />
+      </div>
     </div>
   );
 };

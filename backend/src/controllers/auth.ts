@@ -5,7 +5,7 @@ import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../lib/jwt';
 import { mergeGuestCartIntoUserCart } from './cart';
-import { sendOtp, verifyOtp } from '../lib/wpsender';
+import { sendOTP, sendResetOTP } from '../services/whatsapp.service';
 
 // ─── Validation Schemas ───────────────────────────────────────────────────────
 
@@ -65,6 +65,10 @@ const verifyResetOtpSchema = z.object({
 const OTP_EXPIRES_MINUTES     = parseInt(process.env.OTP_EXPIRES_MINUTES     || '10', 10);
 const OTP_MAX_ATTEMPTS        = parseInt(process.env.OTP_MAX_ATTEMPTS         || '5',  10);
 
+const generateLocalOTP = (): string => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
 const safeParseError = (error: unknown): string => {
   if (error instanceof z.ZodError) {
     return error.errors.map((e) => e.message).join(', ');
@@ -83,17 +87,18 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     if (existingByEmail) {
       if (!existingByEmail.phoneVerified) {
         // Re-registration on unverified account → fresh OTP to same phone
+        const otpCode = generateLocalOTP();
+        const otpExpiresAt = new Date(Date.now() + OTP_EXPIRES_MINUTES * 60 * 1000);
+
         await prisma.user.update({
           where: { id: existingByEmail.id },
-          data:  { otpCode: null, otpExpiresAt: null, otpAttempts: 0 },
+          data:  { otpCode, otpExpiresAt, otpAttempts: 0 },
         });
 
-        try {
-          if (existingByEmail.phone) {
-            await sendOtp(existingByEmail.phone);
-          }
-        } catch (wa) {
-          console.error('[WP Sender] Failed to resend OTP:', wa);
+        if (existingByEmail.phone) {
+          sendOTP(existingByEmail.phone, otpCode).catch((wa) => {
+            console.error('[Twilio WhatsApp] Failed to resend OTP:', wa);
+          });
         }
 
         res.status(200).json({
@@ -112,16 +117,17 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     if (existingByPhone) {
       if (!existingByPhone.phoneVerified) {
         // Same phone, different email, unverified → resend
+        const otpCode = generateLocalOTP();
+        const otpExpiresAt = new Date(Date.now() + OTP_EXPIRES_MINUTES * 60 * 1000);
+
         await prisma.user.update({
           where: { id: existingByPhone.id },
-          data:  { otpCode: null, otpExpiresAt: null, otpAttempts: 0 },
+          data:  { otpCode, otpExpiresAt, otpAttempts: 0 },
         });
 
-        try {
-          await sendOtp(phone);
-        } catch (wa) {
-          console.error('[WP Sender] Failed to resend OTP:', wa);
-        }
+        sendOTP(phone, otpCode).catch((wa) => {
+          console.error('[Twilio WhatsApp] Failed to resend OTP:', wa);
+        });
 
         res.status(200).json({
           message:              'A new verification code has been sent to your WhatsApp.',
@@ -136,6 +142,8 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
     // ── Create new user ──────────────────────────────────────────────────────
     const hashedPassword = await bcrypt.hash(password, 12);
+    const otpCode = generateLocalOTP();
+    const otpExpiresAt = new Date(Date.now() + OTP_EXPIRES_MINUTES * 60 * 1000);
 
     const user = await prisma.user.create({
       data: {
@@ -146,18 +154,16 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         phone,
         emailVerified:  false,
         phoneVerified:  false,
-        otpCode:        null,
-        otpExpiresAt:   null,
+        otpCode,
+        otpExpiresAt,
         otpAttempts:    0,
       },
     });
 
     // Send OTP via WhatsApp (non-blocking — registration succeeds even if WA is down)
-    try {
-      await sendOtp(phone);
-    } catch (wa) {
-      console.error('[WP Sender] Failed to send OTP on register:', wa);
-    }
+    sendOTP(phone, otpCode).catch((wa) => {
+      console.error('[Twilio WhatsApp] Failed to send OTP on register:', wa);
+    });
 
     res.status(201).json({
       message:              `A verification code has been sent to your WhatsApp number ${phone}.`,
@@ -197,16 +203,29 @@ export const verifyEmail = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    // Verify OTP using WP Sender API
-    let isValid = false;
-    try {
-      const verificationResult = await verifyOtp(user.phone, otp);
-      isValid = verificationResult && (verificationResult.status === 'success' || verificationResult.success === true);
-    } catch (err) {
-      console.error('[WP Sender] Verification error:', err);
+    // Verify OTP locally
+    if (!user.otpCode || !user.otpExpiresAt) {
+      res.status(400).json({ error: 'No verification code was sent or it has expired.' });
+      return;
     }
 
+    if (user.otpAttempts >= OTP_MAX_ATTEMPTS) {
+      res.status(400).json({ error: 'Too many incorrect attempts. Please request a new code.' });
+      return;
+    }
+
+    if (new Date() > user.otpExpiresAt) {
+      res.status(400).json({ error: 'Verification code has expired.' });
+      return;
+    }
+
+    const isValid = user.otpCode === otp;
+
     if (!isValid) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { otpAttempts: { increment: 1 } },
+      });
       res.status(400).json({
         error: 'Invalid verification code.',
       });
@@ -286,15 +305,21 @@ export const resendOTP = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    const otpCode = generateLocalOTP();
+    const otpExpiresAt = new Date(Date.now() + OTP_EXPIRES_MINUTES * 60 * 1000);
+
     await prisma.user.update({
       where: { id: userId },
-      data:  { otpCode: null, otpExpiresAt: null, otpAttempts: 0 },
+      data:  { otpCode, otpExpiresAt, otpAttempts: 0 },
     });
 
     try {
-      await sendOtp(user.phone);
-    } catch (wa) {
-      console.error('[WP Sender] Failed to resend OTP:', wa);
+      const result = await sendOTP(user.phone, otpCode);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to send OTP via Twilio.');
+      }
+    } catch (wa: any) {
+      console.error('[Twilio WhatsApp] Failed to resend OTP:', wa);
       res.status(500).json({ error: 'Failed to send WhatsApp message. Please try again.' });
       return;
     }
@@ -341,14 +366,17 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     // Check phone verification
     if (!user.phoneVerified) {
       // Auto-resend a fresh OTP
+      const otpCode = generateLocalOTP();
+      const otpExpiresAt = new Date(Date.now() + OTP_EXPIRES_MINUTES * 60 * 1000);
+
       await prisma.user.update({
         where: { id: user.id },
-        data:  { otpCode: null, otpExpiresAt: null, otpAttempts: 0 },
+        data:  { otpCode, otpExpiresAt, otpAttempts: 0 },
       });
 
       if (user.phone) {
-        sendOtp(user.phone).catch((err) =>
-          console.error('[WP Sender] Failed to send OTP on login:', err)
+        sendOTP(user.phone, otpCode).catch((err) =>
+          console.error('[Twilio WhatsApp] Failed to send OTP on login:', err)
         );
       }
 
@@ -642,16 +670,19 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
       return;
     }
 
+    const otpCode = generateLocalOTP();
+    const otpExpiresAt = new Date(Date.now() + OTP_EXPIRES_MINUTES * 60 * 1000);
+
     await prisma.user.update({
       where: { id: user.id },
       data:  {
-        passwordResetOtp:        null,
-        passwordResetOtpExpires: null,
+        passwordResetOtp:        otpCode,
+        passwordResetOtpExpires: otpExpiresAt,
       },
     });
 
-    sendOtp(phone).catch((err) =>
-      console.error('[WP Sender] Failed to send password reset OTP:', err)
+    sendResetOTP(phone, otpCode).catch((err) =>
+      console.error('[Twilio WhatsApp] Failed to send password reset OTP:', err)
     );
 
     res.status(200).json({ message: GENERIC_MSG });
@@ -678,13 +709,18 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    let isValid = false;
-    try {
-      const verificationResult = await verifyOtp(phone, otp);
-      isValid = verificationResult && (verificationResult.status === 'success' || verificationResult.success === true);
-    } catch (err) {
-      console.error('[WP Sender] Verification error:', err);
+    // Verify reset OTP locally
+    if (!user.passwordResetOtp || !user.passwordResetOtpExpires) {
+      res.status(400).json({ error: 'No reset code was sent or it has expired.' });
+      return;
     }
+
+    if (new Date() > user.passwordResetOtpExpires) {
+      res.status(400).json({ error: 'Reset code has expired.' });
+      return;
+    }
+
+    const isValid = user.passwordResetOtp === otp;
 
     if (!isValid) {
       res.status(400).json({ error: 'Invalid reset code.' });

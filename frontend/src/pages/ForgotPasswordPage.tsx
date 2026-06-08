@@ -223,22 +223,23 @@ const ForgotPasswordPage: React.FC = () => {
               {/* 6-box OTP */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 text-center mb-3">
-                  WhatsApp Verification Code
+                  {t('auth.whatsappVerificationCode', 'WhatsApp Verification Code')}
                 </label>
-                <div className="flex gap-3 justify-center" onPaste={handlePaste}>
+                <div className="flex gap-2 sm:gap-3 justify-center" dir="ltr" onPaste={handlePaste}>
                   {digits.map((d, i) => (
                     <input
                       key={i}
                       ref={(el) => { inputRefs.current[i] = el; }}
                       type="text"
                       inputMode="numeric"
+                      autoComplete={i === 0 ? 'one-time-code' : 'off'}
                       maxLength={1}
                       value={d}
                       onChange={(e) => handleDigitChange(i, e.target.value)}
                       onKeyDown={(e) => handleKeyDown(i, e)}
-                      className={`w-11 h-13 text-center text-xl font-bold border-2 rounded-xl transition-all outline-none
-                        ${d ? 'border-green-500 bg-green-50 text-green-900' : 'border-gray-200 bg-gray-50 text-gray-900'}
-                        focus:border-green-400 focus:ring-2 focus:ring-green-100 focus:bg-white`}
+                      className={`w-10 h-12 sm:w-14 sm:h-16 text-center text-xl sm:text-3xl font-extrabold border-2 rounded-xl sm:rounded-2xl transition-all duration-200 outline-none
+                        ${d ? 'border-green-600 bg-green-50/50 text-green-900 shadow-sm shadow-green-100/50' : 'border-gray-200 bg-gray-50 text-gray-800'}
+                        focus:border-green-500 focus:ring-4 focus:ring-green-100 focus:bg-white focus:shadow-md`}
                     />
                   ))}
                 </div>
@@ -246,7 +247,7 @@ const ForgotPasswordPage: React.FC = () => {
 
               {/* New Password */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('account.newPassword', 'New Password')}</label>
                 <div className="relative">
                   <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
@@ -254,7 +255,7 @@ const ForgotPasswordPage: React.FC = () => {
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     className="w-full pl-10 pr-10 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all"
-                    placeholder="Min. 8 characters"
+                    placeholder={t('auth.newPassPlaceholder', 'Min. 8 characters')}
                     required
                   />
                   <button type="button" onClick={() => setShowPass(!showPass)}
@@ -266,7 +267,7 @@ const ForgotPasswordPage: React.FC = () => {
 
               {/* Confirm Password */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('auth.confirmPassword', 'Confirm Password')}</label>
                 <div className="relative">
                   <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
@@ -274,7 +275,7 @@ const ForgotPasswordPage: React.FC = () => {
                     value={confirmPass}
                     onChange={(e) => setConfirmPass(e.target.value)}
                     className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all"
-                    placeholder="Repeat new password"
+                    placeholder={t('auth.confirmPassPlaceholder', 'Repeat new password')}
                     required
                   />
                 </div>
@@ -282,7 +283,7 @@ const ForgotPasswordPage: React.FC = () => {
 
               <button type="submit" disabled={loading || !otpComplete}
                 className="w-full py-3 bg-primary-600 text-white font-semibold rounded-xl hover:bg-primary-700 transition-all shadow-md shadow-primary-200 disabled:opacity-60">
-                {loading ? 'Resetting Password…' : 'Reset Password'}
+                {loading ? t('auth.resettingPassword', 'Resetting Password…') : t('auth.resetPassword', 'Reset Password')}
               </button>
 
               {/* Resend link */}
@@ -290,7 +291,7 @@ const ForgotPasswordPage: React.FC = () => {
                 <button type="button" onClick={handleResend} disabled={cooldown > 0 || loading}
                   className="inline-flex items-center gap-1.5 text-sm font-medium text-green-600 hover:text-green-700 disabled:opacity-50 transition-colors">
                   <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-                  {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend Code'}
+                  {cooldown > 0 ? `Resend in ${cooldown}s` : t('auth.resendCodeWhatsApp', 'Resend Code via WhatsApp')}
                 </button>
               </div>
             </form>

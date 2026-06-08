@@ -70,8 +70,8 @@ import { authenticate, authorize, requirePermission } from './middleware/auth';
 import { getAdminVendorProducts } from './controllers/admin';
 import { updateVendorCommission } from './controllers/admin-vendors';
 
-// ─── WhatsApp / WP Sender (OTP delivery) ───────────────────────────────────
-// WP Sender client details are configured in lib/wpsender.ts.
+// ─── WhatsApp / Twilio (OTP delivery) ─────────────────────────────────────────
+// Twilio messaging details are configured in services/whatsapp.service.ts.
 
 // ─── App Setup ────────────────────────────────────────────────────────────────
 const app = express();
@@ -173,6 +173,7 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/coupons', couponRoutes);
 app.use('/api/notifications', notificationRoutes);
 import settingsRoutes from './routes/settings';
+import whatsappRoutes from './routes/whatsapp';
 
 app.use('/api/shipping', shippingRoutes);
 app.use('/api/announcements', announcementRoutes);
@@ -181,6 +182,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/payouts', payoutRoutes);
 app.use('/api/refunds', refundRoutes);
 app.use('/api/tickets', ticketRoutes);
+app.use('/api/whatsapp', whatsappRoutes);
 
 // ─── Vendor Routes (specific subroutes BEFORE parent — H-03 Fix) ──────────────
 app.use('/api/vendor/products', vendorProductRoutes);
@@ -219,5 +221,5 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 app.listen(PORT, async () => {
   console.log(`\n🚀 Server running   → http://localhost:${PORT}`);
   console.log(`📊 Health check     → http://localhost:${PORT}/api/health`);
-  console.log(`📱 WhatsApp OTP     → WP Sender active`);
+  console.log(`📱 WhatsApp API    → Twilio Business (Production)`);
 });

@@ -134,7 +134,7 @@ const TicketsPage: React.FC = () => {
         </div>
         <button
           onClick={() => setCreateModalOpen(true)}
-          className="flex items-center justify-center gap-2 px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-purple-100 text-sm"
+          className="btn-primary flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl transition-all text-sm font-bold"
         >
           <PlusCircle size={16} />
           Open Ticket
@@ -159,7 +159,7 @@ const TicketsPage: React.FC = () => {
             >
               <div className="flex justify-between items-start gap-4">
                 <div className="space-y-1">
-                  <h4 className="font-bold text-gray-900 text-sm group-hover:text-purple-600 transition-colors">
+                  <h4 className="font-bold text-gray-900 text-sm group-hover:text-secondary-700 transition-colors">
                     {ticket.subject}
                   </h4>
                   <p className="text-xs text-gray-400 line-clamp-1 max-w-xl">{ticket.message}</p>
@@ -206,7 +206,7 @@ const TicketsPage: React.FC = () => {
               className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100 p-6 z-10"
             >
               <h3 className="text-xl font-bold text-gray-900 mb-2 flex items-center gap-2">
-                <MessageSquare className="text-purple-600" />
+                <MessageSquare className="text-secondary-900" />
                 Open Support Ticket
               </h3>
               <p className="text-gray-500 text-xs mb-6">
@@ -224,7 +224,7 @@ const TicketsPage: React.FC = () => {
                     onChange={(e) => setSubject(e.target.value)}
                     required
                     placeholder="Brief summary of the issue..."
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white text-sm transition-all"
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white text-sm transition-all"
                   />
                 </div>
 
@@ -236,7 +236,7 @@ const TicketsPage: React.FC = () => {
                     <select
                       value={priority}
                       onChange={(e) => setPriority(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white text-sm transition-all"
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white text-sm transition-all"
                     >
                       <option value="LOW">Low (Question/Feedback)</option>
                       <option value="MEDIUM">Medium (General Bug/Issue)</option>
@@ -255,7 +255,7 @@ const TicketsPage: React.FC = () => {
                     onChange={(e) => setMessage(e.target.value)}
                     required
                     placeholder="Describe the issue in detail, including steps to reproduce, or order IDs if applicable..."
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white text-sm transition-all"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white text-sm transition-all"
                   />
                 </div>
 
@@ -270,7 +270,7 @@ const TicketsPage: React.FC = () => {
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="flex-1 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl transition-colors shadow-lg shadow-purple-100 text-sm disabled:opacity-50 flex items-center justify-center gap-1.5"
+                    className="btn-primary flex-1 py-3 rounded-xl flex items-center justify-center gap-1.5"
                   >
                     <Send size={14} />
                     {submitting ? 'Submitting...' : 'Submit Ticket'}

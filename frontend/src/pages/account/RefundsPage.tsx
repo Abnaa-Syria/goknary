@@ -180,7 +180,7 @@ const RefundsPage: React.FC = () => {
                 <div className="flex md:flex-col items-between md:items-end justify-between w-full md:w-auto gap-4 pt-4 md:pt-0 border-t md:border-t-0 border-gray-50">
                   <div className="text-start md:text-end">
                     <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Refund Amount</p>
-                    <span className="text-lg font-black text-purple-600 block mt-0.5">
+                    <span className="text-lg font-black text-secondary-900 block mt-0.5">
                       {formatPrice(refund.amount)}
                     </span>
                   </div>
@@ -188,7 +188,7 @@ const RefundsPage: React.FC = () => {
                     {getStatusBadge(refund.status)}
                     <Link 
                       to={`/account/orders/${refund.orderId}`}
-                      className="text-[10px] font-bold text-gray-400 hover:text-purple-600 flex items-center gap-0.5 hover:underline"
+                      className="text-[10px] font-bold text-gray-400 hover:text-secondary-900 flex items-center gap-0.5 hover:underline"
                     >
                       View Order <ExternalLink size={10} />
                     </Link>

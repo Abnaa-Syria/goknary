@@ -236,7 +236,13 @@
     "verifyAndContinue": "تأكيد ومتابعة",
     "resendCode": "إعادة إرسال الرمز",
     "verifyCodeResent": "تم إرسال رمز جديد إلى بريدك.",
-    "verifyResendFailed": "تعذر إعادة إرسال الرمز. حاول لاحقاً."
+    "verifyResendFailed": "تعذر إعادة إرسال الرمز. حاول لاحقاً.",
+    "verifyWhatsAppTitle": "تأكيد رقم الواتساب",
+    "whatsappVerificationCode": "رمز التحقق المرسل عبر الواتساب",
+    "resendCodeWhatsApp": "إعادة إرسال الرمز عبر الواتساب",
+    "newPassPlaceholder": "8 أحرف كحد أدنى",
+    "confirmPassPlaceholder": "كرر كلمة المرور الجديدة",
+    "resettingPassword": "جاري إعادة تعيين كلمة المرور..."
   },
   "account": {
     "myAccount": "حسابي",

@@ -142,7 +142,7 @@ const TicketDetailsPage: React.FC = () => {
       <div className="flex items-center justify-between flex-shrink-0 border-b border-gray-100 pb-4">
         <Link
           to="/account/tickets"
-          className="inline-flex items-center gap-1 text-xs font-bold text-gray-400 hover:text-purple-600 transition-colors"
+          className="inline-flex items-center gap-1 text-xs font-bold text-gray-400 hover:text-secondary-900 transition-colors"
         >
           <ArrowLeft size={14} className="flip-rtl" />
           Back to Tickets
@@ -207,7 +207,7 @@ const TicketDetailsPage: React.FC = () => {
                 {/* Avatar */}
                 <div className="w-8 h-8 rounded-full border border-gray-100 bg-white shadow-sm flex items-center justify-center flex-shrink-0">
                   {isAgent ? (
-                    <Shield size={14} className="text-purple-600" />
+                    <Shield size={14} className="text-secondary-900" />
                   ) : (
                     <User size={14} className="text-gray-500" />
                   )}
@@ -216,13 +216,13 @@ const TicketDetailsPage: React.FC = () => {
                 {/* Message Bubble */}
                 <div className="space-y-1">
                   <div className={`text-[10px] font-bold text-gray-400 ${isAgent ? '' : 'text-end'}`}>
-                    {msg.sender.name || 'Support Agent'} {isAgent && <span className="bg-purple-100 text-purple-700 text-[8px] font-black rounded-full px-1.5 py-0.2 ml-1">AGENT</span>}
+                    {msg.sender.name || 'Support Agent'} {isAgent && <span className="bg-secondary-50 text-secondary-900 text-[8px] font-black rounded-full px-1.5 py-0.5 border border-secondary-100 ml-1">AGENT</span>}
                   </div>
                   <div
                     className={`p-3 rounded-2xl text-sm leading-relaxed shadow-sm ${
                       isAgent
                         ? 'bg-white text-gray-800 rounded-ss-none border border-gray-100'
-                        : 'bg-purple-600 text-white rounded-se-none'
+                        : 'bg-secondary-900 text-white rounded-se-none'
                     }`}
                   >
                     <p className="whitespace-pre-line">{msg.message}</p>
@@ -256,12 +256,12 @@ const TicketDetailsPage: React.FC = () => {
               onChange={(e) => setReplyText(e.target.value)}
               placeholder="Type your reply here..."
               required
-              className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white text-sm transition-all"
+              className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white text-sm transition-all"
             />
             <button
               type="submit"
               disabled={submitting || !replyText.trim()}
-              className="p-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors shadow-lg shadow-purple-100 disabled:opacity-50"
+              className="p-3 bg-secondary-900 text-white rounded-xl hover:bg-secondary-800 transition-colors shadow-lg shadow-secondary-100 disabled:opacity-50"
             >
               <Send size={18} />
             </button>

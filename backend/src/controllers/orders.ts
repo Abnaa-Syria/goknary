@@ -4,6 +4,7 @@ import { AuthRequest } from '../middleware/auth';
 import { NotFoundError, ValidationError } from '../lib/errors';
 import { z } from 'zod';
 import { formatPrice } from '../lib/utils';
+import { sendOrderPlacedNotification } from '../services/whatsapp.service';
 
 const createOrderSchema = z.object({
   addressId: z.string().optional(),
@@ -238,6 +239,24 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       } catch (err) {
         console.error('Failed to dispatch vendor order notification', err);
       }
+
+      // --- PHASE 1.5: CUSTOMER WHATSAPP NOTIFICATION ---
+      try {
+        const customer = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { phone: true, name: true }
+        });
+        if (customer?.phone && customer?.name) {
+          sendOrderPlacedNotification(
+            customer.phone,
+            customer.name,
+            order.id,
+            order.total
+          ).catch((err) => console.error('Failed to send WhatsApp order notification:', err));
+        }
+      } catch (err) {
+        console.error('Failed to dispatch customer WhatsApp order notification', err);
+      }
     }
 
     // --- PHASE 1: ADMIN NOTIFICATIONS ---
@@ -330,6 +349,7 @@ export const getOrders = async (req: AuthRequest, res: Response) => {
           vendor: {
             select: {
               storeName: true,
+              storeNameAr: true,
               slug: true,
             },
           },
@@ -394,6 +414,7 @@ export const getOrderById = async (req: AuthRequest, res: Response) => {
                 vendor: {
                   select: {
                     storeName: true,
+                    storeNameAr: true,
                     slug: true,
                   },
                 },
@@ -411,6 +432,7 @@ export const getOrderById = async (req: AuthRequest, res: Response) => {
         vendor: {
           select: {
             storeName: true,
+            storeNameAr: true,
             slug: true,
           },
         },
