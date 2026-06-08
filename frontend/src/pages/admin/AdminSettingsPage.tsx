@@ -10,7 +10,10 @@ import {
   Key,
   Phone,
   Globe,
-  Settings
+  Settings,
+  FileText,
+  Cookie,
+  Eye
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
@@ -46,9 +49,116 @@ const AdminSettingsPage: React.FC = () => {
     instagram_url: '',
     linkedin_url: '',
     twitter_url: '',
+    terms_of_service: '',
+    terms_of_service_ar: '',
+    privacy_policy: '',
+    privacy_policy_ar: '',
+    cookie_policy: '',
+    cookie_policy_ar: '',
   });
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [settingsSaving, setSettingsSaving] = useState(false);
+
+  // Policy Editor states
+  const [activeTab, setActiveTab] = useState<'terms' | 'privacy' | 'cookies'>('terms');
+  const [editorLang, setEditorLang] = useState<'en' | 'ar'>('en');
+
+  // Reusable markdown renderer matching frontend styling
+  const renderLivePreview = (md: string, rtl: boolean) => {
+    if (!md) {
+      return (
+        <div className="text-gray-400 italic text-center py-12 text-sm">
+          {rtl ? 'لا يوجد نص لعرضه. اكتب شيئاً للبدء.' : 'No content to preview. Type something to start.'}
+        </div>
+      );
+    }
+    const lines = md.split('\n');
+    return lines.map((line, index) => {
+      const trimmed = line.trim();
+
+      // H1 (Title)
+      if (trimmed.startsWith('# ')) {
+        return (
+          <h1 key={index} className="text-2xl font-extrabold text-gray-900 mt-2 mb-4 tracking-tight">
+            {trimmed.replace('# ', '')}
+          </h1>
+        );
+      }
+
+      // H2
+      if (trimmed.startsWith('## ')) {
+        return (
+          <h2 
+            key={index} 
+            className="text-xl font-bold text-gray-900 mt-6 mb-3 border-b border-gray-100 pb-1"
+          >
+            {trimmed.replace('## ', '')}
+          </h2>
+        );
+      }
+
+      // H3
+      if (trimmed.startsWith('### ')) {
+        return (
+          <h3 key={index} className="text-lg font-semibold text-gray-800 mt-4 mb-2">
+            {trimmed.replace('### ', '')}
+          </h3>
+        );
+      }
+
+      // Divider
+      if (trimmed === '---') {
+        return <hr key={index} className="my-6 border-gray-200" />;
+      }
+
+      // Bullet List Items
+      if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) {
+        const contentStr = trimmed.substring(2);
+        return (
+          <li key={index} className="ms-6 list-disc text-gray-655 mb-1 leading-relaxed text-sm">
+            {parseInlineFormatting(contentStr)}
+          </li>
+        );
+      }
+
+      // Numbered List Items
+      const numMatch = trimmed.match(/^(\d+)\.\s(.*)/);
+      if (numMatch) {
+        const contentStr = numMatch[2];
+        return (
+          <li key={index} className="ms-6 list-decimal text-gray-655 mb-1 leading-relaxed text-sm">
+            {parseInlineFormatting(contentStr)}
+          </li>
+        );
+      }
+
+      // Empty space
+      if (trimmed === '') {
+        return null;
+      }
+
+      // Regular Paragraph
+      return (
+        <p key={index} className="text-gray-655 leading-relaxed mb-3 text-sm">
+          {parseInlineFormatting(trimmed)}
+        </p>
+      );
+    });
+  };
+
+  const parseInlineFormatting = (text: string) => {
+    const parts = text.split(/(\*\*.*?\*\*)/);
+    return parts.map((part, index) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return (
+          <strong key={index} className="font-bold text-gray-950">
+            {part.slice(2, -2)}
+          </strong>
+        );
+      }
+      return part;
+    });
+  };
 
   useEffect(() => {
     if (user) {
@@ -70,6 +180,12 @@ const AdminSettingsPage: React.FC = () => {
         instagram_url: response.data.instagramUrl || '',
         linkedin_url: response.data.linkedinUrl || '',
         twitter_url: response.data.twitterUrl || '',
+        terms_of_service: response.data.terms_of_service || '',
+        terms_of_service_ar: response.data.terms_of_service_ar || '',
+        privacy_policy: response.data.privacy_policy || '',
+        privacy_policy_ar: response.data.privacy_policy_ar || '',
+        cookie_policy: response.data.cookie_policy || '',
+        cookie_policy_ar: response.data.cookie_policy_ar || '',
       });
     } catch (error) {
       toast.error(t('admin.settingsPage.settingsLoadFailed'));
@@ -427,6 +543,147 @@ const AdminSettingsPage: React.FC = () => {
               </button>
             </div>
           </form>
+        )}
+      </section>
+
+      {/* Card 4: Legal Policies Document Editor */}
+      <section className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow col-span-1 xl:col-span-2 mt-8">
+        <div className="p-6 border-b border-gray-50 bg-gray-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-secondary-100 text-secondary-900 rounded-xl">
+              <FileText size={20} />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">إدارة الوثائق القانونية | Legal Policies</h2>
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-tighter">تعديل شروط الخدمة وسياسة الخصوصية وملفات الارتباط للمتجر</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            {/* Language Switcher */}
+            <button
+              type="button"
+              onClick={() => setEditorLang(editorLang === 'en' ? 'ar' : 'en')}
+              className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors shadow-sm text-xs font-bold text-gray-700"
+            >
+              <Globe size={14} className="text-secondary-655" />
+              <span>{editorLang === 'en' ? 'Arabic (العربية)' : 'English (الإنجليزية)'}</span>
+            </button>
+          </div>
+        </div>
+
+        {settingsLoading ? (
+          <div className="p-8 text-center text-gray-400 flex items-center justify-center gap-2">
+            <Loader2 className="animate-spin text-secondary-655" size={20} />
+            <span>{t('common.loading')}</span>
+          </div>
+        ) : (
+          <div className="p-6 sm:p-8 space-y-6 text-start">
+            {/* Tab Selectors */}
+            <div className="flex border-b border-gray-100 pb-px">
+              {[
+                { id: 'terms', icon: FileText, label: 'Terms of Service', labelAr: 'شروط الخدمة' },
+                { id: 'privacy', icon: Shield, label: 'Privacy Policy', labelAr: 'سياسة الخصوصية' },
+                { id: 'cookies', icon: Cookie, label: 'Cookie Policy', labelAr: 'سياسة الكوكيز' }
+              ].map(tab => {
+                const TabIcon = tab.icon;
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={`flex items-center gap-2 px-5 py-3 border-b-2 font-bold text-sm transition-all -mb-px ${
+                      isActive 
+                        ? 'border-secondary-800 text-secondary-800' 
+                        : 'border-transparent text-gray-500 hover:text-gray-750 hover:border-gray-200'
+                    }`}
+                  >
+                    <TabIcon size={16} />
+                    <span>{editorLang === 'ar' ? tab.labelAr : tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Markdown Cheat Sheet Bar */}
+            <div className="bg-gray-50 rounded-2xl border border-gray-200/50 p-3 flex flex-wrap items-center gap-3 text-xs text-gray-500">
+              <span className="font-extrabold text-secondary-700 uppercase tracking-wider border-e border-gray-200 pe-3">{editorLang === 'ar' ? 'أدوات التنسيق:' : 'Format Guide:'}</span>
+              <span className="font-mono bg-white px-2 py-1 border border-gray-200 rounded text-gray-755 font-bold"># {editorLang === 'ar' ? 'عنوان رئيسي' : 'Title'}</span>
+              <span className="font-mono bg-white px-2 py-1 border border-gray-200 rounded text-gray-755 font-bold">## {editorLang === 'ar' ? 'قسم فرعي' : 'Section'}</span>
+              <span className="font-mono bg-white px-2 py-1 border border-gray-200 rounded text-gray-755 font-bold">**{editorLang === 'ar' ? 'نص عريض' : 'bold'}**</span>
+              <span className="font-mono bg-white px-2 py-1 border border-gray-200 rounded text-gray-755 font-bold">* {editorLang === 'ar' ? 'قائمة نقطية' : 'list'}</span>
+              <span className="font-mono bg-white px-2 py-1 border border-gray-200 rounded text-gray-755 font-bold">--- {editorLang === 'ar' ? 'خط فاصل' : 'divider'}</span>
+            </div>
+
+            {/* Side by Side Editor & Live Preview */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+              {/* Textarea Input */}
+              <div className="space-y-2 group">
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest ms-1 group-focus-within:text-secondary-800 transition-colors">
+                  {editorLang === 'ar' ? 'محتوى المستند (صيغة Markdown)' : 'Document Content (Markdown format)'}
+                </label>
+                <textarea
+                  rows={16}
+                  value={(() => {
+                    if (activeTab === 'terms') return editorLang === 'ar' ? settings.terms_of_service_ar : settings.terms_of_service;
+                    if (activeTab === 'privacy') return editorLang === 'ar' ? settings.privacy_policy_ar : settings.privacy_policy;
+                    return editorLang === 'ar' ? settings.cookie_policy_ar : settings.cookie_policy;
+                  })()}
+                  onChange={(e) => {
+                    const text = e.target.value;
+                    const keyMap: any = {
+                      'terms': editorLang === 'ar' ? 'terms_of_service_ar' : 'terms_of_service',
+                      'privacy': editorLang === 'ar' ? 'privacy_policy_ar' : 'privacy_policy',
+                      'cookies': editorLang === 'ar' ? 'cookie_policy_ar' : 'cookie_policy'
+                    };
+                    setSettings({ ...settings, [keyMap[activeTab]]: text });
+                  }}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-secondary-500 focus:bg-white transition-all font-mono leading-relaxed"
+                  placeholder={editorLang === 'ar' ? 'اكتب محتوى الوثيقة هنا باستخدام صيغة Markdown...' : 'Write document content using Markdown format here...'}
+                  dir={editorLang === 'ar' ? 'rtl' : 'ltr'}
+                />
+              </div>
+
+              {/* Rendered Live Preview */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest ms-1">
+                  {editorLang === 'ar' ? 'معاينة مباشرة في المتجر (Live Preview)' : 'Live Storefront Preview'}
+                </label>
+                <div 
+                  className="w-full h-[360px] xl:h-[390px] overflow-y-auto px-6 py-8 bg-white border border-gray-200 rounded-2xl relative shadow-inner overflow-x-hidden"
+                  dir={editorLang === 'ar' ? 'rtl' : 'ltr'}
+                >
+                  {/* Top highlight bar to match public layout */}
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-secondary-500 to-secondary-900" />
+                  
+                  <div className="prose max-w-none text-start text-gray-800 text-sm">
+                    {renderLivePreview(
+                      (() => {
+                        if (activeTab === 'terms') return editorLang === 'ar' ? settings.terms_of_service_ar : settings.terms_of_service;
+                        if (activeTab === 'privacy') return editorLang === 'ar' ? settings.privacy_policy_ar : settings.privacy_policy;
+                        return editorLang === 'ar' ? settings.cookie_policy_ar : settings.cookie_policy;
+                      })(),
+                      editorLang === 'ar'
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Bar */}
+            <div className="flex justify-end pt-4 border-t border-gray-50">
+              <button
+                type="button"
+                onClick={handleSettingsSubmit}
+                disabled={settingsSaving}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3.5 bg-secondary-800 text-white font-bold rounded-2xl hover:bg-secondary-900 disabled:opacity-50 transition-all shadow-lg shadow-secondary-100"
+              >
+                {settingsSaving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
+                <span>{settingsSaving ? t('admin.settingsPage.savingSettings') : 'حفظ التعديلات القانونية | Save Policies'}</span>
+              </button>
+            </div>
+          </div>
         )}
       </section>
     </div>

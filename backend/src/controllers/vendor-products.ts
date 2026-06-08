@@ -468,7 +468,27 @@ export const deleteVendorProduct = async (req: AuthRequest, res: Response) => {
     const result = await verifyProductOwnership(req, res, id);
     if (!result) return;
 
-    await prisma.product.delete({ where: { id } });
+    // Check if product has been purchased
+    const orderCount = await prisma.orderItem.count({
+      where: { productId: id },
+    });
+
+    if (orderCount > 0) {
+      return res.status(400).json({
+        error: 'Cannot delete product because it has associated purchase history. You can deactivate it (mark as INACTIVE) instead.',
+        errorAr: 'لا يمكن حذف المنتج لأنه مرتبط بعمليات شراء سابقة. يمكنك إلغاء تفعيله (جعله غير نشط) بدلاً من ذلك.',
+      });
+    }
+
+    // Clean up dependent records and delete product in a transaction
+    await prisma.$transaction([
+      prisma.cartItem.deleteMany({ where: { productId: id } }),
+      prisma.wishlistItem.deleteMany({ where: { productId: id } }),
+      prisma.compareItem.deleteMany({ where: { productId: id } }),
+      prisma.review.deleteMany({ where: { productId: id } }),
+      prisma.productVariant.deleteMany({ where: { productId: id } }),
+      prisma.product.delete({ where: { id } }),
+    ]);
 
     res.json({ message: 'Product deleted successfully' });
   } catch (error) {

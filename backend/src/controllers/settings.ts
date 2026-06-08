@@ -10,6 +10,12 @@ const updateSettingsSchema = z.object({
   instagram_url: z.string().optional(),
   linkedin_url: z.string().optional(),
   twitter_url: z.string().optional(),
+  terms_of_service: z.string().optional(),
+  terms_of_service_ar: z.string().optional(),
+  privacy_policy: z.string().optional(),
+  privacy_policy_ar: z.string().optional(),
+  cookie_policy: z.string().optional(),
+  cookie_policy_ar: z.string().optional(),
 });
 
 // Helper to map DB key-value rows to structured settings object
@@ -23,6 +29,12 @@ const mapSettings = (settingsRows: { key: string; value: string }[]) => {
     instagramUrl: settingsMap.get('instagram_url') || '',
     linkedinUrl: settingsMap.get('linkedin_url') || '',
     twitterUrl: settingsMap.get('twitter_url') || '',
+    terms_of_service: settingsMap.get('terms_of_service') || '',
+    terms_of_service_ar: settingsMap.get('terms_of_service_ar') || '',
+    privacy_policy: settingsMap.get('privacy_policy') || '',
+    privacy_policy_ar: settingsMap.get('privacy_policy_ar') || '',
+    cookie_policy: settingsMap.get('cookie_policy') || '',
+    cookie_policy_ar: settingsMap.get('cookie_policy_ar') || '',
   };
 };
 
@@ -88,5 +100,33 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
     }
     console.error('Error updating settings:', error);
     res.status(500).json({ error: 'Failed to update settings' });
+  }
+};
+
+// GET /api/settings/policies/:key
+export const getPolicy = async (req: Request, res: Response) => {
+  try {
+    const { key } = req.params;
+    const allowedKeys = [
+      'terms_of_service',
+      'terms_of_service_ar',
+      'privacy_policy',
+      'privacy_policy_ar',
+      'cookie_policy',
+      'cookie_policy_ar'
+    ];
+    if (!allowedKeys.includes(key)) {
+      return res.status(400).json({ error: 'Invalid policy key' });
+    }
+    const policy = await prisma.setting.findUnique({
+      where: { key }
+    });
+    if (!policy) {
+      return res.status(404).json({ error: 'Policy not found' });
+    }
+    res.json({ key: policy.key, value: policy.value });
+  } catch (error) {
+    console.error('Error fetching policy:', error);
+    res.status(500).json({ error: 'Failed to fetch policy' });
   }
 };

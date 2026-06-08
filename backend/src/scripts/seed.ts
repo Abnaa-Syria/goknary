@@ -59,6 +59,9 @@ async function main() {
   await prisma.order.deleteMany();
   await prisma.review.deleteMany();
   await prisma.cartItem.deleteMany();
+  await prisma.wishlistItem.deleteMany();
+  await prisma.compareItem.deleteMany();
+  await prisma.productVariant.deleteMany();
   await prisma.product.deleteMany();
   await prisma.address.deleteMany();
   await prisma.vendor.deleteMany();
@@ -73,6 +76,195 @@ async function main() {
 
   // Create settings
   console.log('⚙️ Seeding system settings...');
+  
+  const termsOfServiceEn = `# Terms of Service
+*Last Updated: June 8, 2026*
+
+Welcome to GoKnary! These Terms of Service ("Terms") govern your access to and use of GoKnary's website, mobile applications, and services. By using our platform, you agree to comply with and be bound by these Terms.
+
+## 1. Description of Service
+GoKnary is a multi-vendor e-commerce platform that connects independent merchants ("Vendors") with buyers ("Customers"). GoKnary facilitates transactions, payments, and customer support, but is not the direct seller of products listed by third-party Vendors.
+
+## 2. User Accounts
+* **Eligibility**: You must be at least 18 years old or the age of legal majority in your jurisdiction to create an account.
+* **Account Security**: You are responsible for safeguarding your password and account credentials. Any activities under your account are your sole responsibility.
+* **Accuracy of Information**: You agree to provide accurate, current, and complete information during signup and keep your account details updated.
+
+## 3. Purchasing and Payments
+* **Orders**: All orders are subject to acceptance by the respective Vendor. Order confirmation does not signify our acceptance of your order.
+* **Pricing**: Prices are set by Vendors and may change at any time. Delivery charges and applicable taxes will be added during checkout.
+* **Payment Methods**: We support Cash on Delivery (COD) and other secure electronic payment options as shown on the platform.
+
+## 4. Vendor Responsibilities
+* **Product Catalog**: Vendors are solely responsible for the accuracy of their product listings, including description, price, variants, and stock levels.
+* **Fulfillment**: Vendors must ship products in accordance with platform policies and within the specified timeframes.
+
+## 5. Refunds and Return Policy
+* **Returns**: Customers may request refunds or returns through their dashboard within the period allowed by local consumer protection laws.
+* **Refund Decisions**: Return approvals are subject to verification of product condition. Shipping costs are non-refundable unless the product is defective.
+
+## 6. Prohibited Activities
+You agree not to use the platform for any illegal purposes, including:
+1. Posting fraudulent listings or reviews.
+2. Infringing on intellectual property rights.
+3. Accessing or attempting to access restricted database areas.
+
+## 7. Governing Law
+These Terms are governed by and construed in accordance with the laws of the Arab Republic of Egypt, without regard to its conflict of law principles.
+
+---
+If you have any questions about these Terms, please contact us at support@goknary.com.`;
+
+  const termsOfServiceAr = `# شروط الخدمة
+*آخر تحديث: 8 يونيو 2026*
+
+مرحباً بكم في جو كناري (GoKnary)! تحكم شروط الخدمة هذه ("الشروط") وصولكم واستخدامكم لموقع جو كناري وتطبيقات الهاتف المحمول والخدمات التابعة له. باستخدامكم لمنصتنا، فإنكم توافقون على الامتثال لهذه الشروط والالتزام بها.
+
+## 1. وصف الخدمة
+جو كناري هي منصة تجارة إلكترونية متعددة التجار تربط بين التجار المستقلين ("البائعين") والمشترين ("العملاء"). يسهل جو كناري المعاملات والمدفوعات ودعم العملاء، ولكنه ليس البائع المباشر للمنتجات المدرجة من قبل بائعي الطرف الثالث.
+
+## 2. حسابات المستخدمين
+* **الأهلية**: يجب أن لا يقل عمرك عن 18 عاماً أو سن الرشد القانوني في بلدك لإنشاء حساب.
+* **أمن الحساب**: أنت مسؤول عن حماية كلمة المرور وبيانات اعتماد حسابك. وتتحمل المسؤولية الكاملة عن أي أنشطة تتم تحت حسابك.
+* **دقة المعلومات**: توافق على تقديم معلومات دقيقة وحديثة وكاملة أثناء التسجيل وتحديث بيانات حسابك باستمرار.
+
+## 3. الشراء والمدفوعات
+* **الطلبات**: تخضع جميع الطلبات للقبول من قبل البائع المعني. لا يعني تأكيد الطلب قبولنا النهائي له.
+* **الأسعار**: يتم تحديد الأسعار من قبل البائعين وهي قابلة للتغيير في أي وقت. سيتم إضافة رسوم التوصيل والضرائب المطبقة أثناء إتمام عملية الشراء.
+* **طرق الدفع**: نحن ندعم الدفع عند الاستلام (COD) وخيارات الدفع الإلكتروني الآمنة الأخرى كما تظهر على المنصة.
+
+## 4. مسؤوليات البائعين
+* **كتالوج المنتجات**: البائعون مسؤولون وحدهم عن دقة قوائم منتجاتهم، بما في ذلك الوصف والسعر والموديلات ومستويات المخزون.
+* **تلبية الطلبات**: يجب على البائعين شحن المنتجات وفقاً لسياسات المنصة وخلال الأطر الزمنية المحددة.
+
+## 5. سياسة الاسترجاع والاسترداد
+* **المرتجعات**: يجوز للعملاء طلب استرداد الأموال أو إرجاع المنتجات من خلال لوحة التحكم الخاصة بهم خلال الفترة المسموح بها بموجب قوانين حماية المستهلك المحلية.
+* **قرارات الاسترداد**: تخضع الموافقات على المرتجعات للتحقق من حالة المنتج. رسوم الشحن غير قابلة للاسترداد إلا إذا كان المنتج معيباً.
+
+## 6. الأنشطة المحظورة
+توافق على عدم استخدام المنصة لأي أغراض غير قانونية، بما في ذلك:
+1. نشر تقييمات أو قوائم منتجات احتيالية.
+2. انتهاك حقوق الملكية الفكرية.
+3. الوصول أو محاولة الوصول إلى مناطق قاعدة البيانات المقيدة.
+
+## 7. القانون الحاكم
+تخضع هذه الشروط وتُفسر وفقاً لقوانين جمهورية مصر العربية، دون النظر إلى تعارضها مع مبادئ القانون.
+
+---
+إذا كان لديك أي أسئلة حول هذه الشروط، يرجى الاتصال بنا على support@goknary.com.`;
+
+  const privacyPolicyEn = `# Privacy Policy
+*Last Updated: June 8, 2026*
+
+At GoKnary, we respect your privacy and are committed to protecting your personal data. This Privacy Policy describes how we collect, use, disclose, and safeguard your information when you visit our website or use our services.
+
+## 1. Information We Collect
+We collect several types of information to provide and improve our services:
+* **Personal Identifiers**: Name, email address, phone number, and delivery address.
+* **Transaction Details**: Details of products purchased, billing information, and history.
+* **Technical Information**: IP address, browser type, device details, and cookie data.
+
+## 2. How We Use Your Information
+We process your personal information for the following purposes:
+* To process, fulfill, and track your orders.
+* To manage your account and provide customer support.
+* To communicate with you regarding order updates, promotions, and newsletter subscriptions.
+* To prevent fraud and ensure platform security.
+
+## 3. How We Share Information
+We do not sell your personal data to third parties. However, we may share information with:
+* **Vendors**: To allow them to pack and ship the products you ordered.
+* **Service Providers**: Delivery partners, payment gateways, and email marketing tools.
+* **Legal Authorities**: If required to comply with applicable laws or respond to valid legal processes.
+
+## 4. Data Security
+We implement industry-standard administrative, technical, and physical security measures to protect your personal data against unauthorized access, alteration, or disclosure. However, no transmission over the Internet is 100% secure.
+
+## 5. Your Rights and Choices
+Depending on your location, you may have the following rights:
+* **Access & Portability**: Request a copy of the data we hold about you.
+* **Correction**: Ask us to correct inaccurate or incomplete info.
+* **Deletion**: Request that we erase your personal details, subject to legal retention obligations.
+
+---
+For any privacy inquiries or to exercise your rights, please reach out to us at privacy@goknary.com.`;
+
+  const privacyPolicyAr = `# سياسة الخصوصية
+*آخر تحديث: 8 يونيو 2026*
+
+في جو كناري، نحترم خصوصيتك ونلتزم بحماية بياناتك الشخصية. تصف سياسة الخصوصية هذه كيفية جمع معلوماتك واستخدامها والإفصاح عنها وحمايتها عند زيارتك لموقعنا الإلكتروني أو استخدام خدماتنا.
+
+## 1. المعلومات التي نجمعها
+نحن نجمع عدة أنواع من المعلومات لتقديم خدماتنا وتحسينها:
+* **المعرفات الشخصية**: الاسم وعنوان البريد الإلكتروني ورقم الهاتف وعنوان التوصيل.
+* **تفاصيل المعاملات**: تفاصيل المنتجات المشتراة ومعلومات الفواتير وسجل الشراء.
+* **المعلومات التقنية**: عنوان IP ونوع المتصفح وتفاصيل الجهاز وبيانات ملفات تعريف الارتباط.
+
+## 2. كيف نستخدم معلوماتك
+نحن نعالج معلوماتك الشخصية للأغراض التالية:
+* لمعالجة طلباتك وتلبيتها وتتبعها.
+* لإدارة حسابك وتقديم دعم العملاء.
+* للتواصل معك بشأن تحديثات الطلب والعروض الترويجية والرسائل الإخبارية.
+* لمنع الاحتيال وضمان أمن المنصة.
+
+## 3. مشاركة المعلومات
+نحن لا نبيع بياناتك الشخصية لأطراف ثالثة. ومع ذلك، قد نشارك المعلومات مع:
+* **البائعين**: لتمكينهم من تعبئة وشحن المنتجات التي طلبتها.
+* **مقدمي الخدمات**: شركاء التوصيل وبوابات الدفع وأدوات التسويق عبر البريد الإلكتروني.
+* **السلطات القانونية**: إذا كان ذلك مطلوباً للامتثال للقوانين المعمول بها أو الاستجابة للإجراءات القانونية الصالحة.
+
+## 4. أمن البيانات
+نحن نطبق تدائير أمنية إدارية وفنية ومادية متوافقة مع معايير الصناعة لحماية بياناتك الشخصية ضد الوصول غير المصرح به أو التغيير أو الإفصاح. ومع ذلك، لا يوجد نقل عبر الإنترنت آمن بنسبة 100%.
+
+## 5. حقوقك وخياراتك
+اعتماداً على موقعك، قد تتمتع بالحقوق التالية:
+* **الوصول والنقل**: طلب نسخة من البيانات التي نحتفظ بها عنك.
+* **التصحيح**: الطلب منا تصحيح المعلومات غير الدقيقة أو غير الكاملة.
+* **الحذف**: طلب مسح تفاصيلك الشخصية، مع مراعاة التزامات الاحتفاظ القانونية.
+
+---
+لأية استفسارات تتعلق بالخصوصية أو لممارسة حقوقك، يرجى التواصل معنا على privacy@goknary.com.`;
+
+  const cookiePolicyEn = `# Cookie Policy
+*Last Updated: June 8, 2026*
+
+This Cookie Policy explains how GoKnary uses cookies and similar tracking technologies to recognize you when you visit our platform.
+
+## 1. What Are Cookies?
+Cookies are small data files placed on your computer or mobile device when you visit a website. They are widely used by website owners to make their websites work more efficiently, as well as to provide reporting information.
+
+## 2. Why Do We Use Cookies?
+We use cookies for several reasons:
+* **Essential Cookies**: Necessary to provide you with services available through our website (e.g. to keep you logged in and preserve items in your cart).
+* **Analytics and Performance**: Help us understand how our website is being used and measure the effectiveness of marketing campaigns.
+* **Functional Cookies**: Remember your language preferences and user interface choices.
+
+## 3. How Can You Control Cookies?
+You have the right to decide whether to accept or reject cookies. Most web browsers allow you to modify your settings to block cookies or notify you when they are set. Please note that if you choose to reject cookies, some features of our website may not function correctly.
+
+---
+If you have questions about our use of cookies, please email us at privacy@goknary.com.`;
+
+  const cookiePolicyAr = `# سياسة ملفات تعريف الارتباط (Cookies)
+*آخر تحديث: 8 يونيو 2026*
+
+توضح سياسة ملفات تعريف الارتباط هذه كيف يستخدم جو كناري ملفات تعريف الارتباط وتقنيات التتبع المماثلة للتعرف عليك عند زيارتك لمنصتنا.
+
+## 1. ما هي ملفات تعريف الارتباط (Cookies)؟
+ملفات تعريف الارتباط هي ملفات بيانات صغيرة يتم وضعها على جهاز الكمبيوتر أو الهاتف المحمول الخاص بك عند زيارتك لموقع ويب. يتم استخدامها على نطاق واسع من قبل أصحاب المواقع لجعل مواقعهم تعمل بشكل أكثر كفاءة، وكذلك لتوفير معلومات التقارير.
+
+## 2. لماذا نستخدم ملفات تعريف الارتباط؟
+نحن نستخدم ملفات تعريف الارتباط لعدة أسباب:
+* **ملفات تعريف الارتباط الأساسية**: ضرورية لتزويدك بالخدمات المتاحة من خلال موقعنا (مثل إبقائك قيد تسجيل الدخول وحفظ المنتجات في عربة التسوق الخاصة بك).
+* **التحليلات والأداء**: تساعدنا في فهم كيفية استخدام موقعنا وقياس مدى فعالية الحملات التسويقية.
+* **ملفات تعريف الارتباط الوظيفية**: تتذكر تفضيلاتك اللغوية وخيارات واجهة المستخدم الخاصة بك.
+
+## 3. كيف يمكنك التحكم في ملفات تعريف الارتباط؟
+لديك الحق في تقرير قبول أو رفض ملفات تعريف الارتباط. تسمح لك معظم متصفحات الويب بتعديل إعداداتك لحظر ملفات تعريف الارتباط أو إعلامك عند تعيينها. يرجى ملاحظة أنه إذا اخترت رفض ملفات تعريف الارتباط، فقد لا تعمل بعض ميزات موقعنا بشكل صحيح.
+
+---
+إذا كان لديك أسئلة حول استخدامنا لملفات تعريف الارتباط، يرجى مراسلتنا عبر البريد الإلكتروني على privacy@goknary.com.`;
+
   await prisma.setting.createMany({
     data: [
       { key: 'free_shipping_threshold', value: '500' },
@@ -81,6 +273,12 @@ async function main() {
       { key: 'instagram_url', value: 'https://instagram.com' },
       { key: 'linkedin_url', value: 'https://linkedin.com' },
       { key: 'twitter_url', value: 'https://twitter.com' },
+      { key: 'terms_of_service', value: termsOfServiceEn },
+      { key: 'terms_of_service_ar', value: termsOfServiceAr },
+      { key: 'privacy_policy', value: privacyPolicyEn },
+      { key: 'privacy_policy_ar', value: privacyPolicyAr },
+      { key: 'cookie_policy', value: cookiePolicyEn },
+      { key: 'cookie_policy_ar', value: cookiePolicyAr },
     ]
   });
 

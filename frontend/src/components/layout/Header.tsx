@@ -110,10 +110,12 @@ const Header: React.FC = () => {
           <div className="container mx-auto px-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-6">
-                <div className="flex items-center gap-2">
-                  <FiTruck className="w-4 h-4 rtl:-scale-x-100" />
-                  <span>{t('home.freeShippingDesc', { amount: freeShippingThreshold })}</span>
-                </div>
+                {freeShippingThreshold > 0 && (
+                  <div className="flex items-center gap-2">
+                    <FiTruck className="w-4 h-4 rtl:-scale-x-100" />
+                    <span>{t('home.freeShippingDesc', { amount: freeShippingThreshold })}</span>
+                  </div>
+                )}
                 <div className="flex items-center gap-2">
                   <GiftIcon />
                   <span>{t('home.easyReturns')}</span>
