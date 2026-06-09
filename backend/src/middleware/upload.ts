@@ -3,8 +3,8 @@ import path from 'path';
 import { randomUUID } from 'crypto';
 import fs from 'fs';
 
-// Ensure uploads directory exists
-const uploadDir = path.join(process.cwd(), 'uploads');
+// Ensure uploads directory exists. In production, set UPLOAD_DIR to a persistent volume.
+const uploadDir = path.resolve(process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads'));
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }

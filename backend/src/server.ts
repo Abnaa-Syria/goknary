@@ -132,9 +132,11 @@ app.use(express.urlencoded({
 app.use(morgan('dev'));
 
 // ─── Static files (BEFORE any routers/limiters — fix #1) ──────────────────────
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+const uploadDir = path.resolve(process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads'));
+app.use('/uploads', express.static(uploadDir));
 
 console.log(path.join(process.cwd(), ''));
+console.log(`Serving uploads from ${uploadDir}`);
 
 // Rate limiting — more lenient in development
 const limiter = rateLimit({
