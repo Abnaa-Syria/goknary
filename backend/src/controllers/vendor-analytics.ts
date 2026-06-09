@@ -41,16 +41,25 @@ export const getVendorAnalytics = async (req: AuthRequest, res: Response) => {
     });
 
     // Delivered sales only — earnings are not counted before delivery
-    const salesResult = await prisma.order.aggregate({
-      where: {
-        vendorId: vendor.id,
-        createdAt: { gte: startDate },
-        status: 'DELIVERED',
-      },
-      _sum: {
-        total: true,
-      },
-    });
+    const [salesResult, deliveredOrders] = await Promise.all([
+      prisma.order.aggregate({
+        where: {
+          vendorId: vendor.id,
+          createdAt: { gte: startDate },
+          status: 'DELIVERED',
+        },
+        _sum: {
+          total: true,
+        },
+      }),
+      prisma.order.count({
+        where: {
+          vendorId: vendor.id,
+          createdAt: { gte: startDate },
+          status: 'DELIVERED',
+        },
+      }),
+    ]);
 
     const totalSales = salesResult._sum.total || 0;
 
@@ -181,6 +190,7 @@ export const getVendorAnalytics = async (req: AuthRequest, res: Response) => {
     res.json({
       summary: {
         totalOrders,
+        deliveredOrders,
         totalSales,
         pendingOrders,
         pendingSales: Math.round(pendingSales * 100) / 100,

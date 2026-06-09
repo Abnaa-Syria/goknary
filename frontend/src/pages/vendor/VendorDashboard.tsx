@@ -41,6 +41,7 @@ import {
 interface VendorStats {
   totalProducts: number;
   totalOrders: number;
+  deliveredOrders?: number;
   totalSales: number;
   pendingOrders: number;
 }
@@ -178,7 +179,8 @@ const VendorDashboardHome: React.FC<{
   if (!data) return <DashboardSkeleton />;
 
   const { stats, topProducts = [], recentOrders = [] } = data;
-  const avgOrderValue = stats.totalOrders > 0 ? Math.round(stats.totalSales / stats.totalOrders) : 0;
+  const realizedOrderCount = stats.deliveredOrders || 0;
+  const avgOrderValue = realizedOrderCount > 0 ? Math.round(stats.totalSales / realizedOrderCount) : 0;
 
   return (
     <div className="space-y-8 pb-12">
@@ -230,7 +232,7 @@ const VendorDashboardHome: React.FC<{
       {/* KPI Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         <StatCard
-          title={t('vendor.totalSales', 'Total Sales')}
+          title={t('vendor.realizedSales', 'Realized Sales')}
           value={formatPrice(stats.totalSales)}
           icon={DollarSign}
           trend={{ value: 12.4, isPositive: true }}
@@ -244,7 +246,7 @@ const VendorDashboardHome: React.FC<{
           color="primary"
         />
         <StatCard
-          title={t('vendor.avgOrderValue', 'Avg. Order Value')}
+          title={t('vendor.avgDeliveredOrderValue', 'Avg. Delivered Order')}
           value={formatPrice(avgOrderValue)}
           icon={TrendingUp}
           color="info"

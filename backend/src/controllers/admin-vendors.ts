@@ -2,6 +2,10 @@ import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { Prisma, VendorStatus } from '@prisma/client';
 import { NotFoundError } from '../lib/errors';
+import {
+  calculatePendingEarnings,
+  calculateVendorNetEarnings,
+} from '../lib/vendor-earnings';
 
 export const getVendors = async (req: Request, res: Response) => {
   try {
@@ -60,15 +64,25 @@ export const getVendors = async (req: Request, res: Response) => {
 
     const vendorIds = vendors.map((v) => v.id);
 
-    // Fetch totalSales and totalOrders count in a single groupBy query
+    // Delivered sales are the only realized vendor/platform revenue.
     const salesStats = await prisma.order.groupBy({
       by: ['vendorId'],
       where: {
         vendorId: { in: vendorIds },
-        status: { not: 'CANCELLED' },
+        status: 'DELIVERED',
       },
       _sum: {
         total: true,
+      },
+      _count: {
+        id: true,
+      },
+    });
+
+    const orderStats = await prisma.order.groupBy({
+      by: ['vendorId'],
+      where: {
+        vendorId: { in: vendorIds },
       },
       _count: {
         id: true,
@@ -89,9 +103,10 @@ export const getVendors = async (req: Request, res: Response) => {
     const salesMap = new Map(
       salesStats.map((s) => [
         s.vendorId,
-        { totalSales: s._sum.total || 0, totalOrders: s._count.id },
+        { totalSales: s._sum.total || 0, deliveredOrders: s._count.id },
       ])
     );
+    const ordersMap = new Map(orderStats.map((s) => [s.vendorId, s._count.id]));
     const productsMap = new Map(
       productsStats.map((p) => [p.vendorId, p._count.id])
     );
@@ -102,7 +117,8 @@ export const getVendors = async (req: Request, res: Response) => {
       return {
         ...vendor,
         totalSales: Math.round(stats.totalSales * 100) / 100,
-        totalOrders: stats.totalOrders,
+        totalOrders: ordersMap.get(vendor.id) || 0,
+        deliveredOrders: stats.deliveredOrders,
         totalProducts: productCount,
       };
     });
@@ -148,6 +164,7 @@ export const getVendorById = async (req: Request, res: Response) => {
       totalOrders,
       totalProducts,
       salesResult,
+      pendingOrdersForSales,
       ordersByStatusRaw,
       recentOrders,
       products,
@@ -155,8 +172,20 @@ export const getVendorById = async (req: Request, res: Response) => {
       prisma.order.count({ where: { vendorId: id } }),
       prisma.product.count({ where: { vendorId: id } }),
       prisma.order.aggregate({
-        where: { vendorId: id, status: { not: 'CANCELLED' } },
+        where: { vendorId: id, status: 'DELIVERED' },
         _sum: { total: true },
+      }),
+      prisma.order.findMany({
+        where: {
+          vendorId: id,
+          status: { in: ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED'] },
+        },
+        select: {
+          total: true,
+          status: true,
+          paymentMethod: true,
+          paymentStatus: true,
+        },
       }),
       prisma.order.groupBy({
         by: ['status'],
@@ -183,8 +212,9 @@ export const getVendorById = async (req: Request, res: Response) => {
 
     const totalSales = salesResult._sum.total || 0;
     const commissionRate = vendor.commissionRate ?? 10;
-    const commissionAmount = Math.round(totalSales * (commissionRate / 100) * 100) / 100;
-    const netEarnings = Math.round((totalSales - commissionAmount) * 100) / 100;
+    const { commissionAmount, netEarnings } = calculateVendorNetEarnings(totalSales, commissionRate);
+    const pendingEarnings = await calculatePendingEarnings(vendor.id, commissionRate);
+    const pendingSales = pendingOrdersForSales.reduce((sum, order) => sum + order.total, 0);
 
     const ordersByStatus = ordersByStatusRaw.map((s) => ({
       status: s.status,
@@ -200,6 +230,10 @@ export const getVendorById = async (req: Request, res: Response) => {
         commissionRate,
         commissionAmount,
         netEarnings,
+        pendingSales: Math.round(pendingSales * 100) / 100,
+        pendingEarnings: Math.round(pendingEarnings * 100) / 100,
+        availableBalance: Math.round(vendor.balance * 100) / 100,
+        withdrawnAmount: Math.round(vendor.withdrawnAmount * 100) / 100,
       },
       ordersByStatus,
       recentOrders: recentOrders.map((order) => ({

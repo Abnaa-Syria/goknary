@@ -62,6 +62,7 @@ interface DashboardStats {
   pendingProducts: number;
   activeProducts: number;
   totalOrders: number;
+  deliveredOrders?: number;
   totalSales: number;
 }
 
@@ -254,7 +255,7 @@ const AdminDashboardHome: React.FC<{
   const { stats, recentOrders = [], topVendors = [], ordersByStatus = [] } = data;
 
   const avgOrderValue =
-    stats.totalOrders > 0 ? Math.round(stats.totalSales / stats.totalOrders) : 0;
+    (stats.deliveredOrders || 0) > 0 ? Math.round(stats.totalSales / (stats.deliveredOrders || 1)) : 0;
   const periodAvgOrders =
     trendData.length > 0
       ? Math.round(trendData.reduce((sum, d) => sum + d.orders, 0) / trendData.length)
@@ -324,7 +325,7 @@ const AdminDashboardHome: React.FC<{
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 text-start">
         {checkPerm('READ_DASHBOARD') && (
           <StatCard
-            title={t('admin.totalRevenue', 'Total Revenue')}
+            title={t('admin.realizedRevenue', 'Realized Revenue')}
             value={formatPrice(stats.totalSales)}
             icon={DollarSign}
             trend={{ value: 14.2, isPositive: true }}
@@ -342,7 +343,7 @@ const AdminDashboardHome: React.FC<{
         )}
         {checkPerm('READ_DASHBOARD') && (
           <StatCard
-            title={t('admin.avgOrderValue', 'Avg. Order Value')}
+            title={t('admin.avgDeliveredOrderValue', 'Avg. Delivered Order')}
             value={formatPrice(avgOrderValue)}
             icon={TrendingUp}
             color="info"

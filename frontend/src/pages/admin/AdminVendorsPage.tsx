@@ -30,6 +30,7 @@ interface Vendor {
   };
   totalSales?: number;
   totalOrders?: number;
+  deliveredOrders?: number;
   totalProducts?: number;
 }
 
@@ -238,7 +239,7 @@ const AdminVendorsPage: React.FC = () => {
                   <th className="px-6 py-4 text-start text-xs font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">{t('admin.vendorsPage.store', 'Store Details')}</th>
                   <th className="px-6 py-4 text-start text-xs font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">{t('admin.vendorsPage.owner', 'Owner Details')}</th>
                   <th className="px-6 py-4 text-start text-xs font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">{t('admin.vendorsPage.status', 'Status')}</th>
-                  <th className="px-6 py-4 text-start text-xs font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">{t('admin.vendor.totalSales', 'Total Sales')}</th>
+                  <th className="px-6 py-4 text-start text-xs font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">{t('admin.vendor.realizedSales', 'Realized Sales')}</th>
                   <th className="px-6 py-4 text-start text-xs font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">{t('admin.vendorsPage.rating', 'Rating')}</th>
                   <th className="px-6 py-4 text-end text-xs font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">{t('admin.vendorsPage.actions', 'Settings')}</th>
                 </tr>
@@ -270,6 +271,9 @@ const AdminVendorsPage: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-black text-gray-900">
                       {formatPrice(vendor.totalSales || 0)}
+                      <div className="text-[10px] text-gray-400 font-bold mt-1">
+                        {vendor.deliveredOrders || 0} {t('common.delivered', 'Delivered')}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-1.5 font-medium text-amber-500">

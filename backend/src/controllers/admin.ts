@@ -324,6 +324,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
       pendingProducts,
       activeProducts,
       totalOrders,
+      deliveredOrders,
       salesResult,
       recentOrders,
       topVendors,
@@ -338,8 +339,9 @@ export const getDashboardStats = async (req: Request, res: Response) => {
       prisma.product.count({ where: { status: 'PENDING' } }),
       prisma.product.count({ where: { status: 'ACTIVE' } }),
       prisma.order.count(),
+      prisma.order.count({ where: { status: 'DELIVERED' } }),
       prisma.order.aggregate({
-        where: { status: { not: 'CANCELLED' } },
+        where: { status: 'DELIVERED' },
         _sum: { total: true },
       }),
       // Recent 10 orders for activity feed
@@ -354,7 +356,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
       // Top 5 vendors by total revenue
       prisma.order.groupBy({
         by: ['vendorId'],
-        where: { status: { not: 'CANCELLED' } },
+        where: { status: 'DELIVERED' },
         _sum: { total: true },
         _count: { id: true },
         orderBy: { _sum: { total: 'desc' } },
@@ -371,7 +373,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
           createdAt: {
             gte: new Date(new Date().setMonth(new Date().getMonth() - 6)),
           },
-          status: { not: 'CANCELLED' },
+          status: 'DELIVERED',
         },
         select: { createdAt: true, total: true },
         orderBy: { createdAt: 'asc' },
@@ -432,6 +434,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
         pendingProducts,
         activeProducts,
         totalOrders,
+        deliveredOrders,
         totalSales: Math.round(totalSales),
       },
       revenueTrends,

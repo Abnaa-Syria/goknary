@@ -43,6 +43,10 @@ interface VendorDetails {
     commissionRate: number;
     commissionAmount: number;
     netEarnings: number;
+    pendingSales: number;
+    pendingEarnings: number;
+    availableBalance: number;
+    withdrawnAmount: number;
   };
   ordersByStatus: Array<{
     status: string;
@@ -415,24 +419,48 @@ const AdminVendorDetailPage: React.FC = () => {
       {activeTab === 'overview' && (
         <div className="space-y-6">
           {/* Financial Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5 text-start">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 text-start">
             <StatCard
-              title={isRTL ? 'إجمالي المبيعات' : 'Gross Sales'}
+              title={isRTL ? 'المبيعات المحققة' : 'Realized Sales'}
               value={formatPrice(stats.totalSales)}
               icon={DollarSign}
               color="primary"
             />
             <StatCard
-              title={isRTL ? 'صافي الأرباح' : 'Net Earnings'}
+              title={isRTL ? 'صافي الأرباح المحققة' : 'Realized Net Earnings'}
               value={formatPrice(stats.netEarnings)}
               icon={DollarSign}
               color="success"
             />
             <StatCard
-              title={isRTL ? `عمولة المنصة (${stats.commissionRate}%)` : `Platform Commission (${stats.commissionRate}%)`}
+              title={isRTL ? `عمولة المنصة المحققة (${stats.commissionRate}%)` : `Realized Platform Commission (${stats.commissionRate}%)`}
               value={formatPrice(stats.commissionAmount)}
               icon={Percent}
               color="warning"
+            />
+            <StatCard
+              title={isRTL ? 'الرصيد المتاح للسحب' : 'Available Balance'}
+              value={formatPrice(stats.availableBalance)}
+              icon={DollarSign}
+              color="success"
+            />
+            <StatCard
+              title={isRTL ? 'أرباح معلقة' : 'Pending Earnings'}
+              value={formatPrice(stats.pendingEarnings)}
+              icon={DollarSign}
+              color="warning"
+            />
+            <StatCard
+              title={isRTL ? 'مبيعات معلقة' : 'Pending Sales'}
+              value={formatPrice(stats.pendingSales)}
+              icon={ShoppingBag}
+              color="warning"
+            />
+            <StatCard
+              title={isRTL ? 'إجمالي المسحوبات' : 'Withdrawn Amount'}
+              value={formatPrice(stats.withdrawnAmount)}
+              icon={DollarSign}
+              color="info"
             />
             <StatCard
               title={t('admin.totalProducts', 'Total Products')}
