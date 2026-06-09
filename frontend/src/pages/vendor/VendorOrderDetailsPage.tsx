@@ -155,8 +155,6 @@ const VendorOrderDetailsPage: React.FC = () => {
     }
   };
 
-  const isOnlinePaymentPending = (order.paymentMethod || 'COD') !== 'COD' && order.paymentStatus !== 'PAID';
-
   const getNextStatusOptions = (currentStatus: string): string[] => {
     switch (currentStatus) {
       case 'PENDING':
@@ -191,6 +189,8 @@ const VendorOrderDetailsPage: React.FC = () => {
       </div>
     );
   }
+
+  const isOnlinePaymentPending = (order.paymentMethod || 'COD') !== 'COD' && order.paymentStatus !== 'PAID';
 
   return (
     <div className="space-y-6">
