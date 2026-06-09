@@ -112,7 +112,7 @@ export const getVendors = async (req: Request, res: Response) => {
     );
 
     const vendorsWithStats = vendors.map((vendor) => {
-      const stats = salesMap.get(vendor.id) || { totalSales: 0, totalOrders: 0 };
+      const stats = salesMap.get(vendor.id) || { totalSales: 0, deliveredOrders: 0 };
       const productCount = productsMap.get(vendor.id) || 0;
       return {
         ...vendor,

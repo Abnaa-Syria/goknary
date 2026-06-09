@@ -3,10 +3,13 @@ export const calculateDiscountPercentage = (price: number, discountPrice: number
   return Math.round(((price - discountPrice) / price) * 100);
 };
 
-export const formatPrice = (price: number): string => {
+export const formatPrice = (price: number | string | null | undefined): string => {
+  const numericPrice = Number(price);
+  const safePrice = Number.isFinite(numericPrice) ? numericPrice : 0;
+
   return new Intl.NumberFormat('en-EG', {
     style: 'currency',
     currency: 'EGP',
-  }).format(price);
+  }).format(safePrice);
 };
 
