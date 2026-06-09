@@ -44,7 +44,7 @@ import {
   DashboardTopNav
 } from './DashboardComponents';
 import { formatPrice } from '../../lib/utils';
-import { mapEnum, orderStatusMap } from '../../utils/localization';
+import { mapEnum, orderStatusMap, paymentMethodMap, paymentStatusMap } from '../../utils/localization';
 
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -611,6 +611,9 @@ const AdminDashboardHome: React.FC<{
                         {order.user?.name || 'Guest'}
                       </p>
                       <p className="text-[10px] text-gray-400">{order.vendor?.storeName || '—'}</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">
+                        {mapEnum(paymentMethodMap, order.paymentMethod || 'COD')} • {mapEnum(paymentStatusMap, order.paymentStatus || 'PENDING')}
+                      </p>
                     </div>
                     <div className="text-end flex-shrink-0">
                       <p className="text-xs font-bold text-gray-900">

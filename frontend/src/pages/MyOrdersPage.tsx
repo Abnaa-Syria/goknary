@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { formatPrice } from '../lib/utils';
 import api from '../lib/api';
 import { getImageUrl } from '../utils/image';
+import { mapEnum, paymentMethodMap, paymentStatusMap } from '../utils/localization';
 import format from 'date-fns/format';
 import { arEG } from 'date-fns/locale';
 import i18n from 'i18n';
@@ -23,6 +24,8 @@ interface Order {
   createdAt: string;
   total: number;
   status: string;
+  paymentMethod?: string;
+  paymentStatus?: string;
   items: OrderItem[];
 }
 
@@ -50,6 +53,14 @@ const MyOrdersPage: React.FC = () => {
       case 'SHIPPED': return 'bg-blue-100 text-blue-700';
       case 'PROCESSING': return 'bg-amber-100 text-amber-700';
       default: return 'bg-gray-100 text-gray-700';
+    }
+  };
+
+  const getPaymentStatusColor = (status?: string) => {
+    switch (status) {
+      case 'PAID': return 'bg-green-100 text-green-700';
+      case 'FAILED': return 'bg-red-100 text-red-700';
+      default: return 'bg-yellow-100 text-yellow-700';
     }
   };
 
@@ -104,6 +115,18 @@ const MyOrdersPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-gray-100 text-gray-700">
+                      {isRTL
+                        ? mapEnum(paymentMethodMap, order.paymentMethod || 'COD')
+                        : (order.paymentMethod || 'COD')}
+                    </span>
+                    <span className={`px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${getPaymentStatusColor(order.paymentStatus)}`}>
+                      {isRTL
+                        ? mapEnum(paymentStatusMap, order.paymentStatus || 'PENDING')
+                        : (order.paymentStatus || 'PENDING')}
+                    </span>
+                  </div>
                   <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${getStatusColor(order.status)}`}>
                     {t(`orders.${order.status.toLowerCase()}`, order.status)}
                   </span>

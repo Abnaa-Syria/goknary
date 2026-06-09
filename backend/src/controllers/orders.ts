@@ -37,7 +37,9 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
     const userId = req.user.id;
     
     // Explicit parsing with Zod bounds
-    const { address, shippingMethod, couponCode, items, notes, paymentMethod, paymentStatus } = createOrderSchema.parse(req.body);
+    const { address, shippingMethod, couponCode, items, notes, paymentMethod } = createOrderSchema.parse(req.body);
+    const normalizedPaymentMethod = String(paymentMethod || 'COD').toUpperCase() === 'KASHIER' ? 'KASHIER' : 'COD';
+    const initialOrderStatus = normalizedPaymentMethod === 'COD' ? 'CONFIRMED' : 'PENDING';
 
     const cartWhere = { userId };
 
@@ -171,7 +173,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
           data: {
             userId,
             vendorId,
-            status: 'PENDING',
+            status: initialOrderStatus,
             subtotal,
             shippingCost,
             total,
@@ -180,15 +182,17 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
             addressJson: JSON.stringify(orderAddress),
             shippingMethod: shippingMethod || 'Standard',
             notes,
-            paymentMethod: paymentMethod || 'COD',
-            paymentStatus: paymentStatus || 'PENDING',
+            paymentMethod: normalizedPaymentMethod,
+            paymentStatus: 'PENDING',
             items: {
               create: orderItemsData,
             },
             statusHistory: {
               create: {
-                status: 'PENDING',
-                notes: 'Order created',
+                status: initialOrderStatus,
+                notes: normalizedPaymentMethod === 'COD'
+                  ? 'COD order confirmed'
+                  : 'Kashier order created, awaiting payment confirmation',
               },
             },
           },

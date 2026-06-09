@@ -6,6 +6,133 @@ import { prisma } from '../lib/prisma.js';
  * Extracted request data and delegates business logic to KashierService.
  */
 
+const getKashierSignature = (headers) => (
+  headers['x-kashier-signature'] ||
+  headers['x-signature'] ||
+  headers.signature ||
+  headers['kashier-signature']
+);
+
+const extractKashierOrderIds = (payload) => {
+  const orderData = payload.data || payload;
+  const orderReference =
+    orderData.orderId ||
+    orderData.merchantOrderId ||
+    orderData.merchantOrderID ||
+    orderData.order ||
+    payload.orderId ||
+    payload.merchantOrderId ||
+    payload.merchantOrderID;
+
+  const orderIdsFromMetadata = orderData.metadata?.orderIds || payload.metadata?.orderIds;
+  return Array.isArray(orderIdsFromMetadata)
+    ? orderIdsFromMetadata.filter(Boolean)
+    : String(orderReference || '').split('__').filter(Boolean);
+};
+
+const getKashierOutcome = (payload) => {
+  const orderData = payload.data || payload;
+  const event = String(payload.event || orderData.event || '').toLowerCase();
+  const status = String(
+    orderData.status ||
+    orderData.paymentStatus ||
+    payload.status ||
+    payload.paymentStatus ||
+    ''
+  ).toLowerCase();
+
+  const isSuccess =
+    ['success', 'successful', 'completed', 'paid', 'captured'].includes(status) ||
+    ['pay_conf', 'transaction.completed', 'payment.success', 'payment_success'].includes(event);
+  const isFailure =
+    ['failed', 'declined', 'cancelled', 'canceled', 'expired'].includes(status) ||
+    ['payment.failed', 'transaction.failed', 'payment_failed'].includes(event);
+
+  return { isSuccess, isFailure, status, event };
+};
+
+const markKashierOrdersPaid = async (orderIds, notes = 'Kashier payment successful') => {
+  const orders = await prisma.order.findMany({
+    where: { id: { in: orderIds } },
+    include: { items: true },
+  });
+
+  if (orders.length === 0) {
+    console.error(`❌ Orders ${orderIds.join(', ')} not found in DB.`);
+    return { updated: 0 };
+  }
+
+  const unpaidOrders = orders.filter((order) => order.paymentStatus !== 'PAID');
+  if (unpaidOrders.length === 0) {
+    console.log(`ℹ️ Orders ${orderIds.join(', ')} are already marked as PAID.`);
+    return { updated: 0 };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    for (const order of unpaidOrders) {
+      const finalStatus = ['PENDING', 'CANCELLED'].includes(order.status) ? 'CONFIRMED' : order.status;
+      await tx.order.update({
+        where: { id: order.id },
+        data: {
+          status: finalStatus,
+          paymentStatus: 'PAID',
+        },
+      });
+
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId: order.id,
+          status: finalStatus,
+          notes,
+        },
+      });
+    }
+  });
+
+  return { updated: unpaidOrders.length };
+};
+
+const markKashierOrdersFailed = async (orderIds, notes) => {
+  const orders = await prisma.order.findMany({
+    where: { id: { in: orderIds } },
+    include: { items: true },
+  });
+  const unpaidOrders = orders.filter((order) => order.paymentStatus !== 'PAID');
+
+  if (unpaidOrders.length === 0) {
+    return { updated: 0 };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    for (const order of unpaidOrders) {
+      await tx.order.update({
+        where: { id: order.id },
+        data: {
+          status: 'CANCELLED',
+          paymentStatus: 'FAILED',
+        },
+      });
+
+      for (const item of order.items) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { stock: { increment: item.quantity } },
+        });
+      }
+
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId: order.id,
+          status: 'CANCELLED',
+          notes,
+        },
+      });
+    }
+  });
+
+  return { updated: unpaidOrders.length };
+};
+
 /**
  * Initiates a payment by creating a Kashier Session.
  * POST /api/payment/initiate
@@ -83,8 +210,8 @@ export const initiatePayment = async (req, res) => {
  */
 export const handleWebhook = async (req, res) => {
   try {
-    // Kashier sends signature in the headers (x-kashier-signature)
-    const signature = req.headers['x-kashier-signature'];
+    // Kashier sends signature in one of these headers depending on integration mode.
+    const signature = getKashierSignature(req.headers);
     const payload = req.body;
 
     // 1. Verify the signature via Service
@@ -95,28 +222,10 @@ export const handleWebhook = async (req, res) => {
       return res.status(401).json({ message: 'Invalid signature' });
     }
 
-    // 2. Extract payment status and order ID
-    // Note: Payload structure varies based on event, adjusting for common 'payment_success'
-    const event = payload.event;
-    const orderData = payload.data || payload; // Fallback to root if not nested
+    const orderIds = extractKashierOrderIds(payload);
+    const { isSuccess, isFailure, status, event } = getKashierOutcome(payload);
 
-    console.log(`🔔 Kashier Webhook received. Event: ${event || 'payment_update'}`);
-
-    // 3. Perform DB update logic
-    const orderReference = orderData.orderId || orderData.merchantOrderId || orderData.order || payload.orderId;
-    const orderIdsFromMetadata = orderData.metadata?.orderIds || payload.metadata?.orderIds;
-    const orderIds = Array.isArray(orderIdsFromMetadata)
-      ? orderIdsFromMetadata
-      : String(orderReference || '').split('__').filter(Boolean);
-    const status = orderData.status;
-
-    const normalizedStatus = status ? String(status).toLowerCase() : '';
-    const isSuccess =
-      ['success', 'completed', 'paid'].includes(normalizedStatus) ||
-      (event && ['pay_conf', 'transaction.completed', 'payment.success'].includes(event));
-    const isFailure =
-      ['failed', 'declined', 'cancelled', 'canceled', 'expired'].includes(normalizedStatus) ||
-      (event && ['payment.failed', 'transaction.failed'].includes(event));
+    console.log(`🔔 Kashier Webhook received. Event: ${event || 'payment_update'} Status: ${status || 'n/a'}`);
 
     if (orderIds.length === 0) {
       console.error('❌ Kashier Webhook: Missing orderId in payload.');
@@ -126,46 +235,7 @@ export const handleWebhook = async (req, res) => {
     if (isSuccess) {
       console.log(`✅ SUCCESS: Orders ${orderIds.join(', ')} have been PAID.`);
       try {
-        const orders = await prisma.order.findMany({
-          where: { id: { in: orderIds } },
-          include: { items: true },
-        });
-        if (orders.length === 0) {
-          console.error(`❌ Orders ${orderIds.join(', ')} not found in DB.`);
-          return res.status(200).send('OK');
-        }
-
-        const unpaidOrders = orders.filter((order) => order.paymentStatus !== 'PAID');
-        if (unpaidOrders.length === 0) {
-          console.log(`ℹ️ Orders ${orderIds.join(', ')} are already marked as PAID.`);
-          return res.status(200).send('OK');
-        }
-
-        await prisma.$transaction(async (tx) => {
-          await tx.order.updateMany({
-            where: { id: { in: unpaidOrders.map((order) => order.id) } },
-            data: {
-              paymentStatus: 'PAID',
-            },
-          });
-
-          for (const order of unpaidOrders) {
-            const finalStatus = order.status === 'PENDING' ? 'CONFIRMED' : order.status;
-            await tx.order.update({
-              where: { id: order.id },
-              data: { status: finalStatus },
-            });
-
-            await tx.orderStatusHistory.create({
-              data: {
-                orderId: order.id,
-                status: finalStatus,
-                notes: 'Kashier payment successful',
-              },
-            });
-          }
-        });
-
+        await markKashierOrdersPaid(orderIds);
         console.log(`✅ Orders ${orderIds.join(', ')} paymentStatus updated to PAID.`);
       } catch (dbError) {
         console.error(`❌ DB error updating paid orders ${orderIds.join(', ')}:`, dbError.message);
@@ -173,39 +243,7 @@ export const handleWebhook = async (req, res) => {
     } else if (isFailure) {
       console.log(`❌ FAILED: Orders ${orderIds.join(', ')} payment failed with status: ${status || event}`);
       try {
-        const orders = await prisma.order.findMany({ where: { id: { in: orderIds } } });
-        const unpaidIds = orders
-          .filter((order) => order.paymentStatus !== 'PAID')
-          .map((order) => order.id);
-
-        if (unpaidIds.length > 0) {
-          await prisma.$transaction(async (tx) => {
-            for (const order of orders.filter((item) => unpaidIds.includes(item.id))) {
-              await tx.order.update({
-                where: { id: order.id },
-                data: {
-                  status: 'CANCELLED',
-                  paymentStatus: 'FAILED',
-                },
-              });
-
-              for (const item of order.items) {
-                await tx.product.update({
-                  where: { id: item.productId },
-                  data: { stock: { increment: item.quantity } },
-                });
-              }
-
-              await tx.orderStatusHistory.create({
-                data: {
-                  orderId: order.id,
-                  status: 'CANCELLED',
-                  notes: `Kashier payment failed: ${status || event || 'unknown'}`,
-                },
-              });
-            }
-          });
-        }
+        await markKashierOrdersFailed(orderIds, `Kashier payment failed: ${status || event || 'unknown'}`);
       } catch (dbError) {
         console.error(`❌ DB error marking failed payment for orders ${orderIds.join(', ')}:`, dbError.message);
       }

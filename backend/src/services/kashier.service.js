@@ -107,12 +107,20 @@ async createPaymentSession(orderReference, amount, customerEmail, currency = 'EG
       ? reqBody 
       : (typeof reqBody === 'string' ? reqBody : JSON.stringify(reqBody));
 
-    const computedSignature = crypto
-      .createHmac('sha256', this.secretKey)
-      .update(dataToSign)
-      .digest('hex');
+    const signatures = Array.isArray(signatureHeader) ? signatureHeader : [signatureHeader];
+    const keys = [this.apiKey, this.secretKey].filter(Boolean);
 
-    return computedSignature === signatureHeader;
+    return keys.some((key) => {
+      const computedSignature = crypto
+        .createHmac('sha256', key)
+        .update(dataToSign)
+        .digest('hex');
+
+      return signatures.some((signature) => {
+        const normalized = String(signature || '').replace(/^sha256=/i, '').trim();
+        return computedSignature === normalized;
+      });
+    });
   }
 }
 
