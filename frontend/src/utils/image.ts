@@ -1,3 +1,15 @@
+export const parseProductImages = (images: string | string[] | undefined | null): string[] => {
+  if (!images) return [];
+  if (Array.isArray(images)) return images.filter(Boolean);
+
+  try {
+    const parsed = JSON.parse(images);
+    return Array.isArray(parsed) ? parsed.filter(Boolean) : [images];
+  } catch {
+    return [images];
+  }
+};
+
 /**
  * Resolves an image path to a full URL.
  * Handles:

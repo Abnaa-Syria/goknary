@@ -48,7 +48,13 @@ const HomePage: React.FC = () => {
   useEffect(() => {
     // Fetch Recent Arrivals separately
     api.get('/products/recent?limit=6')
-      .then(res => setNewArrivals(res.data.products || []))
+      .then((res) => {
+        const products = (res.data.products || []).map((p: any) => ({
+          ...p,
+          images: typeof p.images === 'string' ? JSON.parse(p.images) : p.images,
+        }));
+        setNewArrivals(products);
+      })
       .catch(err => console.error("Failed to load generic matrix: ", err));
 
     if (isAuthenticated && (user?.role === 'ADMIN' || user?.role === 'STAFF')) {

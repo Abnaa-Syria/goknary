@@ -7,7 +7,7 @@ import { calculateDiscountPercentage, formatPrice } from '../../lib/utils';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { addToWishlist, removeFromWishlistByProductId } from '../../store/slices/wishlistSlice';
 import { addToCompare, removeFromCompare } from '../../store/slices/compareSlice';
-import { getImageUrl } from '../../utils/image';
+import { getImageUrl, parseProductImages } from '../../utils/image';
 
 interface ProductCardProps {
   product: Product;
@@ -77,7 +77,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   const displayPrice = product.discountPrice || product.price;
   const originalPrice = product.discountPrice ? product.price : null;
 
-  const images = product.images || [];
+  const images = parseProductImages(product.images);
   const mainImage = getImageUrl(images[0]);
   const hoverImage = images.length > 1 ? getImageUrl(images[1]) : mainImage;
 
