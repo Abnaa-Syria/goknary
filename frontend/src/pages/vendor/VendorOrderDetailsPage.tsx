@@ -6,7 +6,7 @@ import { Clock, CheckCircle2, Package, Truck, XCircle, RotateCcw, AlertTriangle 
 import toast from 'react-hot-toast';
 import { getImageUrl } from '../../utils/image';
 import { useTranslation } from 'react-i18next';
-import { mapEnum, orderStatusMap } from '../../utils/localization';
+import { mapEnum, orderStatusMap, paymentMethodMap, paymentStatusMap } from '../../utils/localization';
 
 interface OrderItem {
   id: string;
@@ -29,6 +29,8 @@ interface OrderItem {
 interface OrderDetails {
   id: string;
   status: string;
+  paymentMethod?: string;
+  paymentStatus?: string;
   total: number;
   subtotal: number;
   shippingCost: number;
@@ -142,6 +144,17 @@ const VendorOrderDetailsPage: React.FC = () => {
     }
   };
 
+  const getPaymentStatusColor = (status?: string) => {
+    switch (status) {
+      case 'PAID':
+        return 'bg-green-100 text-green-800';
+      case 'FAILED':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-yellow-100 text-yellow-800';
+    }
+  };
+
   const getNextStatusOptions = (currentStatus: string): string[] => {
     switch (currentStatus) {
       case 'PENDING':
@@ -243,6 +256,22 @@ const VendorOrderDetailsPage: React.FC = () => {
           <div>
             <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-3">{t('vendor.ordersPage.financialSummary', 'Financial Summary')}</h3>
             <div className="space-y-2">
+              <p className="flex justify-between text-sm">
+                <span className="text-gray-500">{t('admin.orderDetail.paymentMethod', 'Payment Method')}</span>
+                <span className="font-bold text-gray-900">
+                  {i18n.language === 'ar'
+                    ? mapEnum(paymentMethodMap, order.paymentMethod || 'COD')
+                    : (order.paymentMethod || 'COD')}
+                </span>
+              </p>
+              <p className="flex justify-between text-sm">
+                <span className="text-gray-500">{t('admin.orderDetail.paymentStatus', 'Payment Status')}</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${getPaymentStatusColor(order.paymentStatus)}`}>
+                  {i18n.language === 'ar'
+                    ? mapEnum(paymentStatusMap, order.paymentStatus || 'PENDING')
+                    : (order.paymentStatus || 'PENDING')}
+                </span>
+              </p>
               <p className="flex justify-between text-sm">
                 <span className="text-gray-500">{t('common.subtotal', 'Subtotal')}</span>
                 <span className="font-bold text-gray-900">{formatPrice(order.subtotal)}</span>

@@ -3,13 +3,15 @@ import { useTranslation } from 'react-i18next';
 import { Link, Routes, Route } from 'react-router-dom';
 import api from '../../lib/api';
 import { formatPrice } from '../../lib/utils';
-import { orderStatusMap, mapEnum } from '../../utils/localization';
+import { orderStatusMap, paymentMethodMap, paymentStatusMap, mapEnum } from '../../utils/localization';
 import AdminOrderDetailPage from './AdminOrderDetailPage';
 import { FiArrowLeft, FiArrowRight, FiShoppingCart } from 'react-icons/fi';
 
 interface Order {
   id: string;
   status: string;
+  paymentMethod?: string;
+  paymentStatus?: string;
   total: number;
   createdAt: string;
   user: {
@@ -154,6 +156,7 @@ const OrdersList: React.FC = () => {
                 <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest text-start">{t('admin.ordersPage.orderId')}</th>
                 <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest text-start">{t('admin.ordersPage.customerVendor')}</th>
                 <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest text-start">{t('admin.ordersPage.status')}</th>
+                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest text-start">{t('admin.orderDetail.paymentMethod', 'Payment Method')}</th>
                 <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest text-start">{t('admin.ordersPage.amount')}</th>
                 <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest text-start">{t('admin.ordersPage.date')}</th>
               </tr>
@@ -194,6 +197,24 @@ const OrdersList: React.FC = () => {
                           <div className="w-3 h-3 border-2 border-primary-500 border-t-transparent rounded-full animate-spin"></div>
                         </div>
                       )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="text-xs font-black text-gray-900 uppercase">
+                      {i18n.language === 'ar'
+                        ? mapEnum(paymentMethodMap, order.paymentMethod || 'COD')
+                        : (order.paymentMethod || 'COD')}
+                    </div>
+                    <div className={`inline-flex mt-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                      order.paymentStatus === 'PAID'
+                        ? 'bg-green-100 text-green-800'
+                        : order.paymentStatus === 'FAILED'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {i18n.language === 'ar'
+                        ? mapEnum(paymentStatusMap, order.paymentStatus || 'PENDING')
+                        : (order.paymentStatus || 'PENDING')}
                     </div>
                   </td>
                   <td className="px-6 py-4 font-black text-sm">{formatPrice(order.total)}</td>

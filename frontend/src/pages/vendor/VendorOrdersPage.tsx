@@ -4,11 +4,13 @@ import api from '../../lib/api';
 import { formatPrice } from '../../lib/utils';
 import { getImageUrl } from '../../utils/image';
 import { useTranslation } from 'react-i18next';
-import { mapEnum, orderStatusMap } from '../../utils/localization';
+import { mapEnum, orderStatusMap, paymentMethodMap, paymentStatusMap } from '../../utils/localization';
 
 interface Order {
   id: string;
   status: string;
+  paymentMethod?: string;
+  paymentStatus?: string;
   total: number;
   createdAt: string;
   user: {
@@ -65,6 +67,17 @@ const VendorOrdersPage: React.FC = () => {
         return 'bg-red-100 text-red-800';
       default:
         return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getPaymentStatusColor = (status?: string) => {
+    switch (status) {
+      case 'PAID':
+        return 'bg-green-100 text-green-800';
+      case 'FAILED':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-yellow-100 text-yellow-800';
     }
   };
 
@@ -126,6 +139,18 @@ const VendorOrdersPage: React.FC = () => {
                           {order.items.length} {order.items.length === 1 ? t('account.item', 'item') : t('account.items', 'items')} •{' '}
                           {new Date(order.createdAt).toLocaleDateString(i18n.language === 'ar' ? 'ar-EG' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                         </p>
+                        <div className="flex flex-wrap items-center gap-2 mt-2">
+                          <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 text-[10px] font-bold uppercase">
+                            {i18n.language === 'ar'
+                              ? mapEnum(paymentMethodMap, order.paymentMethod || 'COD')
+                              : (order.paymentMethod || 'COD')}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${getPaymentStatusColor(order.paymentStatus)}`}>
+                            {i18n.language === 'ar'
+                              ? mapEnum(paymentStatusMap, order.paymentStatus || 'PENDING')
+                              : (order.paymentStatus || 'PENDING')}
+                          </span>
+                        </div>
                       </div>
                       <span
                         className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(
