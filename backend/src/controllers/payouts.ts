@@ -37,10 +37,20 @@ export const getVendorWallet = async (req: AuthRequest, res: Response) => {
     }
 
     const pendingEarnings = await calculatePendingEarnings(vendor.id, vendor.commissionRate);
+    const pendingPayouts = await prisma.payoutRequest.aggregate({
+      where: {
+        vendorId: vendor.id,
+        status: 'PENDING',
+      },
+      _sum: {
+        amount: true,
+      },
+    });
 
     res.json({
       balance: vendor.balance,
       withdrawnAmount: vendor.withdrawnAmount,
+      pendingPayoutAmount: Math.round((pendingPayouts._sum.amount || 0) * 100) / 100,
       pendingBalance: Math.round(pendingEarnings * 100) / 100,
       pendingEarnings: Math.round(pendingEarnings * 100) / 100,
     });

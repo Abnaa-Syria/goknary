@@ -4,12 +4,21 @@ import { AuthRequest } from '../middleware/auth';
 import { NotFoundError } from '../lib/errors';
 import { z } from 'zod';
 import { sendOrderStatusNotification } from '../services/whatsapp.service';
-import { settleOrderOnDelivery } from '../lib/vendor-earnings';
+import { isOrderFinanciallyConfirmed, settleOrderOnDelivery } from '../lib/vendor-earnings';
 
 const updateStatusSchema = z.object({
   status: z.enum(['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED']),
   notes: z.string().optional(),
 });
+
+const STATUS_FLOW: Record<string, string[]> = {
+  PENDING: ['CONFIRMED', 'CANCELLED'],
+  CONFIRMED: ['PROCESSING', 'CANCELLED'],
+  PROCESSING: ['SHIPPED', 'CANCELLED'],
+  SHIPPED: ['DELIVERED'],
+  DELIVERED: [],
+  CANCELLED: [],
+};
 
 export const getVendorOrders = async (req: AuthRequest, res: Response) => {
   try {
@@ -214,11 +223,41 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response) => {
       throw new NotFoundError('Order not found');
     }
 
+    if (!STATUS_FLOW[order.status]?.includes(status)) {
+      throw new z.ZodError([{
+        code: z.ZodIssueCode.custom,
+        path: ['status'],
+        message: `Invalid status transition from ${order.status} to ${status}`,
+      }]);
+    }
+
+    if (status !== 'CANCELLED' && !isOrderFinanciallyConfirmed(order)) {
+      throw new z.ZodError([{
+        code: z.ZodIssueCode.custom,
+        path: ['paymentStatus'],
+        message: 'Online payment must be paid before processing this order',
+      }]);
+    }
+
     // H-08 Fix: wrap status update + history in a single atomic transaction
     // If history creation fails, the status rollback is automatic
     const updated = await prisma.$transaction(async (tx) => {
       if (status === 'DELIVERED' && order.status !== 'DELIVERED') {
         await settleOrderOnDelivery(tx, order, vendor);
+      }
+
+      if (status === 'CANCELLED' && order.status !== 'CANCELLED') {
+        const orderItems = await tx.orderItem.findMany({
+          where: { orderId: id },
+          select: { productId: true, quantity: true },
+        });
+
+        for (const item of orderItems) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stock: { increment: item.quantity } },
+          });
+        }
       }
 
       const updatedOrder = await tx.order.update({

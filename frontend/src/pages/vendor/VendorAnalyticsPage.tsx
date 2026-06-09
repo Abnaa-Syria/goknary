@@ -7,7 +7,12 @@ import { mapEnum, orderStatusMap } from '../../utils/localization';
 interface Analytics {
   summary: {
     totalOrders: number;
+    deliveredOrders?: number;
     totalSales: number;
+    pendingOrders?: number;
+    pendingSales?: number;
+    pendingEarnings?: number;
+    deliveredEarnings?: number;
     period: string;
   };
   ordersByStatus: Array<{
@@ -73,18 +78,33 @@ const VendorAnalyticsPage: React.FC = () => {
         </div>
 
         <div className="card p-6">
-          <h3 className="text-gray-600 text-sm mb-2">{t('vendor.analyticsPage.totalSales', 'Total Sales')}</h3>
+          <h3 className="text-gray-600 text-sm mb-2">{t('vendor.analyticsPage.realizedSales', 'Realized Sales')}</h3>
           <p className="text-3xl font-bold">{formatPrice(analytics.summary.totalSales)}</p>
           <p className="text-xs text-gray-500 mt-2">{t('vendor.analyticsPage.lastN', { n: analytics.summary.period, defaultValue: 'Last {{n}}' })}</p>
         </div>
 
         <div className="card p-6">
-          <h3 className="text-gray-600 text-sm mb-2">{t('vendor.analyticsPage.avgOrderValue', 'Average Order Value')}</h3>
+          <h3 className="text-gray-600 text-sm mb-2">{t('vendor.analyticsPage.avgDeliveredOrderValue', 'Avg. Delivered Order')}</h3>
           <p className="text-3xl font-bold">
-            {analytics.summary.totalOrders > 0
-              ? formatPrice(analytics.summary.totalSales / analytics.summary.totalOrders)
+            {(analytics.summary.deliveredOrders || 0) > 0
+              ? formatPrice(analytics.summary.totalSales / (analytics.summary.deliveredOrders || 1))
               : formatPrice(0)}
           </p>
+          <p className="text-xs text-gray-500 mt-2">{t('vendor.analyticsPage.lastN', { n: analytics.summary.period, defaultValue: 'Last {{n}}' })}</p>
+        </div>
+        <div className="card p-6">
+          <h3 className="text-gray-600 text-sm mb-2">{t('vendor.pendingEarnings', 'Pending Earnings')}</h3>
+          <p className="text-3xl font-bold">{formatPrice(analytics.summary.pendingEarnings || 0)}</p>
+          <p className="text-xs text-gray-500 mt-2">{analytics.summary.pendingOrders || 0} {t('common.pending', 'Pending')}</p>
+        </div>
+        <div className="card p-6">
+          <h3 className="text-gray-600 text-sm mb-2">{t('vendor.pendingSales', 'Pending Sales')}</h3>
+          <p className="text-3xl font-bold">{formatPrice(analytics.summary.pendingSales || 0)}</p>
+          <p className="text-xs text-gray-500 mt-2">{t('vendor.analyticsPage.financiallyConfirmed', 'Financially confirmed in-flight orders')}</p>
+        </div>
+        <div className="card p-6">
+          <h3 className="text-gray-600 text-sm mb-2">{t('vendor.deliveredOrders', 'Delivered Orders')}</h3>
+          <p className="text-3xl font-bold">{analytics.summary.deliveredOrders || 0}</p>
           <p className="text-xs text-gray-500 mt-2">{t('vendor.analyticsPage.lastN', { n: analytics.summary.period, defaultValue: 'Last {{n}}' })}</p>
         </div>
       </div>

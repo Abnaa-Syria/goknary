@@ -127,10 +127,14 @@ export async function calculateDeliveredEarnings(
       status: 'DELIVERED',
       ...(since ? { createdAt: { gte: since } } : {}),
     },
-    select: { total: true },
+    select: {
+      total: true,
+      paymentMethod: true,
+      paymentStatus: true,
+    },
   });
 
-  return orders.reduce(
+  return orders.filter(isOrderFinanciallyConfirmed).reduce(
     (sum, order) => sum + calculateVendorNetEarnings(order.total, commissionRate).netEarnings,
     0
   );

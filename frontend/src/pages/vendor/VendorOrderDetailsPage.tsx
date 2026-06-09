@@ -155,6 +155,8 @@ const VendorOrderDetailsPage: React.FC = () => {
     }
   };
 
+  const isOnlinePaymentPending = (order.paymentMethod || 'COD') !== 'COD' && order.paymentStatus !== 'PAID';
+
   const getNextStatusOptions = (currentStatus: string): string[] => {
     switch (currentStatus) {
       case 'PENDING':
@@ -217,7 +219,13 @@ const VendorOrderDetailsPage: React.FC = () => {
               {mapEnum(orderStatusMap, order.status)}
             </span>
             
-            {getNextStatusOptions(order.status).length > 0 && (
+            {isOnlinePaymentPending && order.status !== 'CANCELLED' && (
+              <span className="px-3 py-1.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                {i18n.language === 'ar' ? 'بانتظار تأكيد الدفع الإلكتروني' : 'Awaiting online payment'}
+              </span>
+            )}
+
+            {!isOnlinePaymentPending && getNextStatusOptions(order.status).length > 0 && (
               <div className="flex items-center gap-2">
                 <select
                   disabled={updatingStatus}

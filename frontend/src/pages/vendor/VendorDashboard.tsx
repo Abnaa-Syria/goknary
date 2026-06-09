@@ -44,6 +44,9 @@ interface VendorStats {
   deliveredOrders?: number;
   totalSales: number;
   pendingOrders: number;
+  pendingSales?: number;
+  pendingEarnings?: number;
+  deliveredEarnings?: number;
 }
 
 interface SalesByDay {
@@ -257,6 +260,24 @@ const VendorDashboardHome: React.FC<{
           icon={Package}
           color="info"
         />
+        <StatCard
+          title={t('vendor.pendingEarnings', 'Pending Earnings')}
+          value={formatPrice(stats.pendingEarnings || 0)}
+          icon={Clock}
+          color="warning"
+        />
+        <StatCard
+          title={t('vendor.pendingSales', 'Pending Sales')}
+          value={formatPrice(stats.pendingSales || 0)}
+          icon={ShoppingBag}
+          color="warning"
+        />
+        <StatCard
+          title={t('vendor.deliveredOrders', 'Delivered Orders')}
+          value={realizedOrderCount}
+          icon={TrendingUp}
+          color="success"
+        />
       </div>
 
       {/* Charts */}
@@ -440,9 +461,7 @@ const VendorDashboard: React.FC = () => {
         orders: d.orders || 0,
       }));
 
-      // Count pending orders
       const allOrders: any[] = ordersRes.data?.orders || [];
-      const pendingOrders = allOrders.filter((o: any) => o.status === 'PENDING').length;
 
       if (vendorRes.data) {
         setVendorInfo({ storeName: vendorRes.data.storeName, status: vendorRes.data.status });
@@ -451,9 +470,13 @@ const VendorDashboard: React.FC = () => {
       setDashData({
         stats: {
           totalProducts: productsRes.data?.pagination?.total || 0,
-          totalOrders: ordersRes.data?.pagination?.total || 0,
+          totalOrders: summary.totalOrders || 0,
+          deliveredOrders: summary.deliveredOrders || 0,
           totalSales: summary.totalSales || 0,
-          pendingOrders,
+          pendingOrders: summary.pendingOrders || 0,
+          pendingSales: summary.pendingSales || 0,
+          pendingEarnings: summary.pendingEarnings || 0,
+          deliveredEarnings: summary.deliveredEarnings || 0,
         },
         revenueTrends,
         topProducts,

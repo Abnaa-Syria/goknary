@@ -5,6 +5,7 @@ import {
   calculateDeliveredEarnings,
   calculatePendingEarnings,
   countsTowardPendingEarnings,
+  isOrderFinanciallyConfirmed,
 } from '../lib/vendor-earnings';
 
 export const getVendorAnalytics = async (req: AuthRequest, res: Response) => {
@@ -32,7 +33,7 @@ export const getVendorAnalytics = async (req: AuthRequest, res: Response) => {
     startDate.setDate(startDate.getDate() - periodDays);
 
 
-    // Total orders
+    // Total orders in the selected period
     const totalOrders = await prisma.order.count({
       where: {
         vendorId: vendor.id,
@@ -40,28 +41,26 @@ export const getVendorAnalytics = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    // Delivered sales only — earnings are not counted before delivery
-    const [salesResult, deliveredOrders] = await Promise.all([
-      prisma.order.aggregate({
-        where: {
-          vendorId: vendor.id,
-          createdAt: { gte: startDate },
-          status: 'DELIVERED',
-        },
-        _sum: {
-          total: true,
-        },
-      }),
-      prisma.order.count({
-        where: {
-          vendorId: vendor.id,
-          createdAt: { gte: startDate },
-          status: 'DELIVERED',
-        },
-      }),
-    ]);
-
-    const totalSales = salesResult._sum.total || 0;
+    // Delivered + financially confirmed sales only.
+    const deliveredOrderRows = await prisma.order.findMany({
+      where: {
+        vendorId: vendor.id,
+        createdAt: { gte: startDate },
+        status: 'DELIVERED',
+      },
+      select: {
+        createdAt: true,
+        total: true,
+        paymentMethod: true,
+        paymentStatus: true,
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+    const realizedOrders = deliveredOrderRows.filter(isOrderFinanciallyConfirmed);
+    const deliveredOrders = realizedOrders.length;
+    const totalSales = realizedOrders.reduce((sum, order) => sum + order.total, 0);
 
     const inFlightOrders = await prisma.order.findMany({
       where: {
@@ -108,22 +107,6 @@ export const getVendorAnalytics = async (req: AuthRequest, res: Response) => {
       ([status, count]) => ({ status, count })
     );
 
-    // Sales by day (aggregate in JS instead of raw SQL for portability)
-    const ordersForSales = await prisma.order.findMany({
-      where: {
-        vendorId: vendor.id,
-        createdAt: { gte: startDate },
-        status: 'DELIVERED',
-      },
-      select: {
-        createdAt: true,
-        total: true,
-      },
-      orderBy: {
-        createdAt: 'asc',
-      },
-    });
-
     // 30-day time-series buckets (ensures no gaps in chart data)
     const salesByDay: { date: string; orders: number; sales: number }[] = [];
     for (let i = 0; i < periodDays; i++) {
@@ -133,7 +116,7 @@ export const getVendorAnalytics = async (req: AuthRequest, res: Response) => {
       salesByDay.push({ date: dateKey, orders: 0, sales: 0 });
     }
 
-    ordersForSales.forEach((order) => {
+    realizedOrders.forEach((order) => {
       const dateKey = order.createdAt.toISOString().slice(0, 10);
       const bucket = salesByDay.find((b) => b.date === dateKey);
       if (bucket) {

@@ -34,6 +34,7 @@ interface WalletInfo {
   balance: number;
   pendingBalance: number;
   withdrawnAmount: number;
+  pendingPayoutAmount?: number;
 }
 
 const VendorPayoutsPage: React.FC = () => {
@@ -231,7 +232,7 @@ const VendorPayoutsPage: React.FC = () => {
       </div>
 
       {/* Wallet Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {/* Available Balance */}
         <div className="relative overflow-hidden bg-gradient-to-br from-purple-600 to-indigo-700 text-white rounded-3xl p-6 shadow-xl shadow-purple-100">
           <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-white/10 rounded-full blur-xl pointer-events-none" />
@@ -281,6 +282,22 @@ const VendorPayoutsPage: React.FC = () => {
             <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">{t('vendor.payouts.totalWithdrawn', 'Total Withdrawn')}</p>
             <h2 className="text-3xl font-black mt-2 text-gray-900 tracking-tight">
               {formatPrice(wallet?.withdrawnAmount || 0)}
+            </h2>
+          </div>
+        </div>
+        <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
+          <div className="flex justify-between items-start mb-4">
+            <div className="p-3 bg-blue-50 rounded-2xl">
+              <Clock size={24} className="text-blue-600" />
+            </div>
+            <span className="text-[10px] font-black uppercase tracking-widest bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
+              {t('vendor.payouts.underReview', 'Under Review')}
+            </span>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">{t('vendor.payouts.pendingPayouts', 'Pending Payouts')}</p>
+            <h2 className="text-3xl font-black mt-2 text-gray-900 tracking-tight">
+              {formatPrice(wallet?.pendingPayoutAmount || 0)}
             </h2>
           </div>
         </div>
