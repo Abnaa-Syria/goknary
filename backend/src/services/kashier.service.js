@@ -28,20 +28,31 @@ class KashierService {
    * Calls Kashier V3 Session API to create a payment session.
    * Returns the sessionUrl for redirection.
    */
-async createPaymentSession(orderId, amount, customerEmail, currency = 'EGP') {
+  generateOrderHash(orderId, amount, currency = 'EGP', customerReference = '') {
+    const path = `/?payment=${this.merchantId}.${orderId}.${String(parseFloat(amount).toFixed(2))}.${currency}${customerReference ? `.${customerReference}` : ''}`;
+    return crypto.createHmac('sha256', this.apiKey).update(path).digest('hex');
+  }
+
+async createPaymentSession(orderReference, amount, customerEmail, currency = 'EGP', orderIds = []) {
     try {
-      // 1. تظبيط اللينك بشكل صحيح عشان لو الـ env مش موجود ياخد اللوكال هوست
       const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-      const redirectUrl = `${baseUrl}/payment-success?order_id=${orderId}`;
+      const redirectBase = process.env.KASHIER_REDIRECT_URL || `${baseUrl}/payment-success`;
+      const query = orderIds.length > 0
+        ? `order_ids=${encodeURIComponent(orderIds.join(','))}&method=kashier`
+        : `order_id=${encodeURIComponent(orderReference)}&method=kashier`;
+      const redirectUrl = `${redirectBase}${redirectBase.includes('?') ? '&' : '?'}${query}`;
       
       const expireAt = new Date();
       expireAt.setHours(expireAt.getHours() + 24);
 
+      const normalizedAmount = String(parseFloat(amount).toFixed(2));
+      this.generateOrderHash(orderReference, normalizedAmount, currency, orderReference);
+
       const payload = {
         merchantId: this.merchantId,
-        amount: String(parseFloat(amount).toFixed(2)),
+        amount: normalizedAmount,
         currency: currency,
-        order: String(orderId),
+        order: String(orderReference),
         expireAt: expireAt.toISOString(),
         maxFailureAttempts: 3,
         paymentType: "credit",
@@ -49,16 +60,16 @@ async createPaymentSession(orderId, amount, customerEmail, currency = 'EGP') {
         type: "one-time",
         customer: {
           email: customerEmail,
-          reference: String(orderId)
+          reference: String(orderReference)
         },
-        merchantRedirect: redirectUrl, // اللينك هيتبعت هنا سليم
+        merchantRedirect: redirectUrl,
         serverWebhook: process.env.KASHIER_WEBHOOK_URL,
         interactionSource: "ECOMMERCE",
         brandColor: "#004aad",
         defaultMethod: "card"
       };
 
-      console.log('🚀 Creating Kashier V3 Session for Order:', orderId);
+      console.log('🚀 Creating Kashier V3 Session for Order Reference:', orderReference);
       console.log('🚀 Kashier V3 Redirect URL:', redirectUrl);
 
       // شيلت الـ console.log(response) من هنا عشان كانت هتعمل Crash

@@ -406,7 +406,12 @@
       "availability": "التوافر",
       "inStock": "متوفر",
       "managementDetails": "تفاصيل الإدارة",
-      "discountPercent": "خصم {{percent}}%"
+      "discountPercent": "خصم {{percent}}%",
+      "hiddenSuccess": "تم إخفاء المنتج من المتجر",
+      "visibleSuccess": "تم إظهار المنتج في المتجر",
+      "pendingReviewSuccess": "تم إرسال المنتج للمراجعة قبل ظهوره في المتجر",
+      "statusUpdated": "تم تحديث حالة المنتج",
+      "statusUpdateFailed": "فشل تحديث حالة المنتج"
     },
     "ordersPage": {
       "loading": "جاري تحميل الطلبات...",
@@ -919,6 +924,33 @@
         "inventory": "المخزون/السعر",
         "state": "حالة دورة الحياة",
         "actions": "إجراءات الحوكمة"
+      }
+    },
+    "pendingProducts": {
+      "nav": "منتجات بانتظار المراجعة",
+      "title": "منتجات بانتظار المراجعة",
+      "subtitle": "مراجعة منتجات البائعين قبل نشرها في المتجر",
+      "search": "ابحث باسم المنتج أو SKU أو البائع...",
+      "fetchError": "فشل تحميل المنتجات بانتظار المراجعة",
+      "rejectConfirm": "هل أنت متأكد أنك تريد رفض هذا المنتج؟",
+      "deleteConfirm": "هل أنت متأكد أنك تريد حذف هذا المنتج نهائياً؟",
+      "approveSuccess": "تم اعتماد المنتج بنجاح",
+      "rejectSuccess": "تم رفض المنتج",
+      "deleteSuccess": "تم حذف المنتج بنجاح",
+      "statusError": "فشل تحديث حالة المنتج",
+      "deleteError": "فشل حذف المنتج",
+      "emptyTitle": "لا توجد منتجات للمراجعة",
+      "emptyDesc": "لا توجد حالياً منتجات من البائعين بانتظار المراجعة.",
+      "viewVendorProducts": "عرض منتجات البائع",
+      "approve": "اعتماد",
+      "reject": "رفض",
+      "pagination": "صفحة {{current}} من {{total}}",
+      "table": {
+        "product": "المنتج",
+        "vendor": "البائع",
+        "priceStock": "السعر / المخزون",
+        "status": "الحالة",
+        "actions": "الإجراءات"
       }
     },
     "categoriesPage": {

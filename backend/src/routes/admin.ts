@@ -6,6 +6,7 @@ import {
   updateUser, 
   createUser,
   forceResetPassword,
+  getPendingAdminProducts,
   updateProductStatus,
   deleteProduct,
   updateAdminOrderStatus,
@@ -42,6 +43,7 @@ router.patch('/users/:id', requirePermission('UPDATE_USERS'), updateUser);
 router.patch('/users/:id/password', requirePermission('UPDATE_USERS'), forceResetPassword);
 
 // Catalog Governance (General)
+router.get('/products/pending', requirePermission('READ_PRODUCTS'), getPendingAdminProducts);
 router.patch('/products/:id/status', requirePermission('UPDATE_PRODUCTS'), updateProductStatus);
 router.post('/products/platform', requirePermission('CREATE_PRODUCTS'), createPlatformProduct);
 router.delete('/products/:id', requirePermission('DELETE_PRODUCTS'), deleteProduct);

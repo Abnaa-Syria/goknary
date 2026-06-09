@@ -14,17 +14,18 @@ const PaymentButton = ({ orderData, onInitiate }) => {
     
     setLoading(true);
     try {
-      // 1. Create the order in your DB first to get orderId and customer info
-      // onInitiate should return: { orderId, amount, customerEmail }
+      // 1. Create the order(s) in your DB first to get order IDs and customer info
       const initData = await onInitiate();
       
-      if (!initData || !initData.orderId) {
+      const orderIds = initData?.orderIds || (initData?.orderId ? [initData.orderId] : []);
+      if (!initData || orderIds.length === 0) {
         throw new Error('Could not create order. Please try again.');
       }
 
       // 2. Call your backend to initiate the Kashier Session
       const response = await api.post('/payment/initiate', {
-        orderId: initData.orderId,
+        orderId: orderIds[0],
+        orderIds,
         amount: initData.amount,
         customerEmail: initData.customerEmail,
         currency: orderData.currency || 'EGP'

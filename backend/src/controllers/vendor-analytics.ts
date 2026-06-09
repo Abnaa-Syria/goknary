@@ -1,6 +1,11 @@
 import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
+import {
+  calculateDeliveredEarnings,
+  calculatePendingEarnings,
+  countsTowardPendingEarnings,
+} from '../lib/vendor-earnings';
 
 export const getVendorAnalytics = async (req: AuthRequest, res: Response) => {
   try {
@@ -35,12 +40,12 @@ export const getVendorAnalytics = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    // Total sales
+    // Delivered sales only — earnings are not counted before delivery
     const salesResult = await prisma.order.aggregate({
       where: {
         vendorId: vendor.id,
         createdAt: { gte: startDate },
-        status: { not: 'CANCELLED' },
+        status: 'DELIVERED',
       },
       _sum: {
         total: true,
@@ -48,6 +53,31 @@ export const getVendorAnalytics = async (req: AuthRequest, res: Response) => {
     });
 
     const totalSales = salesResult._sum.total || 0;
+
+    const inFlightOrders = await prisma.order.findMany({
+      where: {
+        vendorId: vendor.id,
+        createdAt: { gte: startDate },
+        status: { in: ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED'] },
+      },
+      select: {
+        total: true,
+        status: true,
+        paymentMethod: true,
+        paymentStatus: true,
+      },
+    });
+
+    const pendingOrders = inFlightOrders.filter(countsTowardPendingEarnings).length;
+    const pendingSales = inFlightOrders
+      .filter(countsTowardPendingEarnings)
+      .reduce((sum, order) => sum + order.total, 0);
+    const pendingEarnings = await calculatePendingEarnings(vendor.id, vendor.commissionRate);
+    const deliveredEarnings = await calculateDeliveredEarnings(
+      vendor.id,
+      vendor.commissionRate,
+      startDate
+    );
 
     // Orders by status (safe aggregate in Prisma)
     const ordersByStatusRaw = await prisma.order.findMany({
@@ -74,7 +104,7 @@ export const getVendorAnalytics = async (req: AuthRequest, res: Response) => {
       where: {
         vendorId: vendor.id,
         createdAt: { gte: startDate },
-        status: { not: 'CANCELLED' },
+        status: 'DELIVERED',
       },
       select: {
         createdAt: true,
@@ -112,7 +142,7 @@ export const getVendorAnalytics = async (req: AuthRequest, res: Response) => {
         order: {
           vendorId: vendor.id,
           createdAt: { gte: startDate },
-          status: { not: 'CANCELLED' },
+          status: 'DELIVERED',
         },
       },
       select: {
@@ -152,6 +182,10 @@ export const getVendorAnalytics = async (req: AuthRequest, res: Response) => {
       summary: {
         totalOrders,
         totalSales,
+        pendingOrders,
+        pendingSales: Math.round(pendingSales * 100) / 100,
+        pendingEarnings: Math.round(pendingEarnings * 100) / 100,
+        deliveredEarnings: Math.round(deliveredEarnings * 100) / 100,
         period: `${periodDays} days`,
       },
       ordersByStatus,

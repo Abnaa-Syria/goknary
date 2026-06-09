@@ -156,10 +156,11 @@ const CheckoutPage: React.FC = () => {
         },
       });
 
-      const orderId = response.data.orders[0]?.id;
+      const orderIds = (response.data.orders || []).map((order: any) => order.id).filter(Boolean);
       
       return {
-        orderId: orderId,
+        orderId: orderIds[0],
+        orderIds,
         amount: total,
         customerName: address.fullName,
         customerEmail: user?.email || 'customer@example.com'
@@ -208,8 +209,8 @@ const CheckoutPage: React.FC = () => {
       dispatch(clearCartState());
       localStorage.removeItem('cart_session_id');
 
-      const orderId = response.data.orders[0]?.id;
-      navigate(`/account/orders/${orderId}?success=true`);
+      const orderIds = (response.data.orders || []).map((order: any) => order.id).filter(Boolean);
+      navigate(`/payment-success?order_ids=${encodeURIComponent(orderIds.join(','))}&method=cod`);
     } catch (error: any) {
       console.error('Error placing order:', error);
       toast.error(error.response?.data?.error || error.response?.data?.message || 'Failed to place order.');

@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { z } from 'zod';
 import { ValidationError, NotFoundError } from '../lib/errors';
+import { calculateVendorNetEarnings } from '../lib/vendor-earnings';
 
 const createRefundSchema = z.object({
   orderItemId: z.string().min(1),
@@ -302,11 +303,8 @@ export const updateAdminRefundStatus = async (req: AuthRequest, res: Response) =
         });
 
         if (vendor) {
-          const rate = vendor.commissionRate ?? 10;
-          const commissionAmount = refund.amount * (rate / 100);
-          const netEarnings = refund.amount - commissionAmount;
+          const { netEarnings } = calculateVendorNetEarnings(refund.amount, vendor.commissionRate);
 
-          // Decrement vendor balance (ensure we don't go negative or just decrement)
           await tx.vendor.update({
             where: { id: refund.vendorId },
             data: {

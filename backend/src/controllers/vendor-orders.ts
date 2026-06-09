@@ -4,6 +4,7 @@ import { AuthRequest } from '../middleware/auth';
 import { NotFoundError } from '../lib/errors';
 import { z } from 'zod';
 import { sendOrderStatusNotification } from '../services/whatsapp.service';
+import { settleOrderOnDelivery } from '../lib/vendor-earnings';
 
 const updateStatusSchema = z.object({
   status: z.enum(['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED']),
@@ -216,29 +217,8 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response) => {
     // H-08 Fix: wrap status update + history in a single atomic transaction
     // If history creation fails, the status rollback is automatic
     const updated = await prisma.$transaction(async (tx) => {
-      // If updating to DELIVERED and it wasn't delivered yet, credit vendor balance
       if (status === 'DELIVERED' && order.status !== 'DELIVERED') {
-        const rate = vendor.commissionRate ?? 10;
-        const commissionAmount = order.total * (rate / 100);
-        const netEarnings = order.total - commissionAmount;
-
-        await tx.vendor.update({
-          where: { id: vendor.id },
-          data: {
-            balance: { increment: netEarnings },
-          },
-        });
-
-        await tx.commission.create({
-          data: {
-            vendorId: vendor.id,
-            orderId: order.id,
-            commissionRate: rate,
-            commissionAmount,
-            status: 'paid',
-            paidAt: new Date(),
-          },
-        });
+        await settleOrderOnDelivery(tx, order, vendor);
       }
 
       const updatedOrder = await tx.order.update({

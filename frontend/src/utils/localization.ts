@@ -56,7 +56,10 @@ export const discountTypeMap: Record<string, string> = {
 
 export const productStatusMap: Record<string, string> = {
   ACTIVE: 'نشط',
+  APPROVED: 'معتمد',
+  PENDING: 'قيد المراجعة',
   INACTIVE: 'غير نشط',
+  REJECTED: 'مرفوض',
   DRAFT: 'مسودة',
 };
 

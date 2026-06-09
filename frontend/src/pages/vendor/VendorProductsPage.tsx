@@ -25,7 +25,8 @@ import { EmptyState } from '../admin/DashboardComponents';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getImageUrl } from '../../utils/image';
 import { useTranslation } from 'react-i18next';
-import { mapEnum, productStatusMap } from '../../utils/localization';  
+import { mapEnum, productStatusMap } from '../../utils/localization';
+import { isProductVisibleOnStore } from '../../utils/product';
 
 interface Product {
   id: string;
@@ -105,12 +106,24 @@ const VendorProductsPage: React.FC = () => {
 
   const handleToggleStatus = async (product: Product) => {
     try {
-      const newStatus = product.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
-      await api.patch(`/vendor/products/${product.id}`, { status: newStatus });
-      toast.success(`Product is now ${newStatus.toLowerCase()}.`);
+      const isVisible = isProductVisibleOnStore(product.status);
+      const newStatus = isVisible ? 'INACTIVE' : 'ACTIVE';
+      const response = await api.patch(`/vendor/products/${product.id}`, { status: newStatus });
+      const updatedStatus = response.data?.status || newStatus;
+
+      if (updatedStatus === 'INACTIVE') {
+        toast.success(t('vendor.productsPage.hiddenSuccess', 'Product hidden from store'));
+      } else if (updatedStatus === 'PENDING') {
+        toast.success(t('vendor.productsPage.pendingReviewSuccess', 'Product submitted for review before appearing in the store'));
+      } else if (isProductVisibleOnStore(updatedStatus)) {
+        toast.success(t('vendor.productsPage.visibleSuccess', 'Product is now visible in the store'));
+      } else {
+        toast.success(t('vendor.productsPage.statusUpdated', 'Product status updated'));
+      }
+
       fetchProducts();
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to update product status');
+      toast.error(error.response?.data?.error || t('vendor.productsPage.statusUpdateFailed', 'Failed to update product status'));
     }
   };
 
@@ -309,7 +322,7 @@ const VendorProductsPage: React.FC = () => {
                          onClick={() => handleToggleStatus(product)}
                          className="p-3 bg-white text-gray-900 rounded-full hover:bg-purple-600 hover:text-white transition-all shadow-lg"
                       >
-                        {product.status === 'ACTIVE' ? <EyeOff size={20} /> : <Eye size={20} />}
+                        {isProductVisibleOnStore(product.status) ? <EyeOff size={20} /> : <Eye size={20} />}
                       </button>
                     </div>
                   </div>

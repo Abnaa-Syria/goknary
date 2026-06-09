@@ -25,6 +25,7 @@ import AdminSettingsPage from './AdminSettingsPage';
 import AdminReviewsPage from './AdminReviewsPage';
 import AdminProductsPage from './AdminProductsPage';
 import AdminVendorProductsPage from './AdminVendorProductsPage';
+import AdminPendingProductsPage from './AdminPendingProductsPage';
 import AdminCouponsPage from './AdminCouponsPage';
 import AdminOrderDetailPage from './AdminOrderDetailPage';
 import AdminShippingPage from './AdminShippingPage';
@@ -58,6 +59,7 @@ interface DashboardStats {
   pendingVendors: number;
   approvedVendors: number;
   totalProducts: number;
+  pendingProducts: number;
   activeProducts: number;
   totalOrders: number;
   totalSales: number;
@@ -697,6 +699,7 @@ const AdminDashboard: React.FC = () => {
     { path: '/admin/vendors',       name: t('admin.vendors',    'Vendors'),         icon: Briefcase,       permission: 'READ_VENDORS',  countKey: 'pendingVendors' },
     { path: '/admin/payouts',       name: t('admin.payouts',    'Payout Requests'), icon: DollarSign,      permission: 'READ_VENDORS'       },
     { path: '/admin/products',      name: t('admin.products',   'Products'),        icon: Package,         permission: 'READ_PRODUCTS'      },
+    { path: '/admin/pending-products', name: t('admin.pendingProducts.nav', 'Pending Products'), icon: Package, permission: 'READ_PRODUCTS', countKey: 'pendingProducts' },
     { path: '/admin/categories',    name: t('admin.categories', 'Categories'),      icon: Tag,             permission: 'READ_CATEGORIES'    },
     { path: '/admin/brands',        name: t('admin.brands',     'Brands'),          icon: ShoppingBag,     permission: 'READ_BRANDS'        },
     { path: '/admin/banners',       name: t('admin.banners',    'Banners'),         icon: ImageIcon,       permission: 'READ_BANNERS'       },
@@ -838,6 +841,7 @@ const AdminDashboard: React.FC = () => {
             <Route path="vendors/:vendorId/products" element={<Guard perm="READ_VENDORS"><AdminVendorProductsPage /></Guard>} />
             <Route path="payouts" element={<Guard perm="READ_VENDORS"><AdminPayoutsPage /></Guard>} />
             <Route path="products" element={<Guard perm="READ_PRODUCTS"><AdminProductsPage /></Guard>} />
+            <Route path="pending-products" element={<Guard perm="READ_PRODUCTS"><AdminPendingProductsPage /></Guard>} />
             <Route path="categories" element={<Guard perm="READ_CATEGORIES"><AdminCategoriesPage /></Guard>} />
             <Route path="brands" element={<Guard perm="READ_BRANDS"><AdminBrandsPage /></Guard>} />
             <Route path="banners" element={<Guard perm="READ_BANNERS"><AdminBannersPage /></Guard>} />

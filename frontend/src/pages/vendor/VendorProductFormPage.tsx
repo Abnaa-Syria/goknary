@@ -7,6 +7,7 @@ import { uploadImages } from '../../utils/upload';
 import { getImageUrl } from '../../utils/image';
 import { formatPrice } from '../../lib/utils';
 import { mapEnum, productStatusMap } from '../../utils/localization';
+import { isProductVisibleOnStore, normalizeVendorProductStatusForForm } from '../../utils/product';
 
 interface Category {
   id: string;
@@ -151,7 +152,7 @@ const VendorProductFormPage: React.FC = () => {
         stock: product.stock?.toString() || '',
         images: images,
         featured: product.featured || false,
-        status: product.status || 'DRAFT',
+        status: normalizeVendorProductStatusForForm(product.status || 'DRAFT'),
         hasVariants: product.hasVariants || false,
       });
       setIsSlugManuallyEdited(true);
@@ -557,7 +558,7 @@ const VendorProductFormPage: React.FC = () => {
               <option value="INACTIVE">{t('vendor.productForm.inactiveStatusDesc', 'Inactive (Hidden from website)')}</option>
             </select>
             <p className="text-xs text-gray-500 mt-1">
-              {formData.status === 'ACTIVE'
+              {isProductVisibleOnStore(formData.status)
                 ? t('vendor.productForm.statusNoteActive', '✓ Product will appear on website immediately')
                 : t('vendor.productForm.statusNoteHidden', '⚠ Product will be hidden from website')}
             </p>

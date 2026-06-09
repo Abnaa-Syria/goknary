@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { z } from 'zod';
 import { ValidationError } from '../lib/errors';
+import { calculatePendingEarnings } from '../lib/vendor-earnings';
 
 const createPayoutSchema = z.object({
   amount: z.number().positive(),
@@ -23,9 +24,11 @@ export const getVendorWallet = async (req: AuthRequest, res: Response) => {
     const vendor = await prisma.vendor.findUnique({
       where: { userId: req.user.id },
       select: {
+        id: true,
         balance: true,
         pendingBalance: true,
         withdrawnAmount: true,
+        commissionRate: true,
       },
     });
 
@@ -33,7 +36,14 @@ export const getVendorWallet = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Vendor profile not found' });
     }
 
-    res.json(vendor);
+    const pendingEarnings = await calculatePendingEarnings(vendor.id, vendor.commissionRate);
+
+    res.json({
+      balance: vendor.balance,
+      withdrawnAmount: vendor.withdrawnAmount,
+      pendingBalance: Math.round(pendingEarnings * 100) / 100,
+      pendingEarnings: Math.round(pendingEarnings * 100) / 100,
+    });
   } catch (error) {
     console.error('Error fetching wallet:', error);
     res.status(500).json({ error: 'Failed to fetch wallet info' });

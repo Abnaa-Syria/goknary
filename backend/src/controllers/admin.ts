@@ -6,6 +6,7 @@ import { NotFoundError } from '../lib/errors';
 import { ProductStatus, OrderStatus, UserRole, VendorStatus } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth';
 import { slugify } from '../lib/utils';
+import { settleOrderOnDelivery } from '../lib/vendor-earnings';
 
 /**
  * Fetch all orders across the ecosystem (Admin Paginated View)
@@ -320,6 +321,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
       pendingVendors,
       approvedVendors,
       totalProducts,
+      pendingProducts,
       activeProducts,
       totalOrders,
       salesResult,
@@ -333,6 +335,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
       prisma.vendor.count({ where: { status: 'PENDING' } }),
       prisma.vendor.count({ where: { status: 'APPROVED' } }),
       prisma.product.count(),
+      prisma.product.count({ where: { status: 'PENDING' } }),
       prisma.product.count({ where: { status: 'ACTIVE' } }),
       prisma.order.count(),
       prisma.order.aggregate({
@@ -426,6 +429,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
         pendingVendors,
         approvedVendors,
         totalProducts,
+        pendingProducts,
         activeProducts,
         totalOrders,
         totalSales: Math.round(totalSales),
@@ -578,6 +582,71 @@ export const getAdminVendorProducts = async (req: Request, res: Response) => {
 };
 
 /**
+ * Fetch all vendor products waiting for administrative review.
+ */
+export const getPendingAdminProducts = async (req: Request, res: Response) => {
+  try {
+    const { page = '1', limit = '20', q } = req.query;
+    const pageNum = parseInt(page as string, 10);
+    const limitNum = parseInt(limit as string, 10);
+    const skip = (pageNum - 1) * limitNum;
+
+    const where: any = { status: ProductStatus.PENDING };
+    if (q && (q as string).trim()) {
+      const search = (q as string).trim();
+      where.OR = [
+        { name: { contains: search } },
+        { sku: { contains: search } },
+        { vendor: { storeName: { contains: search } } },
+      ];
+    }
+
+    const [products, total] = await Promise.all([
+      prisma.product.findMany({
+        where,
+        include: {
+          vendor: {
+            select: {
+              id: true,
+              storeName: true,
+              slug: true,
+              user: {
+                select: {
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+          },
+          category: { select: { name: true } },
+          brand: { select: { name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limitNum,
+      }),
+      prisma.product.count({ where }),
+    ]);
+
+    res.json({
+      products,
+      pagination: {
+        totalCount: total,
+        currentPage: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum),
+      },
+    });
+  } catch (error: any) {
+    console.error('Error fetching pending admin products:', error);
+    res.status(500).json({
+      error: 'Failed to synchronize pending product review queue',
+      details: error.message,
+    });
+  }
+};
+
+/**
  * Update product listing status (Governance Approval/Rejection)
  */
 export const updateProductStatus = async (req: Request, res: Response) => {
@@ -695,27 +764,7 @@ export const updateAdminOrderStatus = async (req: any, res: Response) => {
           where: { id: order.vendorId },
         });
         if (vendor) {
-          const rate = vendor.commissionRate ?? 10;
-          const commissionAmount = order.total * (rate / 100);
-          const netEarnings = order.total - commissionAmount;
-
-          await tx.vendor.update({
-            where: { id: vendor.id },
-            data: {
-              balance: { increment: netEarnings },
-            },
-          });
-
-          await tx.commission.create({
-            data: {
-              vendorId: vendor.id,
-              orderId: order.id,
-              commissionRate: rate,
-              commissionAmount,
-              status: 'paid',
-              paidAt: new Date(),
-            },
-          });
+          await settleOrderOnDelivery(tx, order, vendor);
         }
       }
 

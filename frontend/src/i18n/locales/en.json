@@ -405,7 +405,12 @@
       "availability": "Availability",
       "inStock": "in stock",
       "managementDetails": "Management Details",
-      "discountPercent": "{{percent}}% OFF"
+      "discountPercent": "{{percent}}% OFF",
+      "hiddenSuccess": "Product hidden from store",
+      "visibleSuccess": "Product is now visible in the store",
+      "pendingReviewSuccess": "Product submitted for review before appearing in the store",
+      "statusUpdated": "Product status updated",
+      "statusUpdateFailed": "Failed to update product status"
     },
     "ordersPage": {
       "loading": "Loading orders...",
@@ -921,6 +926,33 @@
         "inventory": "Inventory/Price",
         "state": "Lifecycle State",
         "actions": "Governance Actions"
+      }
+    },
+    "pendingProducts": {
+      "nav": "Pending Products",
+      "title": "Pending Products",
+      "subtitle": "Review vendor products before publishing",
+      "search": "Search product, SKU or vendor...",
+      "fetchError": "Failed to load pending products",
+      "rejectConfirm": "Are you sure you want to reject this product?",
+      "deleteConfirm": "Are you sure you want to permanently delete this product?",
+      "approveSuccess": "Product approved successfully",
+      "rejectSuccess": "Product rejected",
+      "deleteSuccess": "Product deleted successfully",
+      "statusError": "Failed to update product status",
+      "deleteError": "Failed to delete product",
+      "emptyTitle": "All Caught Up",
+      "emptyDesc": "There are no vendor products waiting for review.",
+      "viewVendorProducts": "View vendor products",
+      "approve": "Approve",
+      "reject": "Reject",
+      "pagination": "Page {{current}} of {{total}}",
+      "table": {
+        "product": "Product",
+        "vendor": "Vendor",
+        "priceStock": "Price / Stock",
+        "status": "Status",
+        "actions": "Actions"
       }
     },
     "categoriesPage": {
