@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { Routes, Route, Link, Navigate, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { getCurrentUser, logout } from '../store/slices/authSlice';
 import ProfilePage from './account/ProfilePage';
@@ -11,6 +12,7 @@ import TicketsPage from './account/TicketsPage';
 import TicketDetailsPage from './account/TicketDetailsPage';
 
 const AccountPage: React.FC = () => {
+  const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const { user, isAuthenticated, loading } = useAppSelector((state) => state.auth);
@@ -31,14 +33,14 @@ const AccountPage: React.FC = () => {
   if (loading || !isAuthenticated) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="text-center">Loading...</div>
+        <div className="text-center">{t('common.loading')}</div>
       </div>
     );
   }
 
   return (
     <div className="container mx-auto px-4 py-8 print:p-0 print:m-0 print:max-w-none print:w-full">
-      <h1 className="text-3xl font-bold mb-8 print:hidden">My Account</h1>
+      <h1 className="text-3xl font-bold mb-8 print:hidden">{t('account.myAccount')}</h1>
 
       <div className="flex flex-col md:flex-row gap-8 print:gap-0">
         <aside className="w-full md:w-64 print:hidden">
@@ -61,7 +63,7 @@ const AccountPage: React.FC = () => {
                   to="/account"
                   className="block px-4 py-2 hover:bg-gray-100 rounded-lg transition-colors"
                 >
-                  Profile
+                  {t('account.profile')}
                 </Link>
               </li>
               <li>
@@ -69,7 +71,7 @@ const AccountPage: React.FC = () => {
                   to="/account/addresses"
                   className="block px-4 py-2 hover:bg-gray-100 rounded-lg transition-colors"
                 >
-                  Addresses
+                  {t('account.addresses')}
                 </Link>
               </li>
               <li>
@@ -77,7 +79,7 @@ const AccountPage: React.FC = () => {
                   to="/account/orders"
                   className="block px-4 py-2 hover:bg-gray-100 rounded-lg transition-colors"
                 >
-                  Orders
+                  {t('account.orders')}
                 </Link>
               </li>
               <li>
@@ -85,7 +87,7 @@ const AccountPage: React.FC = () => {
                   to="/account/refunds"
                   className="block px-4 py-2 hover:bg-gray-100 rounded-lg transition-colors"
                 >
-                  Returns &amp; Refunds
+                  {t('account.returnsRefunds')}
                 </Link>
               </li>
               <li>
@@ -93,7 +95,7 @@ const AccountPage: React.FC = () => {
                   to="/account/tickets"
                   className="block px-4 py-2 hover:bg-gray-100 rounded-lg transition-colors"
                 >
-                  Support Tickets
+                  {t('account.supportTickets')}
                 </Link>
               </li>
               {user?.role === 'VENDOR' && (
@@ -102,7 +104,7 @@ const AccountPage: React.FC = () => {
                     to="/vendor"
                     className="block px-4 py-2 hover:bg-gray-100 rounded-lg transition-colors"
                   >
-                    Vendor Dashboard
+                    {t('nav.vendorDashboard')}
                   </Link>
                 </li>
               )}
@@ -112,16 +114,16 @@ const AccountPage: React.FC = () => {
                     to="/admin"
                     className="block px-4 py-2 hover:bg-gray-100 rounded-lg transition-colors"
                   >
-                    Admin Dashboard
+                    {t('nav.adminDashboard')}
                   </Link>
                 </li>
               )}
               <li className="border-t pt-2 mt-2">
                 <button
                   onClick={handleLogout}
-                  className="block w-full text-left px-4 py-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                  className="block w-full text-start px-4 py-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                 >
-                  Logout
+                  {t('common.logout')}
                 </button>
               </li>
             </ul>

@@ -95,6 +95,75 @@ export const governorateMap: Record<string, string> = {
   SOHAG: 'سوهاج',
 };
 
+/** English governorate names as stored in shipping rates / addresses → Arabic labels */
+export const governorateNameMap: Record<string, string> = {
+  Cairo: 'القاهرة',
+  Alexandria: 'الإسكندرية',
+  Giza: 'الجيزة',
+  Qalyubia: 'القليوبية',
+  'Port Said': 'بور سعيد',
+  Suez: 'السويس',
+  Gharbia: 'الغربية',
+  Dakahlia: 'الدقهلية',
+  Ismaïlia: 'الإسماعيلية',
+  Ismailia: 'الإسماعيلية',
+  Asyut: 'أسيوط',
+  Assiut: 'أسيوط',
+  Fayoum: 'الفيوم',
+  Sharqia: 'الشرقية',
+  Aswan: 'أسوان',
+  Beheira: 'البحيرة',
+  Minya: 'المنيا',
+  Damietta: 'دمياط',
+  Luxor: 'الأقصر',
+  Qena: 'قنا',
+  'Beni Suef': 'بني سويف',
+  Sohag: 'سوهاج',
+  Monufia: 'المنوفية',
+  Menofia: 'المنوفية',
+  'Red Sea': 'البحر الأحمر',
+  'Wadi El-Jadid': 'الوادي الجديد',
+  'New Valley': 'الوادي الجديد',
+  Matrouh: 'مطروح',
+  Matruh: 'مطروح',
+  'North Sinai': 'شمال سيناء',
+  'South Sinai': 'جنوب سيناء',
+  'Kafr el-Sheikh': 'كفر الشيخ',
+  'Other Governorates': 'محافظات أخرى',
+};
+
+const normalizeGovernorateKey = (value: string): string =>
+  value
+    .trim()
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\s-]+/g, '_');
+
+export const getGovernorateLabel = (
+  value: string | undefined | null,
+  lang: string = 'ar'
+): string => {
+  if (!value) return '';
+
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+
+  if (!lang.startsWith('ar')) return trimmed;
+
+  if (governorateNameMap[trimmed]) return governorateNameMap[trimmed];
+
+  const matchedKey = Object.keys(governorateNameMap).find(
+    (key) => key.toLowerCase() === trimmed.toLowerCase()
+  );
+  if (matchedKey) return governorateNameMap[matchedKey];
+
+  const snakeKey = normalizeGovernorateKey(trimmed);
+  if (governorateMap[snakeKey]) return governorateMap[snakeKey];
+
+  return trimmed;
+};
+
 // ─── Payment Methods ────────────────────────────────────────────────────────
 
 export const paymentMethodMap: Record<string, string> = {

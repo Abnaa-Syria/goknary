@@ -6,7 +6,7 @@ import { NotFoundError } from '../lib/errors';
 import { ProductStatus, OrderStatus, UserRole, VendorStatus } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth';
 import { slugify } from '../lib/utils';
-import { settleOrderOnDelivery } from '../lib/vendor-earnings';
+import { isCodOrder, isOrderFinanciallyConfirmed, settleOrderOnDelivery } from '../lib/vendor-earnings';
 
 /**
  * Fetch all orders across the ecosystem (Admin Paginated View)
@@ -760,6 +760,13 @@ export const updateAdminOrderStatus = async (req: any, res: Response) => {
       throw new NotFoundError('Order not found');
     }
 
+    if (status !== 'CANCELLED' && !isOrderFinanciallyConfirmed(order)) {
+      return res.status(400).json({
+        error: 'Online payment must be paid before processing this order',
+        errorAr: 'يجب تأكيد الدفع الإلكتروني قبل معالجة هذا الطلب',
+      });
+    }
+
     // Update order status and create history entry in a transaction
     const updatedOrder = await prisma.$transaction(async (tx) => {
       if (status === 'DELIVERED' && order.status !== 'DELIVERED') {
@@ -773,7 +780,12 @@ export const updateAdminOrderStatus = async (req: any, res: Response) => {
 
       const updated = await tx.order.update({
         where: { id },
-        data: { status: status as OrderStatus },
+        data: {
+          status: status as OrderStatus,
+          ...(status === 'DELIVERED' && isCodOrder(order.paymentMethod)
+            ? { paymentStatus: 'PAID' }
+            : {}),
+        },
         include: {
           user: { select: { name: true, email: true } },
           vendor: { select: { storeName: true } },

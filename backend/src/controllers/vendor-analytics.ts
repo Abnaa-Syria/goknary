@@ -5,6 +5,7 @@ import {
   calculateDeliveredEarnings,
   calculatePendingEarnings,
   countsTowardPendingEarnings,
+  getVendorEarningsBase,
   isOrderFinanciallyConfirmed,
 } from '../lib/vendor-earnings';
 
@@ -51,6 +52,7 @@ export const getVendorAnalytics = async (req: AuthRequest, res: Response) => {
       select: {
         createdAt: true,
         total: true,
+        shippingCost: true,
         paymentMethod: true,
         paymentStatus: true,
       },
@@ -60,7 +62,7 @@ export const getVendorAnalytics = async (req: AuthRequest, res: Response) => {
     });
     const realizedOrders = deliveredOrderRows.filter(isOrderFinanciallyConfirmed);
     const deliveredOrders = realizedOrders.length;
-    const totalSales = realizedOrders.reduce((sum, order) => sum + order.total, 0);
+    const totalSales = realizedOrders.reduce((sum, order) => sum + getVendorEarningsBase(order), 0);
 
     const inFlightOrders = await prisma.order.findMany({
       where: {
@@ -70,6 +72,7 @@ export const getVendorAnalytics = async (req: AuthRequest, res: Response) => {
       },
       select: {
         total: true,
+        shippingCost: true,
         status: true,
         paymentMethod: true,
         paymentStatus: true,
@@ -79,7 +82,7 @@ export const getVendorAnalytics = async (req: AuthRequest, res: Response) => {
     const pendingOrders = inFlightOrders.filter(countsTowardPendingEarnings).length;
     const pendingSales = inFlightOrders
       .filter(countsTowardPendingEarnings)
-      .reduce((sum, order) => sum + order.total, 0);
+      .reduce((sum, order) => sum + getVendorEarningsBase(order), 0);
     const pendingEarnings = await calculatePendingEarnings(vendor.id, vendor.commissionRate);
     const deliveredEarnings = await calculateDeliveredEarnings(
       vendor.id,
@@ -121,7 +124,7 @@ export const getVendorAnalytics = async (req: AuthRequest, res: Response) => {
       const bucket = salesByDay.find((b) => b.date === dateKey);
       if (bucket) {
         bucket.orders += 1;
-        bucket.sales += order.total;
+        bucket.sales += getVendorEarningsBase(order);
       }
     });
 

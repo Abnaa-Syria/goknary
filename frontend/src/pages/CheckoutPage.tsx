@@ -8,6 +8,7 @@ import api from '../lib/api';
 import toast from 'react-hot-toast';
 import { Plus, Truck } from 'lucide-react';
 import { getImageUrl } from '../utils/image';
+import { getGovernorateLabel } from '../utils/localization';
 // @ts-ignore
 import PaymentButton from '../components/PaymentButton';
 
@@ -390,7 +391,9 @@ const CheckoutPage: React.FC = () => {
                       >
                         <option value="">{t('checkout.selectState')}</option>
                         {shippingRates.map(rate => (
-                          <option key={rate.id} value={rate.governorate}>{rate.governorate}</option>
+                          <option key={rate.id} value={rate.governorate}>
+                            {getGovernorateLabel(rate.governorate, i18n.language)}
+                          </option>
                         ))}
                       </select>
                     </div>
@@ -467,7 +470,7 @@ const CheckoutPage: React.FC = () => {
                     <p className="text-sm">{address.phone}</p>
                     <p className="text-sm">{address.addressLine1}</p>
                     {address.addressLine2 && <p className="text-sm italic">{address.addressLine2}</p>}
-                    <p className="text-sm">{address.city}, {address.state} {address.postalCode}</p>
+                    <p className="text-sm">{address.city}, {getGovernorateLabel(address.state, i18n.language)} {address.postalCode}</p>
                   </div>
                 </div>
 
@@ -620,7 +623,7 @@ const CheckoutPage: React.FC = () => {
                 <div className="flex justify-between items-center px-1">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-bold text-gray-400">{t('checkout.logisticsCost')}</span>
-                    {selectedRate && <span className="text-[9px] px-2 py-0.5 bg-gray-100 text-gray-500 rounded-lg font-black uppercase tracking-tighter">{selectedRate.governorate}</span>}
+                    {selectedRate && <span className="text-[9px] px-2 py-0.5 bg-gray-100 text-gray-500 rounded-lg font-black uppercase tracking-tighter">{getGovernorateLabel(selectedRate.governorate, i18n.language)}</span>}
                   </div>
                   <span className="text-sm font-black text-gray-900 lowercase italic">
                     {shippingCost === 0 ? <span className="text-green-600 uppercase font-black not-italic tracking-wider">{t('checkout.free')}</span> : formatPrice(shippingCost)}

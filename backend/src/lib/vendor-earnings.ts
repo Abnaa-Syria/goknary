@@ -4,14 +4,22 @@ import { prisma } from './prisma';
 export const IN_FLIGHT_ORDER_STATUSES = ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED'] as const;
 
 export function calculateVendorNetEarnings(
-  orderTotal: number,
+  productRevenue: number,
   commissionRate?: number | null
 ) {
   const rate = commissionRate ?? 10;
-  const commissionAmount = Math.round(orderTotal * (rate / 100) * 100) / 100;
-  const netEarnings = Math.round((orderTotal - commissionAmount) * 100) / 100;
+  const safeProductRevenue = Math.max(0, Number(productRevenue) || 0);
+  const commissionAmount = Math.round(safeProductRevenue * (rate / 100) * 100) / 100;
+  const netEarnings = Math.round((safeProductRevenue - commissionAmount) * 100) / 100;
 
   return { commissionRate: rate, commissionAmount, netEarnings };
+}
+
+export function getVendorEarningsBase(order: {
+  total: number;
+  shippingCost?: number | null;
+}): number {
+  return Math.round(Math.max(0, order.total - (order.shippingCost || 0)) * 100) / 100;
 }
 
 export function isCodOrder(paymentMethod?: string | null): boolean {
@@ -54,6 +62,7 @@ export async function settleOrderOnDelivery(
     id: string;
     vendorId: string;
     total: number;
+    shippingCost?: number | null;
     paymentMethod?: string | null;
     paymentStatus?: string | null;
   },
@@ -69,7 +78,7 @@ export async function settleOrderOnDelivery(
   if (existing) return false;
 
   const { commissionRate, commissionAmount, netEarnings } = calculateVendorNetEarnings(
-    order.total,
+    getVendorEarningsBase(order),
     vendor.commissionRate
   );
 
@@ -105,6 +114,7 @@ export async function calculatePendingEarnings(
     },
     select: {
       total: true,
+      shippingCost: true,
       status: true,
       paymentMethod: true,
       paymentStatus: true,
@@ -113,7 +123,7 @@ export async function calculatePendingEarnings(
 
   return orders
     .filter(countsTowardPendingEarnings)
-    .reduce((sum, order) => sum + calculateVendorNetEarnings(order.total, commissionRate).netEarnings, 0);
+    .reduce((sum, order) => sum + calculateVendorNetEarnings(getVendorEarningsBase(order), commissionRate).netEarnings, 0);
 }
 
 export async function calculateDeliveredEarnings(
@@ -129,13 +139,14 @@ export async function calculateDeliveredEarnings(
     },
     select: {
       total: true,
+      shippingCost: true,
       paymentMethod: true,
       paymentStatus: true,
     },
   });
 
   return orders.filter(isOrderFinanciallyConfirmed).reduce(
-    (sum, order) => sum + calculateVendorNetEarnings(order.total, commissionRate).netEarnings,
+    (sum, order) => sum + calculateVendorNetEarnings(getVendorEarningsBase(order), commissionRate).netEarnings,
     0
   );
 }

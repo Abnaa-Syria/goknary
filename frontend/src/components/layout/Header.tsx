@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { FiSearch, FiUser, FiShoppingCart, FiMenu, FiTruck, FiHeart } from 'react-icons/fi';
+import { FiSearch, FiUser, FiShoppingCart, FiMenu, FiTruck, FiHeart, FiX } from 'react-icons/fi';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { getCurrentUser } from '../../store/slices/authSlice';
@@ -54,10 +54,12 @@ const Header: React.FC = () => {
   const [showMegaMenu, setShowMegaMenu] = useState(false);
   const [showMobileDrawer, setShowMobileDrawer] = useState(false);
   const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
 
   const { loading: categoriesLoading } = useAppSelector((state) => state.categories);
   const hasFetchedCategories = useRef(false);
   const hasFetchedUser = useRef(false);
+  const mobileSearchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isAuthenticated && !user && !hasFetchedUser.current) {
@@ -87,13 +89,13 @@ const Header: React.FC = () => {
     if (searchQuery.trim()) {
       navigate(`/search?q=${encodeURIComponent(searchQuery)}`);
       setShowSearchSuggestions(false);
+      setShowMobileSearch(false);
     }
   };
 
-  const handleSearchClick = () => {
-    if (searchQuery.trim()) {
-      navigate(`/search?q=${encodeURIComponent(searchQuery)}`);
-    }
+  const openMobileSearch = () => {
+    setShowMobileSearch(true);
+    window.setTimeout(() => mobileSearchInputRef.current?.focus(), 0);
   };
 
   // Static search suggestions (UI only - can be enhanced later with real autocomplete)
@@ -216,9 +218,10 @@ const Header: React.FC = () => {
 
               {/* Search Icon - Mobile */}
               <button
-                onClick={() => navigate('/search')}
+                onClick={openMobileSearch}
                 className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                aria-label="Search"
+                aria-label={t('common.search', 'Search')}
+                aria-expanded={showMobileSearch}
               >
                 <FiSearch className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
@@ -353,6 +356,41 @@ const Header: React.FC = () => {
               </button>
             </div>
           </div>
+
+          {/* Mobile Search Bar */}
+          {showMobileSearch && (
+            <form onSubmit={handleSearch} className="lg:hidden pb-3 animate-in fade-in slide-in-from-top-1 duration-150">
+              <div className="relative">
+                <input
+                  ref={mobileSearchInputRef}
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={t('common.searchPlaceholder')}
+                  className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 pe-24 text-sm font-medium outline-none focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-100"
+                />
+                <button
+                  type="submit"
+                  disabled={!searchQuery.trim()}
+                  className="absolute end-11 top-1/2 -translate-y-1/2 p-2 text-primary-600 disabled:text-gray-300"
+                  aria-label={t('common.search', 'Search')}
+                >
+                  <FiSearch className="w-5 h-5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMobileSearch(false);
+                    setSearchQuery('');
+                  }}
+                  className="absolute end-2 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-gray-700"
+                  aria-label={t('common.close', 'Close')}
+                >
+                  <FiX className="w-5 h-5" />
+                </button>
+              </div>
+            </form>
+          )}
         </div>
 
         {/* Mega Menu - Inside header for seamless connection */}

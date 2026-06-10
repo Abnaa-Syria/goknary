@@ -82,15 +82,23 @@ const AdminOrderDetailPage: React.FC = () => {
       await api.patch(`/admin/orders/${id}/status`, { status: newStatus });
       // Refresh order data to get updated history
       await fetchOrderDetails();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update order status:', error);
-      alert('Failed to update status');
+      alert(error.response?.data?.errorAr || error.response?.data?.error || 'Failed to update status');
     } finally {
       setUpdatingStatus(false);
     }
   };
 
   const statuses = ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'];
+
+  const isOnlinePaymentPending = (order: OrderDetails) =>
+    (order.paymentMethod || 'COD') !== 'COD' && order.paymentStatus !== 'PAID';
+
+  const getAvailableStatuses = (order: OrderDetails) =>
+    isOnlinePaymentPending(order)
+      ? statuses.filter((status) => status === order.status || status === 'CANCELLED')
+      : statuses;
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -143,7 +151,7 @@ const AdminOrderDetailPage: React.FC = () => {
             onChange={(e) => handleUpdateStatus(e.target.value)}
             className={`px-4 py-2 rounded-full text-sm font-medium border-none outline-none cursor-pointer appearance-none ${getStatusColor(order.status)} ${updatingStatus ? 'opacity-50' : ''}`}
           >
-            {statuses.map(s => (
+            {getAvailableStatuses(order).map(s => (
               <option key={s} value={s} className="bg-white text-gray-900 font-bold">
                 {mapEnum(orderStatusMap, s)}
               </option>

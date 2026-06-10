@@ -4,7 +4,7 @@ import { AuthRequest } from '../middleware/auth';
 import { NotFoundError } from '../lib/errors';
 import { z } from 'zod';
 import { sendOrderStatusNotification } from '../services/whatsapp.service';
-import { isOrderFinanciallyConfirmed, settleOrderOnDelivery } from '../lib/vendor-earnings';
+import { isCodOrder, isOrderFinanciallyConfirmed, settleOrderOnDelivery } from '../lib/vendor-earnings';
 
 const updateStatusSchema = z.object({
   status: z.enum(['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED']),
@@ -262,7 +262,12 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response) => {
 
       const updatedOrder = await tx.order.update({
         where: { id },
-        data: { status },
+        data: {
+          status,
+          ...(status === 'DELIVERED' && isCodOrder(order.paymentMethod)
+            ? { paymentStatus: 'PAID' }
+            : {}),
+        },
       });
 
       await tx.orderStatusHistory.create({

@@ -257,6 +257,18 @@ const AdminVendorProductsPage: React.FC = () => {
     }
   };
 
+  const isVisibleInStore = (status: string) => status === 'APPROVED' || status === 'ACTIVE';
+
+  const handleVisibilityToggle = async (product: Product) => {
+    const shouldHide = isVisibleInStore(product.status);
+
+    if (shouldHide && !window.confirm(t('admin.vendorProducts.hideConfirm', { name: product.name }))) {
+      return;
+    }
+
+    await handleStatusUpdate(product.id, shouldHide ? 'INACTIVE' : 'APPROVED');
+  };
+
   const handleDelete = async (id: string) => {
     if (!window.confirm(t('admin.vendorProducts.deleteConfirm', 'CRITICAL ACTION: Are you sure you want to permanently purge this product from the master catalog?'))) return;
 
@@ -375,15 +387,21 @@ const AdminVendorProductsPage: React.FC = () => {
                           >
                             <FiEdit2 style={{ width: 18, height: 18 }} />
                           </button>
-                          {product.status !== 'APPROVED' && product.status !== 'ACTIVE' && (
-                            <button
-                              onClick={() => handleStatusUpdate(product.id, 'APPROVED')}
-                              className="p-3 text-green-500 hover:bg-green-50 rounded-2xl transition-all"
-                              title={t('admin.vendorProducts.approve', 'Approve')}
-                            >
-                              <FiCheckCircle />
-                            </button>
-                          )}
+                          <button
+                            onClick={() => handleVisibilityToggle(product)}
+                            className={`p-3 rounded-2xl transition-all ${
+                              isVisibleInStore(product.status)
+                                ? 'text-amber-500 hover:bg-amber-50'
+                                : 'text-green-500 hover:bg-green-50'
+                            }`}
+                            title={
+                              isVisibleInStore(product.status)
+                                ? t('admin.vendorProducts.hideFromStore', 'Hide from store')
+                                : t('admin.vendorProducts.showInStore', 'Show in store')
+                            }
+                          >
+                            {isVisibleInStore(product.status) ? <FiXCircle /> : <FiCheckCircle />}
+                          </button>
                           <button
                             onClick={() => handleDelete(product.id)}
                             className="p-3 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-2xl transition-all"

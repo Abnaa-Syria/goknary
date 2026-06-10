@@ -5,7 +5,17 @@ import { NotFoundError } from '../lib/errors';
 import {
   calculatePendingEarnings,
   calculateVendorNetEarnings,
+  countsTowardPendingEarnings,
+  getVendorEarningsBase,
 } from '../lib/vendor-earnings';
+
+const financiallyConfirmedOrderWhere: Prisma.OrderWhereInput = {
+  OR: [
+    { paymentMethod: null },
+    { paymentMethod: 'COD' },
+    { paymentStatus: 'PAID' },
+  ],
+};
 
 export const getVendors = async (req: Request, res: Response) => {
   try {
@@ -70,9 +80,11 @@ export const getVendors = async (req: Request, res: Response) => {
       where: {
         vendorId: { in: vendorIds },
         status: 'DELIVERED',
+        ...financiallyConfirmedOrderWhere,
       },
       _sum: {
         total: true,
+        shippingCost: true,
       },
       _count: {
         id: true,
@@ -103,7 +115,10 @@ export const getVendors = async (req: Request, res: Response) => {
     const salesMap = new Map(
       salesStats.map((s) => [
         s.vendorId,
-        { totalSales: s._sum.total || 0, deliveredOrders: s._count.id },
+        {
+          totalSales: Math.max(0, (s._sum.total || 0) - (s._sum.shippingCost || 0)),
+          deliveredOrders: s._count.id,
+        },
       ])
     );
     const ordersMap = new Map(orderStats.map((s) => [s.vendorId, s._count.id]));
@@ -172,8 +187,8 @@ export const getVendorById = async (req: Request, res: Response) => {
       prisma.order.count({ where: { vendorId: id } }),
       prisma.product.count({ where: { vendorId: id } }),
       prisma.order.aggregate({
-        where: { vendorId: id, status: 'DELIVERED' },
-        _sum: { total: true },
+        where: { vendorId: id, status: 'DELIVERED', ...financiallyConfirmedOrderWhere },
+        _sum: { total: true, shippingCost: true },
       }),
       prisma.order.findMany({
         where: {
@@ -182,6 +197,7 @@ export const getVendorById = async (req: Request, res: Response) => {
         },
         select: {
           total: true,
+          shippingCost: true,
           status: true,
           paymentMethod: true,
           paymentStatus: true,
@@ -210,11 +226,13 @@ export const getVendorById = async (req: Request, res: Response) => {
       }),
     ]);
 
-    const totalSales = salesResult._sum.total || 0;
+    const totalSales = Math.max(0, (salesResult._sum.total || 0) - (salesResult._sum.shippingCost || 0));
     const commissionRate = vendor.commissionRate ?? 10;
     const { commissionAmount, netEarnings } = calculateVendorNetEarnings(totalSales, commissionRate);
     const pendingEarnings = await calculatePendingEarnings(vendor.id, commissionRate);
-    const pendingSales = pendingOrdersForSales.reduce((sum, order) => sum + order.total, 0);
+    const pendingSales = pendingOrdersForSales
+      .filter(countsTowardPendingEarnings)
+      .reduce((sum, order) => sum + getVendorEarningsBase(order), 0);
 
     const ordersByStatus = ordersByStatusRaw.map((s) => ({
       status: s.status,

@@ -82,16 +82,30 @@ const OrdersList: React.FC = () => {
       setUpdatingId(orderId);
       await api.patch(`/admin/orders/${orderId}/status`, { status: newStatus });
       // Update local state
-      setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
-    } catch (error) {
+      setOrders(orders.map(o => o.id === orderId ? {
+        ...o,
+        status: newStatus,
+        paymentStatus: newStatus === 'DELIVERED' && (o.paymentMethod || 'COD') === 'COD'
+          ? 'PAID'
+          : o.paymentStatus,
+      } : o));
+    } catch (error: any) {
       console.error('Failed to update order status:', error);
-      alert('Failed to update status');
+      alert(error.response?.data?.errorAr || error.response?.data?.error || 'Failed to update status');
     } finally {
       setUpdatingId(null);
     }
   };
 
   const statuses = ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'];
+
+  const isOnlinePaymentPending = (order: Order) =>
+    (order.paymentMethod || 'COD') !== 'COD' && order.paymentStatus !== 'PAID';
+
+  const getAvailableStatuses = (order: Order) =>
+    isOnlinePaymentPending(order)
+      ? statuses.filter((status) => status === order.status || status === 'CANCELLED')
+      : statuses;
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -186,7 +200,7 @@ const OrdersList: React.FC = () => {
                         onChange={(e) => handleUpdateStatus(order.id, e.target.value)}
                         className={`inline-flex px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border-none outline-none cursor-pointer appearance-none ${getStatusColor(order.status)} ${updatingId === order.id ? 'opacity-50' : ''}`}
                       >
-                        {statuses.map(s => (
+                        {getAvailableStatuses(order).map(s => (
                           <option key={s} value={s} className="bg-white text-gray-900 font-bold">
                             {mapEnum(orderStatusMap, s)}
                           </option>
