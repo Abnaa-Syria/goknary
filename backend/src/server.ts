@@ -134,6 +134,8 @@ app.use(morgan('dev'));
 // ─── Static files (BEFORE any routers/limiters — fix #1) ──────────────────────
 const uploadDir = path.resolve(process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads'));
 app.use('/uploads', express.static(uploadDir));
+// Also expose under /api/uploads so production proxies that only forward /api/* can serve files
+app.use('/api/uploads', express.static(uploadDir));
 
 console.log(path.join(process.cwd(), ''));
 console.log(`Serving uploads from ${uploadDir}`);
