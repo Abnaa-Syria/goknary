@@ -30,7 +30,7 @@ const AccountPage: React.FC = () => {
     navigate('/');
   };
 
-  if (loading || !isAuthenticated) {
+  if (loading || !isAuthenticated || !user) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="text-center">{t('common.loading')}</div>

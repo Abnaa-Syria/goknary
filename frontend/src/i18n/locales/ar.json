@@ -1128,6 +1128,47 @@
     "replyPlaceholder": "اكتب ردك الدعم الرسمي هنا...",
     "successReplySubmitted": "تم إرسال الرد بنجاح!",
     "successStatusUpdated": "تم تحديث حالة التذكرة بنجاح!",
-    "successPriorityUpdated": "تم تحديث أولوية التذكرة بنجاح!"
+    "successPriorityUpdated": "تم تحديث أولوية التذكرة بنجاح!",
+    "statsCalculatedFrom": "الإحصائيات محسوبة من: {{date}}",
+    "settlePlatform": "تسوية المنصة",
+    "settlePlatformConfirm": "هل تريد تصفير إحصائيات المنصة؟ سيتم احتساب الأرقام من الآن فصاعداً",
+    "settlePlatformSuccess": "تمت تسوية إحصائيات المنصة بنجاح!",
+    "settlePlatformFailed": "فشل تسوية إحصائيات المنصة"
+  },
+  "vendor": {
+    "overview": "نظرة عامة على المتجر",
+    "products": "المنتجات",
+    "orders": "الطلبات",
+    "payoutsMenu": "السحوبات والمحفظة",
+    "refunds": "طلبات الاسترجاع",
+    "tickets": "تذاكر الدعم",
+    "analytics": "التحليلات",
+    "settings": "الإعدادات",
+    "addProduct": "إضافة منتج",
+    "realizedSales": "المبيعات المحققة",
+    "totalOrders": "إجمالي الطلبات",
+    "avgDeliveredOrderValue": "متوسط قيمة الطلب المستلم",
+    "pendingEarnings": "الأرباح المعلقة",
+    "pendingSales": "المبيعات المعلقة",
+    "deliveredOrders": "الطلبات المستلمة",
+    "topProducts": "أكثر المنتجات مبيعاً (30 يوم)",
+    "allProducts": "جميع المنتجات",
+    "sold": "مباع",
+    "recentOrders": "أحدث الطلبات",
+    "noOrdersReceived": "لم يتم استلام أي طلبات بعد. شارك متجرك للبدء!",
+    "revenueGrowth": "نمو المبيعات",
+    "dailySalesDesc": "المبيعات اليومية (آخر 30 يوم)",
+    "orderVolume": "حجم الطلبات",
+    "dailyOrdersPlaced": "عدد الطلبات اليومية",
+    "welcomeMessage": "مرحباً بك مجدداً، {{name}} — تتبع أداء متجرك اليومي.",
+    "pendingOrdersAlert": "لديك {{count}} طلبات معلقة بانتظار اتخاذ إجراء.",
+    "review": "مراجعة",
+    "noSalesDataYet": "لا توجد بيانات مبيعات بعد. أضف منتجاتك وسوقها للبدء!",
+    "emptyStateTitle": "متجرك في انتظار أول طلباته",
+    "emptyStateMessage": "أضف المنتجات وشارك رابط متجرك لبدء استقبال الطلبات. ستظهر مؤشرات الأداء هنا.",
+    "dashboard": {
+      "reviewTitle": "طلب الانضمام قيد المراجعة",
+      "reviewMessage": "طلب انضمامك كبائع قيد المراجعة من قبل فريقنا. ستتلقى رسالة بريد إلكتروني بمجرد الموافقة. تستغرق هذه العملية عادةً من يوم إلى يومي عمل."
+    }
   }
 }

@@ -1130,6 +1130,47 @@
     "replyPlaceholder": "Type your official support response here...",
     "successReplySubmitted": "Reply submitted successfully!",
     "successStatusUpdated": "Ticket status updated successfully!",
-    "successPriorityUpdated": "Ticket priority updated successfully!"
+    "successPriorityUpdated": "Ticket priority updated successfully!",
+    "statsCalculatedFrom": "Statistics calculated from: {{date}}",
+    "settlePlatform": "Settle Platform",
+    "settlePlatformConfirm": "Do you want to reset the platform statistics? Figures will be calculated from now on",
+    "settlePlatformSuccess": "Platform statistics successfully reset!",
+    "settlePlatformFailed": "Failed to reset platform statistics"
+  },
+  "vendor": {
+    "overview": "Store Overview",
+    "products": "Products",
+    "orders": "Orders",
+    "payoutsMenu": "Payouts & Wallet",
+    "refunds": "Refund Requests",
+    "tickets": "Support Tickets",
+    "analytics": "Analytics",
+    "settings": "Settings",
+    "addProduct": "Add Product",
+    "realizedSales": "Realized Sales",
+    "totalOrders": "Total Orders",
+    "avgDeliveredOrderValue": "Avg. Delivered Order Value",
+    "pendingEarnings": "Pending Earnings",
+    "pendingSales": "Pending Sales",
+    "deliveredOrders": "Delivered Orders",
+    "topProducts": "Top Products (30d)",
+    "allProducts": "All Products",
+    "sold": "sold",
+    "recentOrders": "Recent Orders",
+    "noOrdersReceived": "No orders received yet. Share your store to get started!",
+    "revenueGrowth": "Revenue Growth",
+    "dailySalesDesc": "Daily sales (last 30 days)",
+    "orderVolume": "Order Volume",
+    "dailyOrdersPlaced": "Daily orders placed",
+    "welcomeMessage": "Welcome back, {{name}} — tracking your store performance.",
+    "pendingOrdersAlert": "You have {{count}} pending orders awaiting action.",
+    "review": "Review",
+    "noSalesDataYet": "No sales data yet. Add and promote your products!",
+    "emptyStateTitle": "Your Store Awaits First Orders",
+    "emptyStateMessage": "Add products and share your store link to start receiving orders. Performance metrics will appear here.",
+    "dashboard": {
+      "reviewTitle": "Application Under Review",
+      "reviewMessage": "Your vendor application is being reviewed by our team. You'll receive an email once it's approved. This process typically takes 1-2 business days."
+    }
   }
 }

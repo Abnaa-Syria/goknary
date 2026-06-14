@@ -18,7 +18,7 @@ import api from 'lib/api';
 import { formatPrice } from 'lib/utils';
 import ImageUploader from 'components/common/ImageUploader';
 import { uploadImages } from 'utils/upload';
-import { getImageUrl } from 'utils/image';
+import { getImageUrl, parseProductImages } from 'utils/image';
 import { mapEnum, productStatusMap } from 'utils/localization';
 
 interface Product {
@@ -199,7 +199,7 @@ const AdminProductsPage: React.FC = () => {
         stock: product.stock.toString(),
         categoryId: product.categoryId || '',
         brandId: product.brandId || '',
-        images: typeof product.images === 'string' ? JSON.parse(product.images) : product.images,
+        images: parseProductImages(product.images),
         status: product.status,
         discountType: product.discountType || '',
         discountValue: product.discountValue ? product.discountValue.toString() : '',

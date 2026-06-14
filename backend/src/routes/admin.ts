@@ -10,7 +10,8 @@ import {
   updateProductStatus,
   deleteProduct,
   updateAdminOrderStatus,
-  createPlatformProduct
+  createPlatformProduct,
+  settlePlatform
 } from '../controllers/admin';
 import {
   createCoupon,
@@ -30,6 +31,7 @@ router.use(authorize('ADMIN', 'STAFF'));
 
 // Dashboard
 router.get('/dashboard', requirePermission('READ_DASHBOARD'), getDashboardStats);
+router.post('/platform/settle', requirePermission('MANAGE_ROLES'), settlePlatform);
 
 // Orders
 router.get('/orders', requirePermission('READ_ORDERS'), getAdminOrders);

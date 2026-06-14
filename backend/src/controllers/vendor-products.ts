@@ -387,13 +387,13 @@ export const updateVendorProduct = async (req: AuthRequest, res: Response) => {
     const updateData: any = {};
 
     if (categoryId    !== undefined) updateData.categoryId    = categoryId;
-    if (brandId       !== undefined) updateData.brandId       = brandId ?? null;
+    if (brandId       !== undefined) updateData.brandId       = (brandId === '' || brandId === null) ? null : brandId;
     if (nameAr        !== undefined) updateData.nameAr        = nameAr ?? null;
     if (description   !== undefined) updateData.description   = description;
     if (descriptionAr !== undefined) updateData.descriptionAr = descriptionAr ?? null;
     if (price         !== undefined) updateData.price         = price;
     if (discountPrice !== undefined) updateData.discountPrice = discountPrice ?? null;
-    if (discountType  !== undefined) updateData.discountType  = discountType  ?? null;
+    if (discountType  !== undefined) updateData.discountType  = (discountType as any) === '' ? null : discountType;
     if (discountValue !== undefined) updateData.discountValue = discountValue ?? null;
     if (stock         !== undefined) updateData.stock         = stock;
     if (images        !== undefined) updateData.images        = JSON.stringify(images);

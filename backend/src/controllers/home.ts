@@ -40,6 +40,7 @@ export const getHomeSections = async (req: Request, res: Response) => {
             products = await prisma.product.findMany({
               where: {
                 status: { in: ['ACTIVE' as any, 'APPROVED' as any] },
+                vendor: { status: 'APPROVED' },
                 discountPrice: { not: null },
               },
               include: {
@@ -67,6 +68,7 @@ export const getHomeSections = async (req: Request, res: Response) => {
             products = await prisma.product.findMany({
               where: {
                 status: { in: ['ACTIVE' as any, 'APPROVED' as any] },
+                vendor: { status: 'APPROVED' },
               },
               include: {
                 vendor: {
@@ -94,6 +96,7 @@ export const getHomeSections = async (req: Request, res: Response) => {
             products = await prisma.product.findMany({
               where: {
                 status: { in: ['ACTIVE' as any, 'APPROVED' as any] },
+                vendor: { status: 'APPROVED' },
               },
               include: {
                 vendor: {
@@ -120,6 +123,7 @@ export const getHomeSections = async (req: Request, res: Response) => {
             products = await prisma.product.findMany({
               where: {
                 status: { in: ['ACTIVE' as any, 'APPROVED' as any] },
+                vendor: { status: 'APPROVED' },
                 featured: true,
               },
               include: {

@@ -8,8 +8,8 @@ import { AuthRequest } from '../middleware/auth';
 
 export const getProducts = async (req: Request, res: Response) => {
   try {
+    const qRaw = req.query.q || req.query.search;
     const {
-      q,
       category,
       brand,
       vendorId,
@@ -27,7 +27,8 @@ export const getProducts = async (req: Request, res: Response) => {
 
     // Use AND to combine different filter groups safely
     const and: Prisma.ProductWhereInput[] = [
-      { status: { in: ['ACTIVE' as any, 'APPROVED' as any] } }
+      { status: { in: ['ACTIVE' as any, 'APPROVED' as any] } },
+      { vendor: { status: 'APPROVED' } }
     ];
 
     // Category filtering
@@ -67,8 +68,8 @@ export const getProducts = async (req: Request, res: Response) => {
     }
 
     // Search Query (Wrapped in OR, but pushed to AND array)
-    if (q) {
-      const searchTerm = String(q).slice(0, 100);
+    if (qRaw) {
+      const searchTerm = String(qRaw).slice(0, 100);
       and.push({
         OR: [
           { name: { contains: searchTerm } },
@@ -202,6 +203,7 @@ export const getProductBySlug = async (req: Request, res: Response) => {
         categoryId: product.categoryId,
         id: { not: product.id },
         status: { in: ['ACTIVE' as any, 'APPROVED' as any] },
+        vendor: { status: 'APPROVED' },
       },
       take: 8,
       include: {

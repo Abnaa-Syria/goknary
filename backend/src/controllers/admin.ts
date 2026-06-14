@@ -7,6 +7,7 @@ import { ProductStatus, OrderStatus, UserRole, VendorStatus } from '@prisma/clie
 import { AuthRequest } from '../middleware/auth';
 import { slugify } from '../lib/utils';
 import { isCodOrder, isOrderFinanciallyConfirmed, settleOrderOnDelivery } from '../lib/vendor-earnings';
+import { sendOrderStatusNotification } from '../services/whatsapp.service';
 
 /**
  * Fetch all orders across the ecosystem (Admin Paginated View)
@@ -314,6 +315,12 @@ export const forceResetPassword = async (req: Request, res: Response) => {
 
 export const getDashboardStats = async (req: Request, res: Response) => {
   try {
+    const settlementSetting = await prisma.platformSetting.findUnique({
+      where: { key: 'settlementDate' },
+    });
+    const settlementDate = settlementSetting ? new Date(settlementSetting.value) : null;
+    const dateFilter = settlementDate ? { createdAt: { gte: settlementDate } } : {};
+
     // Run all count queries in parallel for better performance
     const [
       totalUsers,
@@ -331,21 +338,22 @@ export const getDashboardStats = async (req: Request, res: Response) => {
       ordersByStatus,
       last6MonthsOrders,
     ] = await Promise.all([
-      prisma.user.count({ where: { role: 'CUSTOMER' } }),
-      prisma.vendor.count(),
-      prisma.vendor.count({ where: { status: 'PENDING' } }),
-      prisma.vendor.count({ where: { status: 'APPROVED' } }),
-      prisma.product.count(),
-      prisma.product.count({ where: { status: 'PENDING' } }),
-      prisma.product.count({ where: { status: 'ACTIVE' } }),
-      prisma.order.count(),
-      prisma.order.count({ where: { status: 'DELIVERED' } }),
+      prisma.user.count({ where: { role: 'CUSTOMER', ...dateFilter } }),
+      prisma.vendor.count({ where: { ...dateFilter } }),
+      prisma.vendor.count({ where: { status: 'PENDING', ...dateFilter } }),
+      prisma.vendor.count({ where: { status: 'APPROVED', ...dateFilter } }),
+      prisma.product.count({ where: { ...dateFilter } }),
+      prisma.product.count({ where: { status: 'PENDING', ...dateFilter } }),
+      prisma.product.count({ where: { status: 'ACTIVE', ...dateFilter } }),
+      prisma.order.count({ where: { ...dateFilter } }),
+      prisma.order.count({ where: { status: 'DELIVERED', ...dateFilter } }),
       prisma.order.aggregate({
-        where: { status: 'DELIVERED' },
+        where: { status: 'DELIVERED', ...dateFilter },
         _sum: { total: true },
       }),
       // Recent 10 orders for activity feed
       prisma.order.findMany({
+        where: { ...dateFilter },
         take: 10,
         orderBy: { createdAt: 'desc' },
         include: {
@@ -356,7 +364,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
       // Top 5 vendors by total revenue
       prisma.order.groupBy({
         by: ['vendorId'],
-        where: { status: 'DELIVERED' },
+        where: { status: 'DELIVERED', ...dateFilter },
         _sum: { total: true },
         _count: { id: true },
         orderBy: { _sum: { total: 'desc' } },
@@ -365,13 +373,16 @@ export const getDashboardStats = async (req: Request, res: Response) => {
       // Orders grouped by status for the pie chart
       prisma.order.groupBy({
         by: ['status'],
+        where: { ...dateFilter },
         _count: { id: true },
       }),
       // Orders from the last 6 months (for trend chart)
       prisma.order.findMany({
         where: {
           createdAt: {
-            gte: new Date(new Date().setMonth(new Date().getMonth() - 6)),
+            gte: settlementDate 
+              ? new Date(Math.max(new Date(new Date().setMonth(new Date().getMonth() - 6)).getTime(), settlementDate.getTime()))
+              : new Date(new Date().setMonth(new Date().getMonth() - 6)),
           },
           status: 'DELIVERED',
         },
@@ -425,6 +436,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
     }));
 
     res.json({
+      settlementDate: settlementSetting ? settlementSetting.value : null,
       stats: {
         totalUsers,
         totalVendors,
@@ -787,7 +799,7 @@ export const updateAdminOrderStatus = async (req: any, res: Response) => {
             : {}),
         },
         include: {
-          user: { select: { name: true, email: true } },
+          user: { select: { name: true, email: true, phone: true } },
           vendor: { select: { storeName: true } },
           items: { include: { product: true } },
         }
@@ -803,6 +815,16 @@ export const updateAdminOrderStatus = async (req: any, res: Response) => {
 
       return updated;
     });
+
+    // Send WhatsApp order status update notification to the customer
+    if (updatedOrder.user && updatedOrder.user.phone && updatedOrder.user.name) {
+      sendOrderStatusNotification(
+        updatedOrder.user.phone,
+        updatedOrder.user.name,
+        updatedOrder.id,
+        status
+      ).catch((err) => console.error('Failed to send WhatsApp status notification from admin:', err));
+    }
 
     res.json({
       message: `Order status updated to ${status}`,
@@ -918,5 +940,48 @@ export const createPlatformProduct = async (req: AuthRequest, res: Response) => 
     }
     console.error('Error creating platform product:', error);
     res.status(500).json({ error: 'Failed to create platform product' });
+  }
+};
+
+export const settlePlatform = async (req: AuthRequest, res: Response) => {
+  try {
+    const adminId = req.user?.id || 'unknown';
+    const adminEmail = req.user?.email || 'unknown';
+    const settlementDate = new Date();
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Save or update PlatformSettings with key 'settlementDate'
+      const setting = await tx.platformSetting.upsert({
+        where: { key: 'settlementDate' },
+        update: {
+          value: settlementDate.toISOString(),
+          updatedBy: adminEmail,
+        },
+        create: {
+          key: 'settlementDate',
+          value: settlementDate.toISOString(),
+          updatedBy: adminEmail,
+        },
+      });
+
+      // 2. Append history record
+      const history = await tx.platformSettlement.create({
+        data: {
+          settlementDate,
+          adminId,
+          adminName: adminEmail,
+        },
+      });
+
+      return { setting, history };
+    });
+
+    res.json({
+      message: 'Platform statistics successfully reset / settled.',
+      settlementDate: result.setting.value,
+    });
+  } catch (error) {
+    console.error('Error settling platform statistics:', error);
+    res.status(500).json({ error: 'Failed to settle platform statistics' });
   }
 };

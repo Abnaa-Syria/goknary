@@ -72,6 +72,7 @@ interface DashboardData {
   ordersByStatus: { status: string; count: number }[];
   topVendors: { id: string; storeName: string; revenue: number; orders: number }[];
   recentOrders: any[];
+  settlementDate?: string | null;
 }
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
@@ -239,9 +240,34 @@ const AdminDashboardHome: React.FC<{
 }> = ({ data, onRefresh, refreshing }) => {
   const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
+  const [settling, setSettling] = useState(false);
 
   const checkPerm = (perm: string) => hasPermission(user, perm);
   const roleTheme = getRoleTheme(user);
+
+  const handleSettlePlatform = async () => {
+    const confirmed = window.confirm(
+      t(
+        'admin.settlePlatformConfirm',
+        'Do you want to reset the platform statistics? Figures will be calculated from now on'
+      )
+    );
+    if (!confirmed) return;
+
+    setSettling(true);
+    try {
+      const response = await api.post('/admin/platform/settle');
+      toast.success(
+        t('admin.settlePlatformSuccess', 'Platform statistics successfully reset!')
+      );
+      onRefresh();
+    } catch (error) {
+      console.error('Failed to settle platform:', error);
+      toast.error(t('admin.settlePlatformFailed', 'Failed to reset platform statistics'));
+    } finally {
+      setSettling(false);
+    }
+  };
 
   const trendData = useMemo(
     () => (data?.revenueTrends || []),
@@ -309,16 +335,36 @@ const AdminDashboardHome: React.FC<{
           <p className="text-gray-500 mt-1 text-sm">
             Real-time marketplace performance &amp; analytics
           </p>
+          {data.settlementDate && (
+            <p className="text-xs text-purple-600 mt-1 font-semibold flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-600 animate-pulse inline-block" />
+              {t('admin.statsCalculatedFrom', 'Statistics calculated from: {{date}}', {
+                date: new Date(data.settlementDate).toLocaleString(),
+              })}
+            </p>
+          )}
         </div>
-        <button
-          onClick={onRefresh}
-          disabled={refreshing}
-          className="flex items-center gap-2 px-4 py-2 text-white text-sm font-semibold rounded-xl transition-all shadow-md disabled:opacity-60"
-          style={{ backgroundColor: roleTheme.accent }}
-        >
-          <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />
-          {t('common.refresh', 'Refresh')}
-        </button>
+        <div className="flex gap-2">
+          {checkPerm('MANAGE_ROLES') && (
+            <button
+              onClick={handleSettlePlatform}
+              disabled={settling || refreshing}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white text-sm font-semibold rounded-xl hover:bg-purple-700 transition-all shadow-md shadow-purple-200 disabled:opacity-60"
+            >
+              <RefreshCw size={15} className={settling ? 'animate-spin' : ''} />
+              {t('admin.settlePlatform', 'Settle Platform')}
+            </button>
+          )}
+          <button
+            onClick={onRefresh}
+            disabled={refreshing || settling}
+            className="flex items-center gap-2 px-4 py-2 text-white text-sm font-semibold rounded-xl transition-all shadow-md disabled:opacity-60"
+            style={{ backgroundColor: roleTheme.accent }}
+          >
+            <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />
+            {t('common.refresh', 'Refresh')}
+          </button>
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -685,6 +731,7 @@ const AdminDashboard: React.FC = () => {
         ordersByStatus: response.data.ordersByStatus || [],
         topVendors: response.data.topVendors || [],
         recentOrders: response.data.recentOrders || [],
+        settlementDate: response.data.settlementDate || null,
       });
     } catch (error: any) {
       console.error('Failed to fetch dashboard:', error);

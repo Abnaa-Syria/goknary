@@ -16,7 +16,7 @@ const SearchPage: React.FC = () => {
     if (query) {
       dispatch(
         fetchProducts({
-          search: query,
+          q: query,
           page: searchParams.get('page') || '1',
           sort: searchParams.get('sort') || 'relevance',
         })

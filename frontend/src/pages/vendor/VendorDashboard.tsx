@@ -224,10 +224,10 @@ const VendorDashboardHome: React.FC<{
         >
           <Clock size={18} className="text-amber-600 flex-shrink-0" />
           <p className="text-sm text-amber-800 font-semibold">
-            You have <span className="font-black">{stats.pendingOrders}</span> pending orders awaiting action.
+            {t('vendor.pendingOrdersAlert', 'You have {{count}} pending orders awaiting action.', { count: stats.pendingOrders })}
           </p>
           <Link to="/vendor/orders" className="ms-auto flex items-center gap-1 text-sm font-bold text-amber-700 hover:underline whitespace-nowrap">
-            Review <ArrowUpRight size={14} />
+            {t('vendor.review', 'Review')} <ArrowUpRight size={14} />
           </Link>
         </motion.div>
       )}
@@ -283,7 +283,7 @@ const VendorDashboardHome: React.FC<{
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Revenue Chart */}
-        <ChartCard title="Revenue Growth" subtitle="Daily sales (last 30 days)">
+        <ChartCard title={t('vendor.revenueGrowth', 'Revenue Growth')} subtitle={t('vendor.dailySalesDesc', 'Daily sales (last 30 days)')}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={trendData}>
               <defs>
@@ -306,8 +306,8 @@ const VendorDashboardHome: React.FC<{
         {/* Order Volume */}
         <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col gap-4">
           <div>
-            <h3 className="text-base font-bold text-gray-900">Order Volume</h3>
-            <p className="text-xs text-gray-500 mt-0.5">Daily orders placed</p>
+            <h3 className="text-base font-bold text-gray-900">{t('vendor.orderVolume', 'Order Volume')}</h3>
+            <p className="text-xs text-gray-500 mt-0.5">{t('vendor.dailyOrdersPlaced', 'Daily orders placed')}</p>
           </div>
           <div className="flex-1 h-[260px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -339,7 +339,7 @@ const VendorDashboardHome: React.FC<{
           </div>
           <div className="space-y-3">
             {topProducts.length === 0 ? (
-              <p className="text-gray-400 text-sm text-center py-6">No sales data yet. Add and promote your products!</p>
+              <p className="text-gray-400 text-sm text-center py-6">{t('vendor.noSalesDataYet', 'No sales data yet. Add and promote your products!')}</p>
             ) : (
               topProducts.slice(0, 5).map((item, i) => (
                 <div key={i} className="flex items-center gap-3">
@@ -400,8 +400,8 @@ const VendorDashboardHome: React.FC<{
       {/* Empty state */}
       {stats.totalSales === 0 && stats.totalOrders === 0 && (
         <EmptyState
-          title="Your Store Awaits First Orders"
-          message="Add products and share your store link to start receiving orders. Performance metrics will appear here."
+          title={t('vendor.emptyStateTitle', 'Your Store Awaits First Orders')}
+          message={t('vendor.emptyStateMessage', 'Add products and share your store link to start receiving orders. Performance metrics will appear here.')}
         />
       )}
     </div>

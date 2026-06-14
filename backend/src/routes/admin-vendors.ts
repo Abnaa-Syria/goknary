@@ -6,7 +6,8 @@ import {
   rejectVendor,
   suspendVendor,
   updateVendorStatus,
-  updateVendorCommission
+  updateVendorCommission,
+  settleVendorBalance
 } from '../controllers/admin-vendors';
 import { getAdminVendorProducts } from '../controllers/admin';
 import { authenticate, authorize, requirePermission } from '../middleware/auth';
@@ -23,6 +24,7 @@ router.patch('/:id/reject', requirePermission('UPDATE_VENDORS'), rejectVendor);
 router.patch('/:id/suspend', requirePermission('UPDATE_VENDORS'), suspendVendor);
 router.patch('/:id/status', requirePermission('UPDATE_VENDORS'), updateVendorStatus);
 router.patch('/:id/commission', requirePermission('UPDATE_VENDORS'), updateVendorCommission);
+router.post('/:id/settle', requirePermission('UPDATE_VENDORS'), settleVendorBalance);
 
 export default router;
 

@@ -242,8 +242,11 @@ const authSlice = createSlice({
       })
       .addCase(getCurrentUser.rejected, (state, action) => {
         state.loading = false;
-        state.isAuthenticated = false;
         state.isInitialized = true;
+        if (!localStorage.getItem('accessToken')) {
+          state.isAuthenticated = false;
+          state.user = null;
+        }
         if (action.payload) {
           state.error = action.payload as string;
         }

@@ -469,4 +469,56 @@ export const updateVendorCommission = async (req: Request, res: Response) => {
   }
 };
 
+export const settleVendorBalance = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const result = await prisma.$transaction(async (tx) => {
+      const vendor = await tx.vendor.findUnique({
+        where: { id },
+      });
+
+      if (!vendor) {
+        throw new NotFoundError('Vendor profile not found');
+      }
+
+      const amountToSettle = vendor.balance;
+      if (amountToSettle <= 0) {
+        return { vendor, payout: null, message: 'Vendor balance is already zero.' };
+      }
+
+      // 1. Reset vendor balance and increment withdrawnAmount
+      const updatedVendor = await tx.vendor.update({
+        where: { id },
+        data: {
+          balance: 0,
+          withdrawnAmount: { increment: amountToSettle },
+        },
+      });
+
+      // 2. Log approved PayoutRequest ledger entry
+      const payout = await tx.payoutRequest.create({
+        data: {
+          vendorId: id,
+          amount: amountToSettle,
+          paymentMethod: 'ADMIN_SETTLEMENT',
+          paymentDetails: 'Administrative Balance Settlement / Ledger Reset',
+          status: 'APPROVED',
+          notes: 'Store balance reset to 0 by Administrator.',
+        },
+      });
+
+      return { vendor: updatedVendor, payout, message: 'Vendor balance successfully settled to zero.' };
+    });
+
+    res.json(result);
+  } catch (error: any) {
+    if (error instanceof NotFoundError) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
+    console.error('Error settling vendor balance:', error);
+    res.status(500).json({ error: 'Failed to settle vendor balance' });
+  }
+};
+
 
