@@ -598,6 +598,8 @@
     "currentPassword": "Current Password",
     "newPassword": "New Password",
     "confirmPassword": "Confirm Password",
+    "refundsTitle": "Customer Returns",
+    "refundsSubtitle": "Review and approve return requests for items sold from your catalog.",
     "customerReturns": "Customer Returns",
     "returnsDescription": "Review and approve return requests for items sold from your catalog.",
     "searchRefundsPlaceholder": "Search products, orders or customers...",
