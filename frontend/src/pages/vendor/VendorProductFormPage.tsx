@@ -5,6 +5,11 @@ import api from '../../lib/api';
 import ImageUploader from '../../components/common/ImageUploader';
 import { uploadImages } from '../../utils/upload';
 import { getImageUrl } from '../../utils/image';
+import {
+  buildDiscountPayload,
+  calculateDiscountPrice,
+  getProductDiscountFormFields,
+} from '../../utils/discount';
 import { formatPrice } from '../../lib/utils';
 import { mapEnum, productStatusMap } from '../../utils/localization';
 import { isProductVisibleOnStore, normalizeVendorProductStatusForForm } from '../../utils/product';
@@ -137,6 +142,8 @@ const VendorProductFormPage: React.FC = () => {
         ? JSON.parse(product.images)
         : product.images || [];
 
+      const discount = getProductDiscountFormFields(product);
+
       setFormData({
         categoryId: product.categoryId || '',
         brandId: product.brandId || '',
@@ -146,9 +153,7 @@ const VendorProductFormPage: React.FC = () => {
         description: product.description || '',
         descriptionAr: product.descriptionAr || '',
         price: product.price?.toString() || '',
-        discountPrice: product.discountPrice?.toString() || '',
-        discountType: product.discountType || '',
-        discountValue: product.discountValue?.toString() || '',
+        ...discount,
         stock: product.stock?.toString() || '',
         images: images,
         featured: product.featured || false,
@@ -178,6 +183,15 @@ const VendorProductFormPage: React.FC = () => {
       // لو الرقم فاضي نخليها string فاضي عشان يقدر يمسح الرقم من الـ input
       setFormData({ ...formData, [name]: value === '' ? '' : parseFloat(value) });
     } else {
+      if (name === 'discountType' && value === '') {
+        setFormData((prev) => ({
+          ...prev,
+          discountType: '',
+          discountValue: '',
+          discountPrice: '',
+        }));
+        return;
+      }
       setFormData({ ...formData, [name]: value });
       if (name === 'name' && !isSlugManuallyEdited && !isEdit) {
         setFormData(prev => ({ ...prev, slug: slugify(value) }));
@@ -193,21 +207,15 @@ const VendorProductFormPage: React.FC = () => {
   };
 
   useEffect(() => {
+    if (!formData.discountType) return;
+
     const p = parseFloat(formData.price) || 0;
     const v = parseFloat(formData.discountValue) || 0;
-    if (formData.discountType) {
-      let finalP = p;
-      if (formData.discountType === 'PERCENTAGE') {
-        finalP = p - (p * v / 100);
-      } else if (formData.discountType === 'FIXED') {
-        finalP = p - v;
-      }
-      const calculated = Math.max(0, finalP).toFixed(2).toString();
-      if (calculated !== formData.discountPrice) {
-        setFormData(prev => ({ ...prev, discountPrice: calculated }));
-      }
-    } else if (formData.discountPrice !== '') {
-      setFormData(prev => ({ ...prev, discountPrice: '' }));
+    if (v <= 0) return;
+
+    const calculated = calculateDiscountPrice(p, formData.discountType, v);
+    if (calculated && calculated !== formData.discountPrice) {
+      setFormData((prev) => ({ ...prev, discountPrice: calculated }));
     }
   }, [formData.price, formData.discountType, formData.discountValue]);
 
@@ -238,6 +246,13 @@ const VendorProductFormPage: React.FC = () => {
         return;
       }
 
+      const discount = buildDiscountPayload({
+        price: String(formData.price),
+        discountType: formData.discountType,
+        discountValue: String(formData.discountValue),
+        discountPrice: String(formData.discountPrice),
+      });
+
       const payload: any = {
         categoryId: formData.categoryId,
         brandId: formData.brandId || undefined,
@@ -247,9 +262,7 @@ const VendorProductFormPage: React.FC = () => {
         description: formData.description,
         descriptionAr: formData.descriptionAr || undefined, // Arabic description
         price: parseFloat(formData.price),
-        discountPrice: formData.discountPrice ? parseFloat(formData.discountPrice) : undefined,
-        discountType: formData.discountType || undefined,
-        discountValue: formData.discountValue ? parseFloat(formData.discountValue) : undefined,
+        ...discount,
         stock: parseInt(formData.stock, 10),
         images: finalImageUrls,
         featured: formData.featured,

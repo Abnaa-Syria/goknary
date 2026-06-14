@@ -852,6 +852,8 @@ const platformProductSchema = z.object({
   descriptionAr: z.string().optional(),
   price: z.number().positive(),
   discountPrice: z.number().positive().optional().nullable(),
+  discountType: z.enum(['PERCENTAGE', 'FIXED']).optional().nullable(),
+  discountValue: z.number().nonnegative().optional().nullable(),
   stock: z.number().int().nonnegative(),
   images: z.array(z.string()).min(1),
 });
@@ -920,6 +922,8 @@ export const createPlatformProduct = async (req: AuthRequest, res: Response) => 
         sku,
         price:         data.price,
         discountPrice: data.discountPrice ?? null,
+        discountType:  data.discountType ?? null,
+        discountValue: data.discountValue ?? null,
         stock:         data.stock,
         images:        JSON.stringify(data.images),
         status:        'ACTIVE', // Platform products are automatically active

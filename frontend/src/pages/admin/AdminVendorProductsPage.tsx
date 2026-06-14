@@ -17,6 +17,11 @@ import { formatPrice } from 'lib/utils';
 import ImageUploader from 'components/common/ImageUploader';
 import { uploadImages } from 'utils/upload';
 import { getImageUrl, parseProductImages } from 'utils/image';
+import {
+  buildDiscountPayload,
+  calculateDiscountPrice,
+  getProductDiscountFormFields,
+} from 'utils/discount';
 import { mapEnum, productStatusMap } from 'utils/localization';
 
 interface Product {
@@ -101,24 +106,16 @@ const AdminVendorProductsPage: React.FC = () => {
     slug: ''
   });
 
-  // Real-time Discount Calculation Logic
   useEffect(() => {
+    if (!formData.discountType) return;
+
     const p = parseFloat(formData.price) || 0;
     const v = parseFloat(formData.discountValue) || 0;
+    if (v <= 0) return;
 
-    if (formData.discountType) {
-      let finalP = p;
-      if (formData.discountType === 'PERCENTAGE') {
-        finalP = p - (p * v / 100);
-      } else if (formData.discountType === 'FIXED') {
-        finalP = p - v;
-      }
-      const calculated = Math.max(0, finalP).toFixed(2).toString();
-      if (calculated !== formData.discountPrice) {
-        setFormData(prev => ({ ...prev, discountPrice: calculated }));
-      }
-    } else if (formData.discountPrice !== '') {
-      setFormData(prev => ({ ...prev, discountPrice: '' }));
+    const calculated = calculateDiscountPrice(p, formData.discountType, v);
+    if (calculated && calculated !== formData.discountPrice) {
+      setFormData((prev) => ({ ...prev, discountPrice: calculated }));
     }
   }, [formData.price, formData.discountType, formData.discountValue]);
 
@@ -168,6 +165,7 @@ const AdminVendorProductsPage: React.FC = () => {
   const handleOpenModal = (product: Product | null = null) => {
     if (product) {
       setEditingProduct(product);
+      const discount = getProductDiscountFormFields(product);
       setFormData({
         name: product.name,
         description: product.description || '',
@@ -177,9 +175,7 @@ const AdminVendorProductsPage: React.FC = () => {
         brandId: product.brandId || '',
         images: parseProductImages(product.images),
         status: product.status,
-        discountType: product.discountType || '',
-        discountValue: product.discountValue ? product.discountValue.toString() : '',
-        discountPrice: product.discountPrice ? product.discountPrice.toString() : '',
+        ...discount,
         slug: product.slug || ''
       });
       setIsSlugManuallyEdited(true);
@@ -214,7 +210,7 @@ const AdminVendorProductsPage: React.FC = () => {
         return;
       }
 
-      const hasDiscount = !!formData.discountType;
+      const discount = buildDiscountPayload(formData);
 
       // Global Image Refactor: Batch Upload phase
       const uploadedImageUrls = await uploadImages(formData.images);
@@ -224,9 +220,7 @@ const AdminVendorProductsPage: React.FC = () => {
         price: parseFloat(formData.price),
         stock: parseInt(formData.stock),
         images: uploadedImageUrls, // Send only the resolved string URLs to the backend
-        discountType: hasDiscount ? formData.discountType : null,
-        discountValue: hasDiscount && formData.discountValue ? parseFloat(formData.discountValue) : null,
-        discountPrice: hasDiscount && formData.discountPrice ? parseFloat(formData.discountPrice) : null,
+        ...discount,
         vendorId
       };
 
@@ -545,7 +539,16 @@ const AdminVendorProductsPage: React.FC = () => {
                         <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ms-1">{t('common.discountType', 'Discount Type')}</label>
                         <select
                           value={formData.discountType}
-                          onChange={e => setFormData({ ...formData, discountType: e.target.value })}
+                          onChange={(e) => {
+                            const discountType = e.target.value;
+                            setFormData((prev) => ({
+                              ...prev,
+                              discountType,
+                              ...(discountType
+                                ? {}
+                                : { discountValue: '', discountPrice: '' }),
+                            }));
+                          }}
                           className="w-full bg-white border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all appearance-none"
                         >
                           <option value="">{t('common.noDiscount', 'No Discount')}</option>
