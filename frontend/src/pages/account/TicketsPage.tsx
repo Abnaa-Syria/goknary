@@ -1,13 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  MessageSquare, 
-  PlusCircle, 
-  Clock, 
-  CheckCircle, 
-  AlertCircle,
-  HelpCircle,
+import {
+  MessageSquare,
+  PlusCircle,
   ChevronRight,
   Send
 } from 'lucide-react';
@@ -27,13 +23,11 @@ interface Ticket {
 
 const TicketsPage: React.FC = () => {
   const { t, i18n } = useTranslation();
-  const isRTL = i18n.language === 'ar';
 
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
-  // Form states
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [priority, setPriority] = useState('MEDIUM');
@@ -49,7 +43,7 @@ const TicketsPage: React.FC = () => {
       setTickets(response.data.tickets || []);
     } catch (error) {
       console.error('Failed to fetch tickets:', error);
-      toast.error('Failed to sync support tickets');
+      toast.error(t('account.ticketsPage.failedSyncTickets'));
     } finally {
       setLoading(false);
     }
@@ -58,7 +52,7 @@ const TicketsPage: React.FC = () => {
   const handleCreateTicket = async (e: React.FormEvent) => {
     e.preventDefault();
     if (subject.length < 5 || message.length < 10) {
-      toast.error('Subject must be at least 5 chars and message 10 chars');
+      toast.error(t('account.ticketsPage.ticketValidationMsg'));
       return;
     }
 
@@ -70,7 +64,7 @@ const TicketsPage: React.FC = () => {
         priority
       });
 
-      toast.success('Support ticket created successfully!');
+      toast.success(t('account.ticketsPage.ticketCreatedSuccess'));
       setCreateModalOpen(false);
       setSubject('');
       setMessage('');
@@ -78,9 +72,24 @@ const TicketsPage: React.FC = () => {
       fetchTickets();
     } catch (error: any) {
       console.error('Failed to create ticket:', error);
-      toast.error(error.response?.data?.error || 'Failed to submit support ticket');
+      toast.error(error.response?.data?.error || t('account.ticketsPage.failedSubmitTicket'));
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const getStatusText = (status: Ticket['status']) => {
+    switch (status) {
+      case 'OPEN':
+        return t('account.ticketsPage.ticketStatus.open');
+      case 'IN_PROGRESS':
+        return t('account.ticketsPage.ticketStatus.inProgress');
+      case 'RESOLVED':
+        return t('account.ticketsPage.ticketStatus.resolved');
+      case 'CLOSED':
+        return t('account.ticketsPage.ticketStatus.closed');
+      default:
+        return status;
     }
   };
 
@@ -94,12 +103,25 @@ const TicketsPage: React.FC = () => {
 
     return (
       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${colors[status]}`}>
-        {status.replace('_', ' ')}
+        {getStatusText(status)}
       </span>
     );
   };
 
-  const getPriorityBadge = (priority: Ticket['priority']) => {
+  const getPriorityText = (ticketPriority: Ticket['priority']) => {
+    switch (ticketPriority) {
+      case 'LOW':
+        return t('account.ticketsPage.priorityLow');
+      case 'MEDIUM':
+        return t('account.ticketsPage.priorityMedium');
+      case 'HIGH':
+        return t('account.ticketsPage.priorityHigh');
+      default:
+        return ticketPriority;
+    }
+  };
+
+  const getPriorityBadge = (ticketPriority: Ticket['priority']) => {
     const colors = {
       LOW: 'bg-gray-100 text-gray-600',
       MEDIUM: 'bg-amber-100 text-amber-700',
@@ -107,8 +129,8 @@ const TicketsPage: React.FC = () => {
     };
 
     return (
-      <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${colors[priority]}`}>
-        {priority}
+      <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${colors[ticketPriority]}`}>
+        {getPriorityText(ticketPriority)}
       </span>
     );
   };
@@ -124,12 +146,13 @@ const TicketsPage: React.FC = () => {
 
   return (
     <div className="space-y-6 text-start">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Support Tickets</h2>
+          <h2 className="text-2xl font-bold text-gray-900 tracking-tight">
+            {t('account.ticketsPage.title')}
+          </h2>
           <p className="text-gray-500 text-sm mt-1">
-            Need help? Open a ticket to contact our platform assistance team.
+            {t('account.ticketsPage.subtitle')}
           </p>
         </div>
         <button
@@ -137,17 +160,16 @@ const TicketsPage: React.FC = () => {
           className="btn-primary flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl transition-all text-sm font-bold"
         >
           <PlusCircle size={16} />
-          Open Ticket
+          {t('account.ticketsPage.openTicket')}
         </button>
       </div>
 
-      {/* Tickets List */}
       {tickets.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center shadow-sm">
           <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
             <MessageSquare size={24} className="text-gray-400" />
           </div>
-          <p className="text-gray-500 font-medium">You have no active support tickets.</p>
+          <p className="text-gray-500 font-medium">{t('account.ticketsPage.noTickets')}</p>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50 overflow-hidden">
@@ -164,7 +186,7 @@ const TicketsPage: React.FC = () => {
                   </h4>
                   <p className="text-xs text-gray-400 line-clamp-1 max-w-xl">{ticket.message}</p>
                   <p className="text-[10px] text-gray-400 pt-1">
-                    Last updated:{' '}
+                    {t('account.ticketsPage.lastUpdated')}{' '}
                     {new Date(ticket.updatedAt).toLocaleDateString(i18n.language, {
                       year: 'numeric',
                       month: 'short',
@@ -187,7 +209,6 @@ const TicketsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Create Ticket Modal */}
       <AnimatePresence>
         {createModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -207,23 +228,23 @@ const TicketsPage: React.FC = () => {
             >
               <h3 className="text-xl font-bold text-gray-900 mb-2 flex items-center gap-2">
                 <MessageSquare className="text-secondary-900" />
-                Open Support Ticket
+                {t('account.ticketsPage.newTicket')}
               </h3>
               <p className="text-gray-500 text-xs mb-6">
-                Describe the problem you are experiencing. Our support team will respond to you shortly.
+                {t('account.ticketsPage.submitTicketDesc')}
               </p>
 
               <form onSubmit={handleCreateTicket} className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                    Subject / Topic
+                    {t('account.ticketsPage.subject')}
                   </label>
                   <input
                     type="text"
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
                     required
-                    placeholder="Brief summary of the issue..."
+                    placeholder={t('account.ticketsPage.subjectPlaceholder')}
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white text-sm transition-all"
                   />
                 </div>
@@ -231,30 +252,30 @@ const TicketsPage: React.FC = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                      Priority Level
+                      {t('account.ticketsPage.priorityLevel')}
                     </label>
                     <select
                       value={priority}
                       onChange={(e) => setPriority(e.target.value)}
                       className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white text-sm transition-all"
                     >
-                      <option value="LOW">Low (Question/Feedback)</option>
-                      <option value="MEDIUM">Medium (General Bug/Issue)</option>
-                      <option value="HIGH">High (Urgent Help Needed)</option>
+                      <option value="LOW">{t('account.ticketsPage.priorityLowOption')}</option>
+                      <option value="MEDIUM">{t('account.ticketsPage.priorityMediumOption')}</option>
+                      <option value="HIGH">{t('account.ticketsPage.priorityHighOption')}</option>
                     </select>
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                    Detailed Message
+                    {t('account.ticketsPage.detailedMessage')}
                   </label>
                   <textarea
                     rows={4}
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                     required
-                    placeholder="Describe the issue in detail, including steps to reproduce, or order IDs if applicable..."
+                    placeholder={t('account.ticketsPage.messagePlaceholder')}
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white text-sm transition-all"
                   />
                 </div>
@@ -265,7 +286,7 @@ const TicketsPage: React.FC = () => {
                     onClick={() => setCreateModalOpen(false)}
                     className="flex-1 py-3 border border-gray-200 rounded-xl text-gray-700 font-semibold hover:bg-gray-50 transition-colors text-sm"
                   >
-                    Cancel
+                    {t('common.cancel')}
                   </button>
                   <button
                     type="submit"
@@ -273,7 +294,7 @@ const TicketsPage: React.FC = () => {
                     className="btn-primary flex-1 py-3 rounded-xl flex items-center justify-center gap-1.5"
                   >
                     <Send size={14} />
-                    {submitting ? 'Submitting...' : 'Submit Ticket'}
+                    {submitting ? t('account.ticketsPage.submitting') : t('account.ticketsPage.submitTicket')}
                   </button>
                 </div>
               </form>
