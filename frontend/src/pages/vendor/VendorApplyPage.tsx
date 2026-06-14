@@ -104,7 +104,7 @@ const VendorApplyPage: React.FC<VendorApplyPageProps> = ({ onApplied }) => {
             {t('vendor.applyPage.goToDashboard', 'Head to your vendor dashboard to manage your store.')}
           </p>
           <Link to="/vendor" className="btn-primary px-6 py-3">
-            {t('vendor.dashboard', 'Vendor Dashboard')}
+            {t('vendor.dashboard.title', 'Vendor Dashboard')}
           </Link>
         </div>
       </div>

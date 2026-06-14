@@ -151,16 +151,21 @@ const AdminProductsPage: React.FC = () => {
     }
   };
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (vendorIdOverride?: string) => {
+    const targetVendorId = vendorIdOverride ?? selectedVendorId;
+    if (!targetVendorId) return;
+
     try {
       setLoading(true);
-      const response = await api.get(`/admin/vendors/${selectedVendorId}/products`, {
-        params: { page: pagination.page, limit: 10 }
+      const page = vendorIdOverride ? 1 : pagination.page;
+      const response = await api.get(`/admin/vendors/${targetVendorId}/products`, {
+        params: { page, limit: 10 }
       });
       setProducts(response.data.products || []);
       if (response.data.pagination) {
         setPagination(prev => ({
           ...prev,
+          page: vendorIdOverride ? 1 : prev.page,
           totalPages: response.data.pagination.totalPages || 1,
           totalCount: response.data.pagination.totalCount || 0
         }));
@@ -259,17 +264,26 @@ const AdminProductsPage: React.FC = () => {
       if (editingProduct) {
         await api.patch(`/vendor/products/${editingProduct.id}`, payload);
         toast.success(t('admin.vendorProducts.updateSuccess', 'Product entity successfully modified'));
+        setIsModalOpen(false);
+        fetchProducts();
       } else if (formData.isPlatform) {
-        // G-01 Fix: Call platform-specific endpoint for system products
-        await api.post('/admin/products/platform', payload);
+        // Platform products always belong to the GoKnary Official vendor account (not the selected vendor).
+        const res = await api.post('/admin/products/platform', payload);
+        const platformVendorId = res.data.product?.vendorId as string | undefined;
         toast.success(t('admin.vendorProducts.platformCreateSuccess', 'Official Platform Product successfully established'));
+        setIsModalOpen(false);
+        if (platformVendorId) {
+          setSelectedVendorId(platformVendorId);
+          fetchProducts(platformVendorId);
+        } else {
+          fetchProducts();
+        }
       } else {
         await api.post('/vendor/products', payload);
         toast.success(t('admin.vendorProducts.createSuccess', 'New product entry established in catalog'));
+        setIsModalOpen(false);
+        fetchProducts();
       }
-
-      setIsModalOpen(false);
-      fetchProducts();
     } catch (error: any) {
       toast.error(error.response?.data?.error || t('common.error', 'Operation failed'));
     } finally {

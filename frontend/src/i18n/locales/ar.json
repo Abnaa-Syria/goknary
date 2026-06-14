@@ -438,7 +438,12 @@
     "volume": "عدد العمليات"
   },
   "vendor": {
-    "dashboard": "لوحة تحكم البائع",
+    "dashboard": {
+      "title": "لوحة تحكم البائع",
+      "reviewTitle": "طلب الانضمام قيد المراجعة",
+      "reviewMessage": "طلب انضمامك كبائع قيد المراجعة من قبل فريقنا. ستتلقى رسالة بريد إلكتروني بمجرد الموافقة. تستغرق هذه العملية عادةً من يوم إلى يومي عمل.",
+      "failedAnalytics": "فشل تحميل تحليلات المتجر"
+    },
     "overview": "نظرة عامة على المتجر",
     "products": "المنتجات",
     "orders": "الطلبات",
@@ -498,10 +503,6 @@
     "noSalesDataYet": "لا توجد بيانات مبيعات بعد. أضف منتجاتك وسوقها للبدء!",
     "emptyStateTitle": "متجرك في انتظار أول طلباته",
     "emptyStateMessage": "أضف المنتجات وشارك رابط متجرك لبدء استقبال الطلبات. ستظهر مؤشرات الأداء هنا.",
-    "dashboard": {
-      "reviewTitle": "طلب الانضمام قيد المراجعة",
-      "reviewMessage": "طلب انضمامك كبائع قيد المراجعة من قبل فريقنا. ستتلقى رسالة بريد إلكتروني بمجرد الموافقة. تستغرق هذه العملية عادةً من يوم إلى يومي عمل."
-    },
     "productsPage": {
       "title": "كتالوج المنتجات",
       "subtitle": "إدارة المخزون والتسعير وحالة ظهور المنتجات.",
@@ -632,7 +633,20 @@
       "failedSave": "فشل في حفظ المنتج",
       "failedSaveVariant": "فشل في حفظ الخيار",
       "failedDelete": "فشل في الحذف",
-      "enterVariantInfo": "يرجى إدخال اسم الخيار وسمة واحدة على الأقل"
+      "enterVariantInfo": "يرجى إدخال اسم الخيار وسمة واحدة على الأقل",
+      "productNamePlaceholder": "اسم المنتج بالإنجليزية",
+      "productNameArPlaceholder": "اسم المنتج بالعربية",
+      "slugPlaceholder": "مثال: product-slug",
+      "slugHelp": "يُستخدم في مسار الرابط (يدعم العربية والإنجليزية).",
+      "productDescPlaceholder": "وصف المنتج بالإنجليزية",
+      "productDescArPlaceholder": "وصف المنتج بالعربية",
+      "discountPrice": "سعر الخصم",
+      "stock": "المخزون",
+      "variantNameArPlaceholder": "مثال: أحمر - كبير",
+      "attributeNameArPlaceholder": "مثال: اللون",
+      "valueArPlaceholder": "مثال: أحمر",
+      "updateVariant": "تحديث الخيار",
+      "updating": "جاري الإرسال..."
     },
     "refundRequests": "طلبات الاسترجاع",
     "noRefundsFound": "لا توجد طلبات استرجاع",
@@ -703,7 +717,6 @@
     "failedSubmitTicket": "فشل تقديم تذكرة الدعم",
     "submitting": "جاري التقديم...",
     "ticketsHelpDesc": "هل تحتاج لمساعدة؟ تواصل مع إدارة المنصة.",
-    "analytics": "التحليلات",
     "revenueOverview": "نظرة عامة على الإيرادات",
     "orderStats": "إحصائيات الطلبات",
     "totalRevenue": "إجمالي الإيرادات",
@@ -789,7 +802,26 @@
       "requestSuccess": "تم تقديم طلب السحب بنجاح!",
       "submitFailed": "فشل تقديم طلب سحب الأرباح",
       "requestFailed": "فشل تقديم طلب السحب"
-    }
+    },
+    "applyPage": {
+      "title": "كن بائعاً",
+      "description": "قدّم طلب الانضمام كبائع وابدأ ببيع منتجاتك على جو كناري. املأ النموذج أدناه وسنراجع طلبك.",
+      "loginRequired": "يجب أن يكون لديك حساب وأن تكون مسجلاً الدخول للتقديم كبائع. سجّل الدخول أو أنشئ حساباً أولاً.",
+      "alreadyVendor": "أنت بائع بالفعل!",
+      "goToDashboard": "انتقل إلى لوحة تحكم البائع لإدارة متجرك.",
+      "submittedTitle": "تم تقديم الطلب!",
+      "submittedMessage": "تم تقديم طلب الانضمام كبائع بنجاح. سنراجعه ونبلغك فور الموافقة.",
+      "storeNameHelp": "سيكون هذا الاسم العام لمتجرك",
+      "submit": "تقديم الطلب",
+      "failedSubmit": "فشل تقديم الطلب"
+    },
+    "analyticsPage": {
+      "lastYear": "آخر سنة"
+    },
+    "productSlug": "رابط المنتج / المسار",
+    "failedSyncTickets": "فشل مزامنة تذاكر الدعم الفني",
+    "failedSyncRefunds": "فشل مزامنة قائمة طلبات الاسترجاع",
+    "failedUpdateRefund": "فشل تحديث طلب الاسترجاع"
   },
   "admin": {
     "dashboard": "لوحة تحكم المدير",
