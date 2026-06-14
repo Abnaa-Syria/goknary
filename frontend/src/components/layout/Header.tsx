@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { FiSearch, FiUser, FiShoppingCart, FiMenu, FiTruck, FiHeart, FiX } from 'react-icons/fi';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
@@ -45,6 +45,7 @@ const Header: React.FC = () => {
   const isRTL = i18n.language === 'ar';
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, isAuthenticated } = useAppSelector((state) => state.auth);
   const { categories } = useAppSelector((state) => state.categories);
   const { freeShippingThreshold } = useAppSelector((state) => state.settings);
@@ -55,6 +56,60 @@ const Header: React.FC = () => {
   const [showMobileDrawer, setShowMobileDrawer] = useState(false);
   const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
+
+  // Ref to track if query changes are user-initiated (typing)
+  const isUserTyping = useRef(false);
+
+  // Debounce search query in header
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 400);
+
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    // Only synchronize search query state with URL to keep them in sync on nav
+    const searchParams = new URLSearchParams(location.search);
+    const q = searchParams.get('q') || '';
+    if (q !== searchQuery) {
+      isUserTyping.current = false; // URL changed, this is not user typing in input
+      setSearchQuery(q);
+    }
+  }, [location.search]);
+
+  useEffect(() => {
+    // Only navigate if the query change was triggered by user typing
+    if (!isUserTyping.current) return;
+
+    const trimmed = debouncedSearchQuery.trim();
+    const currentParams = new URLSearchParams(location.search);
+    const currentQ = currentParams.get('q') || '';
+
+    // Only update URL if the search query actually changed
+    if (trimmed !== currentQ) {
+      const categoryId = currentParams.get('categoryId');
+      const newParams = new URLSearchParams();
+      
+      if (trimmed.length > 0) {
+        newParams.set('q', trimmed);
+      }
+      if (categoryId) {
+        newParams.set('categoryId', categoryId);
+      }
+
+      // If we are on /search page or if query length >= 2, navigate to search
+      if (location.pathname === '/search' || trimmed.length >= 2) {
+        navigate(`/search?${newParams.toString()}`);
+      }
+    }
+    
+    // Reset typing flag after handling navigation
+    isUserTyping.current = false;
+  }, [debouncedSearchQuery, navigate]);
 
   const { loading: categoriesLoading } = useAppSelector((state) => state.categories);
   const hasFetchedCategories = useRef(false);
@@ -170,16 +225,17 @@ const Header: React.FC = () => {
                     type="text"
                     value={searchQuery}
                     onChange={(e) => {
+                      isUserTyping.current = true;
                       setSearchQuery(e.target.value);
                       setShowSearchSuggestions(e.target.value.length > 0);
                     }}
                     onFocus={() => setShowSearchSuggestions(searchQuery.length > 0)}
                     placeholder={t('common.searchPlaceholder')}
-                    className="w-full px-4 py-2.5 pe-12 border border-gray-300 rounded-e-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none text-sm rtl:rounded-e-none rtl:rounded-s-lg"
+                    className="w-full pl-4 pr-12 rtl:pr-4 rtl:pl-12 py-2.5 border border-gray-300 rounded-e-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none text-sm rtl:rounded-e-none rtl:rounded-s-lg"
                   />
                   <button
                     type="submit"
-                    className="absolute end-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-primary-500 transition-colors"
+                    className="absolute right-3 rtl:left-3 rtl:right-auto top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-primary-500 transition-colors"
                   >
                     <FiSearch className="w-5 h-5" />
                   </button>
@@ -365,14 +421,17 @@ const Header: React.FC = () => {
                   ref={mobileSearchInputRef}
                   type="search"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    isUserTyping.current = true;
+                    setSearchQuery(e.target.value);
+                  }}
                   placeholder={t('common.searchPlaceholder')}
-                  className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 pe-24 text-sm font-medium outline-none focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-100"
+                  className="w-full rounded-2xl border border-gray-200 bg-gray-50 pl-4 pr-24 rtl:pr-4 rtl:pl-24 py-3 text-sm font-medium outline-none focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-100"
                 />
                 <button
                   type="submit"
                   disabled={!searchQuery.trim()}
-                  className="absolute end-11 top-1/2 -translate-y-1/2 p-2 text-primary-600 disabled:text-gray-300"
+                  className="absolute right-11 rtl:left-11 rtl:right-auto top-1/2 -translate-y-1/2 p-2 text-primary-600 disabled:text-gray-300"
                   aria-label={t('common.search', 'Search')}
                 >
                   <FiSearch className="w-5 h-5" />
@@ -380,10 +439,11 @@ const Header: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
+                    isUserTyping.current = true;
                     setShowMobileSearch(false);
                     setSearchQuery('');
                   }}
-                  className="absolute end-2 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-gray-700"
+                  className="absolute right-2 rtl:left-2 rtl:right-auto top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-gray-700"
                   aria-label={t('common.close', 'Close')}
                 >
                   <FiX className="w-5 h-5" />

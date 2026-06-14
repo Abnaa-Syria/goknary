@@ -67,7 +67,7 @@ const VendorRefundsPage: React.FC = () => {
       setRefunds(response.data.refunds || []);
     } catch (error) {
       console.error('Failed to fetch refunds:', error);
-      toast.error('Failed to sync refund requests list');
+      toast.error(t('vendor.failedSyncRefunds', 'Failed to sync refund requests list'));
     } finally {
       setLoading(false);
     }
@@ -85,14 +85,14 @@ const VendorRefundsPage: React.FC = () => {
         notes
       });
 
-      toast.success(`Refund request is now marked as ${status.replace('_', ' ').toLowerCase()}!`);
+      toast.success(t('vendor.refundStatusUpdated', 'Refund request status updated!'));
       setActionType(null);
       setSelectedRefund(null);
       setNotes('');
       fetchRefunds();
     } catch (error: any) {
       console.error('Failed to update vendor refund status:', error);
-      toast.error(error.response?.data?.error || 'Failed to update refund request');
+      toast.error(error.response?.data?.error || t('vendor.failedUpdateRefund', 'Failed to update refund request'));
     } finally {
       setSubmitting(false);
     }
@@ -104,35 +104,35 @@ const VendorRefundsPage: React.FC = () => {
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
             <Clock size={12} />
-            Pending Review
+            {t('vendor.pendingReview', 'Pending Review')}
           </span>
         );
       case 'VENDOR_APPROVED':
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
             <Clock size={12} />
-            Approved, Awaiting Admin
+            {t('vendor.approvedAwaitingAdmin', 'Approved, Awaiting Admin')}
           </span>
         );
       case 'VENDOR_REJECTED':
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-yellow-50 text-yellow-700 border border-yellow-200">
             <Info size={12} />
-            Rejected by You
+            {t('vendor.rejectedByYou', 'Rejected by You')}
           </span>
         );
       case 'ADMIN_APPROVED':
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-50 text-green-700 border border-green-200">
             <CheckCircle size={12} />
-            Refunded to Wallet
+            {t('vendor.refundedToWallet', 'Refunded to Wallet')}
           </span>
         );
       case 'ADMIN_REJECTED':
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200">
             <XCircle size={12} />
-            Declined by Admin
+            {t('vendor.declinedByAdmin', 'Declined by Admin')}
           </span>
         );
     }
@@ -163,9 +163,9 @@ const VendorRefundsPage: React.FC = () => {
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Customer Returns</h1>
+        <h1 className="text-3xl font-bold text-gray-900 tracking-tight">{t('vendor.refundsTitle', 'Customer Returns')}</h1>
         <p className="text-gray-500 mt-1 text-sm">
-          Review and approve return requests for items sold from your catalog.
+          {t('vendor.refundsSubtitle', 'Review and approve return requests for items sold from your catalog.')}
         </p>
       </div>
 
@@ -175,7 +175,7 @@ const VendorRefundsPage: React.FC = () => {
           <Search className="absolute start-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
           <input
             type="text"
-            placeholder="Search products, orders or customers..."
+            placeholder={t('vendor.searchRefundsPlaceholder', 'Search products, orders or customers...')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full ps-10 pe-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all"
@@ -189,12 +189,12 @@ const VendorRefundsPage: React.FC = () => {
             onChange={(e) => setStatusFilter(e.target.value)}
             className="bg-transparent text-sm font-semibold focus:outline-none pe-8 w-full"
           >
-            <option value="all">All Statuses</option>
-            <option value="PENDING">Pending Action</option>
-            <option value="VENDOR_APPROVED">Approved by Me</option>
-            <option value="VENDOR_REJECTED">Rejected by Me</option>
-            <option value="ADMIN_APPROVED">Settled (Approved by Admin)</option>
-            <option value="ADMIN_REJECTED">Declined by Admin</option>
+            <option value="all">{t('vendor.allStatuses', 'All Statuses')}</option>
+            <option value="PENDING">{t('vendor.pendingAction', 'Pending Action')}</option>
+            <option value="VENDOR_APPROVED">{t('vendor.approvedByMe', 'Approved by Me')}</option>
+            <option value="VENDOR_REJECTED">{t('vendor.rejectedByMe', 'Rejected by Me')}</option>
+            <option value="ADMIN_APPROVED">{t('vendor.settledApproved', 'Settled (Approved by Admin)')}</option>
+            <option value="ADMIN_REJECTED">{t('vendor.declinedByAdmin', 'Declined by Admin')}</option>
           </select>
         </div>
       </div>
@@ -203,8 +203,8 @@ const VendorRefundsPage: React.FC = () => {
       <div className="space-y-4">
         {filteredRefunds.length === 0 ? (
           <EmptyState
-            title="No Refund Requests"
-            message="No return requests match the selected status filters."
+            title={t('vendor.noRefundsFound', 'No Refund Requests')}
+            message={t('vendor.noRefundsMatchingFilters', 'No return requests match the selected status filters.')}
           />
         ) : (
           filteredRefunds.map((refund) => {
@@ -234,9 +234,9 @@ const VendorRefundsPage: React.FC = () => {
                   <div>
                     <h4 className="font-bold text-gray-900 line-clamp-2 text-sm">{refund.orderItem.product.name}</h4>
                     <p className="text-xs text-gray-400 mt-1">
-                      Qty: {refund.orderItem.quantity} × {formatPrice(refund.orderItem.price)}
+                      {t('vendor.qty', 'Qty:')} {refund.orderItem.quantity} × {formatPrice(refund.orderItem.price)}
                     </p>
-                    <p className="text-[10px] text-purple-600 font-mono mt-0.5">Order ID: #{refund.orderId}</p>
+                    <p className="text-[10px] text-purple-600 font-mono mt-0.5">{t('vendor.orderRef', 'Order ID:')} #{refund.orderId}</p>
                   </div>
                 </div>
 
@@ -244,12 +244,12 @@ const VendorRefundsPage: React.FC = () => {
                 <div className="flex-1 space-y-3 w-full lg:max-w-xl">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                     <div>
-                      <span className="font-bold block text-[10px] uppercase text-gray-400 tracking-wider">Customer Details</span>
-                      <span className="font-semibold text-gray-800">{refund.customer.name || 'Anonymous Mapped User'}</span>
+                      <span className="font-bold block text-[10px] uppercase text-gray-400 tracking-wider">{t('vendor.customerDetails', 'Customer Details')}</span>
+                      <span className="font-semibold text-gray-800">{refund.customer.name || t('vendor.anonymousUser', 'Anonymous Mapped User')}</span>
                       <span className="block text-gray-400">{refund.customer.email}</span>
                     </div>
                     <div>
-                      <span className="font-bold block text-[10px] uppercase text-gray-400 tracking-wider">Requested Date</span>
+                      <span className="font-bold block text-[10px] uppercase text-gray-400 tracking-wider">{t('vendor.requestDate', 'Requested Date')}</span>
                       <span className="text-gray-600 font-medium">
                         {new Date(refund.createdAt).toLocaleDateString(i18n.language, {
                           year: 'numeric',
@@ -260,13 +260,13 @@ const VendorRefundsPage: React.FC = () => {
                     </div>
                   </div>
                   <div className="text-xs text-gray-600 bg-gray-50/50 p-3 rounded-2xl border border-gray-100">
-                    <span className="font-bold block text-[10px] uppercase text-gray-400 tracking-wider mb-1">Reason for Return</span>
+                    <span className="font-bold block text-[10px] uppercase text-gray-400 tracking-wider mb-1">{t('vendor.reason', 'Reason for Return')}</span>
                     {refund.reason}
                   </div>
                   {(refund.vendorNotes || refund.adminNotes) && (
                     <div className="text-xs space-y-1">
-                      {refund.vendorNotes && <p className="text-gray-500"><span className="font-semibold text-gray-600">Your Action Notes:</span> {refund.vendorNotes}</p>}
-                      {refund.adminNotes && <p className="text-red-500"><span className="font-semibold">Admin Settlement Notes:</span> {refund.adminNotes}</p>}
+                      {refund.vendorNotes && <p className="text-gray-500"><span className="font-semibold text-gray-600">{t('vendor.yourActionNotes', 'Your Action Notes:')}</span> {refund.vendorNotes}</p>}
+                      {refund.adminNotes && <p className="text-red-500"><span className="font-semibold">{t('vendor.adminSettlementNotes', 'Admin Settlement Notes:')}</span> {refund.adminNotes}</p>}
                     </div>
                   )}
                 </div>
@@ -274,7 +274,7 @@ const VendorRefundsPage: React.FC = () => {
                 {/* Financial and Actions */}
                 <div className="flex lg:flex-col items-between lg:items-end justify-between w-full lg:w-auto gap-4 pt-4 lg:pt-0 border-t lg:border-t-0 border-gray-50 flex-shrink-0">
                   <div className="text-start lg:text-end">
-                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Refund Deductable</p>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{t('vendor.refundDeductable', 'Refund Deductable')}</p>
                     <span className="text-lg font-black text-gray-900 block mt-0.5">
                       {formatPrice(refund.amount)}
                     </span>
@@ -291,7 +291,7 @@ const VendorRefundsPage: React.FC = () => {
                         className="flex items-center gap-1 px-4 py-2 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-xl text-xs font-bold transition-all"
                       >
                         <Check size={14} />
-                        Approve Conditions
+                        {t('vendor.approveConditions', 'Approve Conditions')}
                       </button>
                       <button
                         onClick={() => {
@@ -301,7 +301,7 @@ const VendorRefundsPage: React.FC = () => {
                         className="flex items-center gap-1 px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl text-xs font-bold transition-all"
                       >
                         <X size={14} />
-                        Decline
+                        {t('vendor.decline', 'Decline')}
                       </button>
                     </div>
                   )}
@@ -338,25 +338,25 @@ const VendorRefundsPage: React.FC = () => {
                 {actionType === 'APPROVE' ? (
                   <>
                     <CheckCircle className="text-purple-600" />
-                    Approve Return Request
+                    {t('vendor.approveReturnRequest', 'Approve Return Request')}
                   </>
                 ) : (
                   <>
                     <XCircle className="text-red-600" />
-                    Reject Return Request
+                    {t('vendor.rejectReturnRequest', 'Reject Return Request')}
                   </>
                 )}
               </h3>
               <p className="text-gray-500 text-xs mb-4">
                 {actionType === 'APPROVE'
-                  ? 'Approve that the returned product condition is acceptable. This moves the ticket to platform administrator for financial refund release.'
-                  : 'Rejecting this item return. Please explain why the condition was not acceptable.'}
+                  ? t('vendor.approveReturnDesc', 'Approve that the returned product condition is acceptable. This moves the ticket to platform administrator for financial refund release.')
+                  : t('vendor.rejectReturnDesc', 'Rejecting this item return. Please explain why the condition was not acceptable.')}
               </p>
 
               <form onSubmit={handleProcessRefund} className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                    Merchant Action Notes
+                    {t('vendor.merchantActionNotes', 'Merchant Action Notes')}
                   </label>
                   <textarea
                     rows={3}
@@ -364,8 +364,8 @@ const VendorRefundsPage: React.FC = () => {
                     onChange={(e) => setNotes(e.target.value)}
                     placeholder={
                       actionType === 'APPROVE'
-                        ? 'e.g. Product returned in good condition. Sealed packaging intact. Ready for refund release...'
-                        : 'e.g. Product damaged by buyer. Original seal broken. Rejection confirmed...'
+                        ? t('vendor.approveNotesPlaceholder', 'e.g. Product returned in good condition. Sealed packaging intact. Ready for refund release...')
+                        : t('vendor.rejectNotesPlaceholder', 'e.g. Product damaged by buyer. Original seal broken. Rejection confirmed...')
                     }
                     required
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white text-sm transition-all"
@@ -382,7 +382,7 @@ const VendorRefundsPage: React.FC = () => {
                     }}
                     className="flex-1 py-3 border border-gray-200 rounded-xl text-gray-700 font-semibold hover:bg-gray-50 transition-colors text-sm"
                   >
-                    Cancel
+                    {t('common.cancel', 'Cancel')}
                   </button>
                   <button
                     type="submit"
@@ -394,10 +394,10 @@ const VendorRefundsPage: React.FC = () => {
                     }`}
                   >
                     {submitting
-                      ? 'Processing...'
+                      ? t('common.processing', 'Processing...')
                       : actionType === 'APPROVE'
-                      ? 'Approve Condition'
-                      : 'Confirm Reject'}
+                      ? t('vendor.approveCondition', 'Approve Condition')
+                      : t('vendor.confirmReject', 'Confirm Reject')}
                   </button>
                 </div>
               </form>

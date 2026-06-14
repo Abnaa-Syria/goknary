@@ -985,3 +985,101 @@ export const settlePlatform = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ error: 'Failed to settle platform statistics' });
   }
 };
+
+export const getSearchAnalytics = async (req: Request, res: Response) => {
+  try {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const [topSearchesRaw, zeroResultRaw, logs] = await Promise.all([
+      // Top 10 most searched terms
+      prisma.searchLog.groupBy({
+        by: ['query'],
+        _count: {
+          query: true,
+        },
+        where: {
+          createdAt: {
+            gte: thirtyDaysAgo,
+          },
+        },
+        orderBy: {
+          _count: {
+            query: 'desc',
+          },
+        },
+        take: 10,
+      }),
+
+      // Top 10 zero-result searches
+      prisma.searchLog.groupBy({
+        by: ['query'],
+        _count: {
+          query: true,
+        },
+        where: {
+          results: 0,
+          createdAt: {
+            gte: thirtyDaysAgo,
+          },
+        },
+        orderBy: {
+          _count: {
+            query: 'desc',
+          },
+        },
+        take: 10,
+      }),
+
+      // Logs for daily volume
+      prisma.searchLog.findMany({
+        where: {
+          createdAt: {
+            gte: thirtyDaysAgo,
+          },
+        },
+        select: {
+          createdAt: true,
+        },
+      }),
+    ]);
+
+    const topSearches = topSearchesRaw.map(item => ({
+      query: item.query,
+      count: item._count.query,
+    }));
+
+    const zeroResultSearches = zeroResultRaw.map(item => ({
+      query: item.query,
+      count: item._count.query,
+    }));
+
+    const dailyVolumeMap: Record<string, number> = {};
+    for (let i = 0; i < 30; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      dailyVolumeMap[dateStr] = 0;
+    }
+
+    logs.forEach(log => {
+      const dateStr = log.createdAt.toISOString().split('T')[0];
+      if (dailyVolumeMap[dateStr] !== undefined) {
+        dailyVolumeMap[dateStr]++;
+      }
+    });
+
+    const dailyVolume = Object.entries(dailyVolumeMap)
+      .map(([date, count]) => ({ date, count }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    res.json({
+      topSearches,
+      zeroResultSearches,
+      dailyVolume,
+    });
+  } catch (error) {
+    console.error('Error fetching search analytics:', error);
+    res.status(500).json({ error: 'Failed to fetch search analytics data' });
+  }
+};

@@ -66,14 +66,14 @@ const VendorSettingsPage: React.FC = () => {
         banner: vendorData.banner ? [vendorData.banner] : [],
       });
     } catch (error: any) {
-      toast.error('Failed to load store profile');
+      toast.error(t('vendor.failedLoadProfile', 'Failed to load store profile'));
     }
   };
 
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.storeName.trim()) {
-      toast.error('Store name is required');
+      toast.error(t('vendor.storeNameRequired', 'Store name is required'));
       return;
     }
 
@@ -90,11 +90,11 @@ const VendorSettingsPage: React.FC = () => {
         logo: logoUrl || '',
         banner: bannerUrl || '',
       });
-      toast.success('Storefront updated successfully');
+      toast.success(t('vendor.updateSuccess', 'Storefront updated successfully'));
       fetchVendorProfile();
       dispatch(getCurrentUser()); // Sync global user state if store info is linked
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to update storefront');
+      toast.error(error.response?.data?.error || t('vendor.updateFailed', 'Failed to update storefront'));
     } finally {
       setProfileLoading(false);
     }
@@ -103,7 +103,7 @@ const VendorSettingsPage: React.FC = () => {
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      toast.error('New passwords do not match');
+      toast.error(t('vendor.passwordsDoNotMatch', 'New passwords do not match'));
       return;
     }
 
@@ -113,14 +113,14 @@ const VendorSettingsPage: React.FC = () => {
         currentPassword: passwordData.currentPassword,
         newPassword: passwordData.newPassword,
       });
-      toast.success('Security credentials updated');
+      toast.success(t('vendor.credentialsUpdated', 'Security credentials updated'));
       setPasswordData({
         currentPassword: '',
         newPassword: '',
         confirmPassword: '',
       });
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to change password');
+      toast.error(error.response?.data?.error || t('vendor.failedChangePassword', 'Failed to change password'));
     } finally {
       setPasswordLoading(false);
     }
@@ -130,7 +130,7 @@ const VendorSettingsPage: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center p-12 bg-white rounded-3xl border border-gray-100 shadow-sm animate-pulse">
         <Loader2 className="animate-spin text-purple-600 mb-4" size={32} />
-        <p className="text-gray-500 font-medium">Syncing store settings...</p>
+        <p className="text-gray-500 font-medium">{t('vendor.syncingSettings', 'Syncing store settings...')}</p>
       </div>
     );
   }
@@ -139,7 +139,7 @@ const VendorSettingsPage: React.FC = () => {
     <div className="space-y-8 pb-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Page Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 tracking-tight">{t('vendor.settingsPage.title', 'Store Settings')}</h1>
+        <h1 className="text-3xl font-bold text-gray-900 tracking-tight">{t('vendor.storeSettings', 'Store Settings')}</h1>
         <p className="text-gray-500 mt-1 text-sm tracking-wide">{t('vendor.settingsPage.subtitle', 'Customize your brand identity and secure your vendor dashboard access')}</p>
       </div>
 
@@ -151,8 +151,8 @@ const VendorSettingsPage: React.FC = () => {
               <Store size={20} />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-gray-900">Brand Identity</h2>
-              <p className="text-xs text-gray-400 font-medium uppercase tracking-tighter">Your store appearance on GoKnary</p>
+              <h2 className="text-lg font-bold text-gray-900">{t('vendor.profileSettings', 'Brand Identity')}</h2>
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-tighter">{t('vendor.storeAppearanceDesc', 'Your store appearance on GoKnary')}</p>
             </div>
           </div>
 
@@ -161,7 +161,7 @@ const VendorSettingsPage: React.FC = () => {
               {/* Store Name */}
               <div className="relative group">
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ms-1 group-focus-within:text-purple-600 transition-colors">
-                  {t('vendor.settingsPage.storeName', 'Store Name *')}
+                  {t('vendor.storeName', 'Store Name *')}
                 </label>
                 <div className="relative">
                   <Globe className="absolute start-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-purple-600 transition-colors" size={18} />
@@ -179,7 +179,7 @@ const VendorSettingsPage: React.FC = () => {
               {/* Description */}
               <div className="relative group">
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ms-1 group-focus-within:text-purple-600 transition-colors">
-                  {t('vendor.settingsPage.storeDescription', 'Store Description')}
+                  {t('vendor.storeDescription', 'Store Description')}
                 </label>
                 <div className="relative">
                   <FileText className="absolute start-4 top-4 text-gray-400 group-focus-within:text-purple-600 transition-colors" size={18} />
@@ -196,19 +196,19 @@ const VendorSettingsPage: React.FC = () => {
               {/* Logo & Banner Uploaders */}
               <div className="space-y-6">
                 <ImageUploader
-                  label="Store Logo"
+                  label={t('vendor.storeLogo', 'Store Logo')}
                   value={formData.logo}
                   onChange={(val) => setFormData({ ...formData, logo: val })}
                   multiple={false}
-                  helperText="Recommended: 512x512px SVG or PNG"
+                  helperText={t('vendor.storeLogoHelp', 'Recommended: 512x512px SVG or PNG')}
                 />
                 
                 <ImageUploader
-                  label="Store Banner"
+                  label={t('vendor.storeBanner', 'Store Banner')}
                   value={formData.banner}
                   onChange={(val) => setFormData({ ...formData, banner: val })}
                   multiple={false}
-                  helperText="Recommended: 1920x400px high-resolution banner"
+                  helperText={t('vendor.storeBannerHelp', 'Recommended: 1920x400px high-resolution banner')}
                 />
               </div>
 
@@ -222,7 +222,7 @@ const VendorSettingsPage: React.FC = () => {
                 className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-purple-600 text-white font-bold rounded-2xl hover:bg-purple-700 disabled:opacity-50 transition-all shadow-lg shadow-purple-100"
               >
                 {profileLoading ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
-                <span>{t('vendor.settingsPage.saveChanges', 'Save Storefront Changes')}</span>
+                <span>{t('vendor.saveChanges', 'Save Storefront Changes')}</span>
               </button>
             </div>
           </form>
@@ -235,8 +235,8 @@ const VendorSettingsPage: React.FC = () => {
               <Key size={20} />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-gray-900">Security Credentials</h2>
-              <p className="text-xs text-gray-400 font-medium uppercase tracking-tighter">Protect your seller account access</p>
+              <h2 className="text-lg font-bold text-gray-900">{t('vendor.passwordChange', 'Security Credentials')}</h2>
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-tighter">{t('vendor.protectAccountDesc', 'Protect your seller account access')}</p>
             </div>
           </div>
 
@@ -244,7 +244,7 @@ const VendorSettingsPage: React.FC = () => {
             <div className="space-y-4">
               <div className="relative group">
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ms-1 group-focus-within:text-red-500 transition-colors">
-                  {t('vendor.settingsPage.currentPassword', 'Current Password')}
+                  {t('vendor.currentPassword', 'Current Password')}
                 </label>
                 <div className="relative">
                   <Lock className="absolute start-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-red-500 transition-colors" size={18} />
@@ -263,7 +263,7 @@ const VendorSettingsPage: React.FC = () => {
 
               <div className="relative group">
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ms-1 group-focus-within:text-purple-600 transition-colors">
-                  {t('vendor.settingsPage.newPassword', 'New Password')}
+                  {t('vendor.newPassword', 'New Password')}
                 </label>
                 <div className="relative">
                   <Shield className="absolute start-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-purple-600 transition-colors" size={18} />
@@ -280,7 +280,7 @@ const VendorSettingsPage: React.FC = () => {
 
               <div className="relative group">
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ms-1 group-focus-within:text-purple-600 transition-colors">
-                  {t('vendor.settingsPage.confirmNewPassword', 'Confirm New Password')}
+                  {t('vendor.confirmPassword', 'Confirm New Password')}
                 </label>
                 <div className="relative">
                   <Shield className="absolute start-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-purple-600 transition-colors" size={18} />
@@ -303,7 +303,7 @@ const VendorSettingsPage: React.FC = () => {
                 className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-red-600 text-white font-bold rounded-2xl hover:bg-red-700 disabled:opacity-50 transition-all shadow-lg shadow-red-200"
               >
                 {passwordLoading ? <Loader2 className="animate-spin" size={20} /> : <Shield size={20} />}
-                <span>{t('vendor.settingsPage.updateCredentials', 'Update Access Credentials')}</span>
+                <span>{t('vendor.saveChanges', 'Update Access Credentials')}</span>
               </button>
             </div>
           </form>

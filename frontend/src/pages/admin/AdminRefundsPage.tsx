@@ -250,7 +250,7 @@ const AdminRefundsPage: React.FC = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                     <div>
                       <span className="font-bold block text-[10px] uppercase text-gray-400 tracking-wider">{t('admin.customerDetails', 'Customer Details')}</span>
-                      <span className="font-semibold text-gray-800">{refund.customer.name || 'Anonymous User'}</span>
+                      <span className="font-semibold text-gray-800">{refund.customer.name || t('admin.anonymousUser', 'Anonymous User')}</span>
                       <span className="block text-gray-400">{refund.customer.email}</span>
                     </div>
                     <div>

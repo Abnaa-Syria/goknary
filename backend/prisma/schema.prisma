@@ -178,6 +178,8 @@ model Product {
   @@index([vendorId])
   @@index([slug])
   @@index([brandId])
+  @@index([name])
+  @@index([description(length: 255)])
   @@map("products")
 }
 
@@ -631,6 +633,18 @@ model PlatformSettlement {
   createdAt      DateTime @default(now()) @map("created_at")
 
   @@map("platform_settlements")
+}
+
+model SearchLog {
+  id        String   @id @default(cuid())
+  query     String
+  results   Int
+  userId    String?  @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([query])
+  @@index([createdAt])
+  @@map("search_logs")
 }
 
 

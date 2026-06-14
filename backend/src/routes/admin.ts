@@ -11,7 +11,8 @@ import {
   deleteProduct,
   updateAdminOrderStatus,
   createPlatformProduct,
-  settlePlatform
+  settlePlatform,
+  getSearchAnalytics
 } from '../controllers/admin';
 import {
   createCoupon,
@@ -31,6 +32,7 @@ router.use(authorize('ADMIN', 'STAFF'));
 
 // Dashboard
 router.get('/dashboard', requirePermission('READ_DASHBOARD'), getDashboardStats);
+router.get('/search-analytics', requirePermission('READ_DASHBOARD'), getSearchAnalytics);
 router.post('/platform/settle', requirePermission('MANAGE_ROLES'), settlePlatform);
 
 // Orders

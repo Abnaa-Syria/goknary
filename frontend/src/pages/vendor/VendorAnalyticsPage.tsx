@@ -56,15 +56,15 @@ const VendorAnalyticsPage: React.FC = () => {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">{t('vendor.analyticsPage.title', 'Analytics')}</h2>
+        <h2 className="text-2xl font-bold">{t('vendor.analytics', 'Analytics')}</h2>
         <select
           value={period}
           onChange={(e) => setPeriod(e.target.value)}
           className="input-field w-auto"
         >
-          <option value="7">{t('vendor.analyticsPage.last7', 'Last 7 days')}</option>
-          <option value="30">{t('vendor.analyticsPage.last30', 'Last 30 days')}</option>
-          <option value="90">{t('vendor.analyticsPage.last90', 'Last 90 days')}</option>
+          <option value="7">{t('vendor.last7Days', 'Last 7 Days')}</option>
+          <option value="30">{t('vendor.last30Days', 'Last 30 Days')}</option>
+          <option value="90">{t('vendor.last90Days', 'Last 90 Days')}</option>
           <option value="365">{t('vendor.analyticsPage.lastYear', 'Last year')}</option>
         </select>
       </div>
@@ -72,25 +72,25 @@ const VendorAnalyticsPage: React.FC = () => {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="card p-6">
-          <h3 className="text-gray-600 text-sm mb-2">{t('vendor.analyticsPage.totalOrders', 'Total Orders')}</h3>
+          <h3 className="text-gray-600 text-sm mb-2">{t('vendor.totalOrders', 'Total Orders')}</h3>
           <p className="text-3xl font-bold">{analytics.summary.totalOrders}</p>
-          <p className="text-xs text-gray-500 mt-2">{t('vendor.analyticsPage.lastN', { n: analytics.summary.period, defaultValue: 'Last {{n}}' })}</p>
+          <p className="text-xs text-gray-500 mt-2">{t('vendor.lastN', { n: analytics.summary.period, defaultValue: 'Last {{n}} days' })}</p>
         </div>
 
         <div className="card p-6">
-          <h3 className="text-gray-600 text-sm mb-2">{t('vendor.analyticsPage.realizedSales', 'Realized Sales')}</h3>
+          <h3 className="text-gray-600 text-sm mb-2">{t('vendor.totalRevenue', 'Total Revenue')}</h3>
           <p className="text-3xl font-bold">{formatPrice(analytics.summary.totalSales)}</p>
-          <p className="text-xs text-gray-500 mt-2">{t('vendor.analyticsPage.lastN', { n: analytics.summary.period, defaultValue: 'Last {{n}}' })}</p>
+          <p className="text-xs text-gray-500 mt-2">{t('vendor.lastN', { n: analytics.summary.period, defaultValue: 'Last {{n}} days' })}</p>
         </div>
 
         <div className="card p-6">
-          <h3 className="text-gray-600 text-sm mb-2">{t('vendor.analyticsPage.avgDeliveredOrderValue', 'Avg. Delivered Order')}</h3>
+          <h3 className="text-gray-600 text-sm mb-2">{t('vendor.averageOrderValue', 'Average Order Value')}</h3>
           <p className="text-3xl font-bold">
             {(analytics.summary.deliveredOrders || 0) > 0
               ? formatPrice(analytics.summary.totalSales / (analytics.summary.deliveredOrders || 1))
               : formatPrice(0)}
           </p>
-          <p className="text-xs text-gray-500 mt-2">{t('vendor.analyticsPage.lastN', { n: analytics.summary.period, defaultValue: 'Last {{n}}' })}</p>
+          <p className="text-xs text-gray-500 mt-2">{t('vendor.lastN', { n: analytics.summary.period, defaultValue: 'Last {{n}} days' })}</p>
         </div>
         <div className="card p-6">
           <h3 className="text-gray-600 text-sm mb-2">{t('vendor.pendingEarnings', 'Pending Earnings')}</h3>
@@ -100,19 +100,19 @@ const VendorAnalyticsPage: React.FC = () => {
         <div className="card p-6">
           <h3 className="text-gray-600 text-sm mb-2">{t('vendor.pendingSales', 'Pending Sales')}</h3>
           <p className="text-3xl font-bold">{formatPrice(analytics.summary.pendingSales || 0)}</p>
-          <p className="text-xs text-gray-500 mt-2">{t('vendor.analyticsPage.financiallyConfirmed', 'Financially confirmed in-flight orders')}</p>
+          <p className="text-xs text-gray-500 mt-2">{t('vendor.financiallyConfirmed', 'Financially confirmed in-flight orders')}</p>
         </div>
         <div className="card p-6">
           <h3 className="text-gray-600 text-sm mb-2">{t('vendor.deliveredOrders', 'Delivered Orders')}</h3>
           <p className="text-3xl font-bold">{analytics.summary.deliveredOrders || 0}</p>
-          <p className="text-xs text-gray-500 mt-2">{t('vendor.analyticsPage.lastN', { n: analytics.summary.period, defaultValue: 'Last {{n}}' })}</p>
+          <p className="text-xs text-gray-500 mt-2">{t('vendor.lastN', { n: analytics.summary.period, defaultValue: 'Last {{n}} days' })}</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Orders by Status */}
         <div className="card p-6">
-          <h3 className="text-lg font-bold mb-4">{t('vendor.analyticsPage.ordersByStatus', 'Orders by Status')}</h3>
+          <h3 className="text-lg font-bold mb-4">{t('vendor.orderStats', 'Order Stats')}</h3>
           <div className="space-y-3">
             {analytics.ordersByStatus.map((item) => (
               <div key={item.status} className="flex justify-between items-center">
@@ -125,19 +125,19 @@ const VendorAnalyticsPage: React.FC = () => {
 
         {/* Top Products */}
         <div className="card p-6">
-          <h3 className="text-lg font-bold mb-4">{t('vendor.analyticsPage.topSellingProducts', 'Top Selling Products')}</h3>
+          <h3 className="text-lg font-bold mb-4">{t('vendor.topSellingProducts', 'Top Selling Products')}</h3>
           <div className="space-y-3">
             {analytics.topProducts.length > 0 ? (
               analytics.topProducts.map((item, index) => (
                 <div key={index} className="flex justify-between items-center">
                   <span className="text-gray-600">
-                    {item.product?.name || t('vendor.analyticsPage.unknownProduct', 'Unknown Product')}
+                    {item.product?.name || t('vendor.unknownProduct', 'Unknown Product')}
                   </span>
                   <span className="font-bold">{item.quantitySold} {t('vendor.sold', 'sold')}</span>
                 </div>
               ))
             ) : (
-              <p className="text-gray-500 text-sm">{t('vendor.analyticsPage.noSalesData', 'No sales data available')}</p>
+              <p className="text-gray-500 text-sm">{t('vendor.noDataAvailable', 'No Data Available')}</p>
             )}
           </div>
         </div>

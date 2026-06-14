@@ -35,6 +35,7 @@ import AdminPayoutsPage from './AdminPayoutsPage';
 import AdminRefundsPage from './AdminRefundsPage';
 import AdminTicketsPage from './AdminTicketsPage';
 import AdminTicketDetailsPage from './AdminTicketDetailsPage';
+import AdminSearchAnalyticsPage from './AdminSearchAnalyticsPage';
 import { DashboardFooter } from '../../components/layout/DashboardFooter';
 
 import { hasPermission, getRoleTheme } from '../../utils/permissions';
@@ -746,6 +747,7 @@ const AdminDashboard: React.FC = () => {
 
   const menuItems = [
     { path: '/admin',               name: t('admin.overview',   'Overview'),       icon: LayoutDashboard, permission: 'READ_DASHBOARD'    },
+    { path: '/admin/search-analytics', name: t('search.analyticsTitle', 'Search Analytics'), icon: TrendingUp, permission: 'READ_DASHBOARD' },
     { path: '/admin/users',         name: t('admin.users',      'Users'),           icon: Users,           permission: 'READ_USERS'         },
     { path: '/admin/vendors',       name: t('admin.vendors',    'Vendors'),         icon: Briefcase,       permission: 'READ_VENDORS',  countKey: 'pendingVendors' },
     { path: '/admin/payouts',       name: t('admin.payouts',    'Payout Requests'), icon: DollarSign,      permission: 'READ_VENDORS'       },
@@ -886,6 +888,7 @@ const AdminDashboard: React.FC = () => {
                 />
               }
             />
+            <Route path="search-analytics" element={<Guard perm="READ_DASHBOARD"><AdminSearchAnalyticsPage /></Guard>} />
             <Route path="users" element={<Guard perm="READ_USERS"><AdminUsersPage /></Guard>} />
             <Route path="vendors" element={<Guard perm="READ_VENDORS"><AdminVendorsPage /></Guard>} />
             <Route path="vendors/:vendorId" element={<Guard perm="READ_VENDORS"><AdminVendorDetailPage /></Guard>} />

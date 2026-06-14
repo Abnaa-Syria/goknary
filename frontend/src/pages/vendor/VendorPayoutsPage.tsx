@@ -70,7 +70,7 @@ const VendorPayoutsPage: React.FC = () => {
       setPayouts(payoutsRes.data.payouts || []);
     } catch (error) {
       console.error('Failed to fetch wallet info:', error);
-      toast.error('Failed to sync wallet data');
+      toast.error(t('vendor.payouts.failedSyncWallet', 'Failed to sync wallet data'));
     } finally {
       setLoading(false);
     }
@@ -81,12 +81,12 @@ const VendorPayoutsPage: React.FC = () => {
     const reqAmount = parseFloat(amount);
 
     if (isNaN(reqAmount) || reqAmount <= 0) {
-      toast.error('Please enter a valid positive amount');
+      toast.error(t('vendor.payouts.invalidAmount', 'Please enter a valid positive amount'));
       return;
     }
 
     if (wallet && reqAmount > wallet.balance) {
-      toast.error('Insufficient available balance for this payout request');
+      toast.error(t('vendor.payouts.insufficientBalance', 'Insufficient available balance for this payout request'));
       return;
     }
 
@@ -94,19 +94,19 @@ const VendorPayoutsPage: React.FC = () => {
     let paymentDetails = '';
     if (paymentMethod === 'BANK_TRANSFER') {
       if (!bankName || !accountNumber || !accountName) {
-        toast.error('Please fill in all bank transfer fields');
+        toast.error(t('vendor.payouts.fillBankFields', 'Please fill in all bank transfer fields'));
         return;
       }
       paymentDetails = JSON.stringify({ bankName, accountNumber, accountName });
     } else if (paymentMethod === 'VODAFONE_CASH') {
       if (!vodafoneNumber) {
-        toast.error('Please enter Vodafone Cash number');
+        toast.error(t('vendor.payouts.enterVodafoneNumber', 'Please enter Vodafone Cash number'));
         return;
       }
       paymentDetails = JSON.stringify({ phone: vodafoneNumber });
     } else if (paymentMethod === 'INSTAPAY') {
       if (!instapayAddress) {
-        toast.error('Please enter Instapay GPA');
+        toast.error(t('vendor.payouts.enterInstapayAddress', 'Please enter Instapay GPA'));
         return;
       }
       paymentDetails = JSON.stringify({ instapayAddress });
@@ -120,7 +120,7 @@ const VendorPayoutsPage: React.FC = () => {
         paymentDetails
       });
 
-      toast.success('Payout request submitted successfully!');
+      toast.success(t('vendor.payouts.requestSuccess', 'Payout request submitted successfully!'));
       setRequestModalOpen(false);
       // Reset form
       setAmount('');
@@ -133,7 +133,7 @@ const VendorPayoutsPage: React.FC = () => {
       fetchWalletAndPayouts();
     } catch (error: any) {
       console.error('Payout submission failed:', error);
-      toast.error(error.response?.data?.error || 'Failed to submit payout request');
+      toast.error(error.response?.data?.error || t('vendor.payouts.requestFailed', 'Failed to submit payout request'));
     } finally {
       setSubmitting(false);
     }
@@ -172,21 +172,21 @@ const VendorPayoutsPage: React.FC = () => {
         return (
           <div className="text-xs text-gray-500">
             <p className="font-semibold text-gray-700">{parsed.bankName}</p>
-            <p>A/C: {parsed.accountNumber}</p>
-            <p>Name: {parsed.accountName}</p>
+            <p>{t('vendor.payouts.accountLabel', 'A/C:')} {parsed.accountNumber}</p>
+            <p>{t('vendor.payouts.nameLabel', 'Name:')} {parsed.accountName}</p>
           </div>
         );
       } else if (method === 'VODAFONE_CASH') {
         return (
           <div className="text-xs text-gray-500">
-            <p className="font-semibold text-gray-700">Vodafone Cash</p>
+            <p className="font-semibold text-gray-700">{t('vendor.payouts.vodafoneCash', 'Vodafone Cash')}</p>
             <p>{parsed.phone}</p>
           </div>
         );
       } else if (method === 'INSTAPAY') {
         return (
           <div className="text-xs text-gray-500">
-            <p className="font-semibold text-gray-700">Instapay</p>
+            <p className="font-semibold text-gray-700">{t('vendor.payouts.instapay', 'Instapay')}</p>
             <p>{parsed.instapayAddress}</p>
           </div>
         );
@@ -451,7 +451,7 @@ const VendorPayoutsPage: React.FC = () => {
                       }`}
                     >
                       <Phone size={20} />
-                      <span className="text-[10px]">Vodafone Cash</span>
+                      <span className="text-[10px]">{t('vendor.payouts.vodafoneCash', 'Vodafone Cash')}</span>
                     </button>
                     <button
                       type="button"
@@ -463,7 +463,7 @@ const VendorPayoutsPage: React.FC = () => {
                       }`}
                     >
                       <Layers size={20} />
-                      <span className="text-[10px]">Instapay</span>
+                      <span className="text-[10px]">{t('vendor.payouts.instapay', 'Instapay')}</span>
                     </button>
                   </div>
                 </div>
@@ -479,35 +479,35 @@ const VendorPayoutsPage: React.FC = () => {
                       className="space-y-3 p-4 bg-gray-50 rounded-2xl border border-gray-100"
                     >
                       <div>
-                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Bank Name</label>
+                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">{t('vendor.payouts.bankName', 'Bank Name')}</label>
                         <input
                           type="text"
                           value={bankName}
                           onChange={(e) => setBankName(e.target.value)}
                           required
-                          placeholder="e.g. CIB, QNB, NBE..."
+                          placeholder={t('vendor.payouts.bankNamePlaceholder', 'e.g. CIB, QNB, NBE...')}
                           className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Account Number / IBAN</label>
+                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">{t('vendor.payouts.accountNumberIBAN', 'Account Number / IBAN')}</label>
                         <input
                           type="text"
                           value={accountNumber}
                           onChange={(e) => setAccountNumber(e.target.value)}
                           required
-                          placeholder="EG..."
+                          placeholder={t('vendor.payouts.accountNumberPlaceholder', 'EG...')}
                           className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Beneficiary Full Name</label>
+                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">{t('vendor.payouts.beneficiaryName', 'Beneficiary Full Name')}</label>
                         <input
                           type="text"
                           value={accountName}
                           onChange={(e) => setAccountName(e.target.value)}
                           required
-                          placeholder="Account owner name"
+                          placeholder={t('vendor.payouts.beneficiaryPlaceholder', 'Account owner name')}
                           className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
                         />
                       </div>
@@ -522,14 +522,14 @@ const VendorPayoutsPage: React.FC = () => {
                       exit={{ opacity: 0, y: 10 }}
                       className="p-4 bg-gray-50 rounded-2xl border border-gray-100"
                     >
-                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Mobile Wallet Number</label>
+                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">{t('vendor.payouts.mobileWalletNumber', 'Mobile Wallet Number')}</label>
                       <input
                         type="tel"
                         pattern="01[0-9]{9}"
                         value={vodafoneNumber}
                         onChange={(e) => setVodafoneNumber(e.target.value)}
                         required
-                        placeholder="e.g. 01012345678"
+                        placeholder={t('vendor.payouts.mobileWalletPlaceholder', 'e.g. 01012345678')}
                         className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
                       />
                     </motion.div>
@@ -543,13 +543,13 @@ const VendorPayoutsPage: React.FC = () => {
                       exit={{ opacity: 0, y: 10 }}
                       className="p-4 bg-gray-50 rounded-2xl border border-gray-100"
                     >
-                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Instapay Address (IPA)</label>
+                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">{t('vendor.payouts.instapayAddress', 'Instapay Address (IPA)')}</label>
                       <input
                         type="text"
                         value={instapayAddress}
                         onChange={(e) => setInstapayAddress(e.target.value)}
                         required
-                        placeholder="name@instapay"
+                        placeholder={t('vendor.payouts.instapayPlaceholder', 'name@instapay')}
                         className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
                       />
                     </motion.div>

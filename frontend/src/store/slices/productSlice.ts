@@ -146,7 +146,13 @@ const productSlice = createSlice({
           ...p,
           images: typeof p.images === 'string' ? JSON.parse(p.images) : p.images,
         }));
-        state.pagination = action.payload.pagination;
+        const pg = action.payload.pagination || {};
+        state.pagination = {
+          page: pg.page || pg.currentPage || 1,
+          limit: pg.limit || 24,
+          total: pg.total !== undefined ? pg.total : (pg.totalCount !== undefined ? pg.totalCount : 0),
+          totalPages: pg.totalPages || 0,
+        };
       })
       .addCase(fetchProducts.rejected, (state, action) => {
         state.loading = false;

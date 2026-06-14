@@ -93,6 +93,11 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     >
       {/* Badges */}
       <div className="absolute top-3 start-3 z-10 flex flex-col gap-2">
+        {product.stock <= 0 && (
+          <span className="bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-md shadow-sm">
+            {t('product.outOfStock', 'نفذت الكمية')}
+          </span>
+        )}
         {discountPercentage > 0 && (
           <span className="bg-accent-500 text-white text-xs font-bold px-2 py-1 rounded-md shadow-sm">
             -{discountPercentage}%

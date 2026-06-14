@@ -47,7 +47,7 @@ const VendorTicketsPage: React.FC = () => {
       setTickets(response.data.tickets || []);
     } catch (error) {
       console.error('Failed to fetch tickets:', error);
-      toast.error('Failed to sync support tickets');
+      toast.error(t('vendor.failedSyncTickets', 'Failed to sync support tickets'));
     } finally {
       setLoading(false);
     }
@@ -56,7 +56,7 @@ const VendorTicketsPage: React.FC = () => {
   const handleCreateTicket = async (e: React.FormEvent) => {
     e.preventDefault();
     if (subject.length < 5 || message.length < 10) {
-      toast.error('Subject must be at least 5 chars and message 10 chars');
+      toast.error(t('vendor.ticketValidationMsg', 'Subject must be at least 5 chars and message 10 chars'));
       return;
     }
 
@@ -68,7 +68,7 @@ const VendorTicketsPage: React.FC = () => {
         priority
       });
 
-      toast.success('Support ticket created successfully!');
+      toast.success(t('vendor.ticketCreatedSuccess', 'Support ticket created successfully!'));
       setCreateModalOpen(false);
       setSubject('');
       setMessage('');
@@ -76,9 +76,24 @@ const VendorTicketsPage: React.FC = () => {
       fetchTickets();
     } catch (error: any) {
       console.error('Failed to create ticket:', error);
-      toast.error(error.response?.data?.error || 'Failed to submit support ticket');
+      toast.error(error.response?.data?.error || t('vendor.failedSubmitTicket', 'Failed to submit support ticket'));
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const getStatusText = (status: Ticket['status']) => {
+    switch (status) {
+      case 'OPEN':
+        return t('vendor.ticketStatus.open', 'Open');
+      case 'IN_PROGRESS':
+        return t('vendor.ticketStatus.inProgress', 'In Progress');
+      case 'RESOLVED':
+        return t('vendor.ticketStatus.resolved', 'Resolved');
+      case 'CLOSED':
+        return t('vendor.ticketStatus.closed', 'Closed');
+      default:
+        return status;
     }
   };
 
@@ -92,9 +107,22 @@ const VendorTicketsPage: React.FC = () => {
 
     return (
       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${colors[status]}`}>
-        {status.replace('_', ' ')}
+        {getStatusText(status)}
       </span>
     );
+  };
+
+  const getPriorityText = (priority: Ticket['priority']) => {
+    switch (priority) {
+      case 'LOW':
+        return t('vendor.priorityLow', 'Low');
+      case 'MEDIUM':
+        return t('vendor.priorityMedium', 'Medium');
+      case 'HIGH':
+        return t('vendor.priorityHigh', 'High');
+      default:
+        return priority;
+    }
   };
 
   const getPriorityBadge = (priority: Ticket['priority']) => {
@@ -106,7 +134,7 @@ const VendorTicketsPage: React.FC = () => {
 
     return (
       <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${colors[priority]}`}>
-        {priority}
+        {getPriorityText(priority)}
       </span>
     );
   };
@@ -125,9 +153,9 @@ const VendorTicketsPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Support Tickets</h1>
+          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">{t('vendor.supportTickets', 'Support Tickets')}</h1>
           <p className="text-gray-500 text-sm mt-1">
-            Need help? Contact the platform administration.
+            {t('vendor.ticketsHelpDesc', 'Need help? Contact the platform administration.')}
           </p>
         </div>
         <button
@@ -135,7 +163,7 @@ const VendorTicketsPage: React.FC = () => {
           className="flex items-center justify-center gap-2 px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-purple-100 text-sm"
         >
           <PlusCircle size={16} />
-          Open Support Ticket
+          {t('vendor.newTicket', 'Open Support Ticket')}
         </button>
       </div>
 
@@ -145,7 +173,7 @@ const VendorTicketsPage: React.FC = () => {
           <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
             <MessageSquare size={24} className="text-gray-400" />
           </div>
-          <p className="text-gray-500 font-medium">You have no active support tickets.</p>
+          <p className="text-gray-500 font-medium">{t('vendor.noTicketsFound', 'You have no active support tickets.')}</p>
         </div>
       ) : (
         <div className="bg-white rounded-3xl border border-gray-100 shadow-sm divide-y divide-gray-50 overflow-hidden">
@@ -162,7 +190,7 @@ const VendorTicketsPage: React.FC = () => {
                   </h4>
                   <p className="text-xs text-gray-400 line-clamp-1 max-w-xl">{ticket.message}</p>
                   <p className="text-[10px] text-gray-400 pt-1">
-                    Last updated:{' '}
+                    {t('vendor.lastUpdate', 'Last updated:')}{' '}
                     {new Date(ticket.updatedAt).toLocaleDateString(i18n.language, {
                       year: 'numeric',
                       month: 'short',
@@ -205,23 +233,23 @@ const VendorTicketsPage: React.FC = () => {
             >
               <h3 className="text-xl font-bold text-gray-900 mb-2 flex items-center gap-2">
                 <MessageSquare className="text-purple-600" />
-                Open Support Ticket
+                {t('vendor.newTicket', 'Open Support Ticket')}
               </h3>
               <p className="text-gray-500 text-xs mb-6">
-                Describe the problem you are experiencing. Our support team will respond to you shortly.
+                {t('vendor.openTicketDesc', 'Describe the problem you are experiencing. Our support team will respond to you shortly.')}
               </p>
 
               <form onSubmit={handleCreateTicket} className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                    Subject / Topic
+                    {t('vendor.subject', 'Subject / Topic')}
                   </label>
                   <input
                     type="text"
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
                     required
-                    placeholder="Brief summary of the issue..."
+                    placeholder={t('vendor.subjectPlaceholder', 'Brief summary of the issue...')}
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white text-sm transition-all"
                   />
                 </div>
@@ -229,30 +257,30 @@ const VendorTicketsPage: React.FC = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                      Priority Level
+                      {t('vendor.priorityLevel', 'Priority Level')}
                     </label>
                     <select
                       value={priority}
                       onChange={(e) => setPriority(e.target.value)}
                       className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white text-sm transition-all"
                     >
-                      <option value="LOW">Low (Question/Feedback)</option>
-                      <option value="MEDIUM">Medium (General Bug/Issue)</option>
-                      <option value="HIGH">High (Urgent Help Needed)</option>
+                      <option value="LOW">{t('vendor.priorityLowOption', 'Low (Question/Feedback)')}</option>
+                      <option value="MEDIUM">{t('vendor.priorityMediumOption', 'Medium (General Bug/Issue)')}</option>
+                      <option value="HIGH">{t('vendor.priorityHighOption', 'High (Urgent Help Needed)')}</option>
                     </select>
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                    Detailed Message
+                    {t('vendor.message', 'Detailed Message')}
                   </label>
                   <textarea
                     rows={4}
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                     required
-                    placeholder="Describe the issue in detail..."
+                    placeholder={t('vendor.messagePlaceholder', 'Describe the issue in detail...')}
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white text-sm transition-all"
                   />
                 </div>
@@ -263,7 +291,7 @@ const VendorTicketsPage: React.FC = () => {
                     onClick={() => setCreateModalOpen(false)}
                     className="flex-1 py-3 border border-gray-200 rounded-xl text-gray-700 font-semibold hover:bg-gray-50 transition-colors text-sm"
                   >
-                    Cancel
+                    {t('common.cancel', 'Cancel')}
                   </button>
                   <button
                     type="submit"
@@ -271,7 +299,7 @@ const VendorTicketsPage: React.FC = () => {
                     className="flex-1 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl transition-colors shadow-lg shadow-purple-100 text-sm disabled:opacity-50 flex items-center justify-center gap-1.5"
                   >
                     <Send size={14} />
-                    {submitting ? 'Submitting...' : 'Submit Ticket'}
+                    {submitting ? t('vendor.submitting', 'Submitting...') : t('vendor.submitTicket', 'Submit Ticket')}
                   </button>
                 </div>
               </form>
