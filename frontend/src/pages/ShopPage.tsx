@@ -18,11 +18,9 @@ import ProductCard from '../components/product/ProductCard';
 import toast from 'react-hot-toast';
 import { useDebounce } from '../hooks/useDebounce';
 import i18n from 'i18n';
+import { CategoryLike, flattenCategoryTree } from '../utils/categoryTree';
 
-interface Category {
-  id: string;
-  name: string;
-}
+type Category = CategoryLike;
 
 interface Brand {
   id: string;
@@ -49,6 +47,8 @@ const ShopPage: React.FC = () => {
   // State for filter lists
   const [categories, setCategories] = useState<Category[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
+  // Selecting a parent also returns products of its subcategories (expanded by the backend).
+  const categoryOptions = useMemo(() => flattenCategoryTree(categories), [categories]);
   
   // UI State
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
@@ -109,8 +109,8 @@ const ShopPage: React.FC = () => {
         api.get('/categories'),
         api.get('/brands')
       ]);
-      setCategories(catRes.data);
-      setBrands(brandRes.data);
+      setCategories(Array.isArray(catRes.data) ? catRes.data : (catRes.data?.categories || []));
+      setBrands(Array.isArray(brandRes.data) ? brandRes.data : (brandRes.data?.brands || []));
     } catch (error) {
       console.error('Failed to fetch filters:', error);
     }
@@ -129,7 +129,9 @@ const ShopPage: React.FC = () => {
       if (sortVal === 'price_asc') sortVal = 'price_low';
       
       // Populate cleanParams with mapped keys
-      cleanParams.set('q', searchParams.get('q') || '');
+      // An empty `q` is treated by the API as an empty search (no results), so browse without it.
+      const query = (searchParams.get('q') || '').trim();
+      if (query) cleanParams.set('q', query);
       cleanParams.set('sort', sortVal);
       cleanParams.set('page', searchParams.get('page') || '1');
       cleanParams.set('limit', searchParams.get('limit') || '24');
@@ -273,6 +275,7 @@ const ShopPage: React.FC = () => {
               className="hidden md:block bg-white border border-gray-200 text-gray-900 text-sm font-bold rounded-2xl px-4 py-3 outline-none focus:ring-2 focus:ring-primary-500 shadow-sm cursor-pointer"
             >
               <option value="relevance">{t('shop.sortRelevance', 'Relevance')}</option>
+              <option value="recommended">{t('shop.sortRecommended', 'Recommended')}</option>
               <option value="newest">{t('shop.sortNewest', 'Newest Arrivals')}</option>
               <option value="price_low">{t('shop.sortPriceLow', 'Price: Low to High')}</option>
               <option value="price_high">{t('shop.sortPriceHigh', 'Price: High to Low')}</option>
@@ -293,8 +296,8 @@ const ShopPage: React.FC = () => {
               {/* Category Filter */}
               <FilterSection title={t('shop.categories', 'Categories')} id="categories">
                 <div className="space-y-2 mt-2">
-                  {(showMore.categories ? categories : categories.slice(0, 5)).map(cat => (
-                    <label key={cat.id} className="flex items-center gap-3 cursor-pointer group">
+                  {(showMore.categories ? categoryOptions : categoryOptions.slice(0, 5)).map(({ category: cat, depth }) => (
+                    <label key={cat.id} className="flex items-center gap-3 cursor-pointer group" style={{ paddingInlineStart: depth * 16 }}>
                       <div className="relative flex items-center">
                         <input
                           type="checkbox"
@@ -309,12 +312,12 @@ const ShopPage: React.FC = () => {
                       </span>
                     </label>
                   ))}
-                  {categories.length > 5 && (
+                  {categoryOptions.length > 5 && (
                     <button 
                       onClick={() => setShowMore(p => ({ ...p, categories: !p.categories }))}
                       className="text-xs font-black text-gray-400 hover:text-primary-500 mt-2 uppercase tracking-tighter"
                     >
-                      {showMore.categories ? t('shop.showLess', 'Show Less') : t('shop.more', '+ {{count}} More', { count: categories.length - 5 })}
+                      {showMore.categories ? t('shop.showLess', 'Show Less') : t('shop.more', '+ {{count}} More', { count: categoryOptions.length - 5 })}
                     </button>
                   )}
                 </div>

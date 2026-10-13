@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../lib/api';
 import { formatPrice } from '../../lib/utils';
-import { getImageUrl } from '../../utils/image';
+import { IMAGE_PLACEHOLDER, getImageUrl } from '../../utils/image';
 import { useTranslation } from 'react-i18next';
 import { mapEnum, orderStatusMap, paymentMethodMap, paymentStatusMap } from '../../utils/localization';
 
@@ -113,7 +113,7 @@ const VendorOrdersPage: React.FC = () => {
         <div className="space-y-4">
           {orders.map((order) => {
             const firstItem = order.items[0];
-            const mainImage = firstItem?.product?.images?.[0] || '/imgs/default-product.jpg';
+            const mainImage = firstItem?.product?.images?.[0] || IMAGE_PLACEHOLDER;
 
             return (
               <Link

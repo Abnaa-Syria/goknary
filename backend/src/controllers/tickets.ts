@@ -3,7 +3,34 @@ import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { z } from 'zod';
 import { ValidationError, NotFoundError } from '../lib/errors';
-import { TicketStatus, TicketPriority } from '@prisma/client';
+import { TicketStatus, TicketPriority, SupportTicket } from '@prisma/client';
+import { NotificationType, notifyUser } from '../lib/notify';
+
+const TICKET_STATUS_TEXT: Record<TicketStatus, { en: string; ar: string }> = {
+  OPEN: { en: 'open', ar: 'مفتوحة' },
+  IN_PROGRESS: { en: 'in progress', ar: 'قيد المعالجة' },
+  RESOLVED: { en: 'resolved', ar: 'تم حلها' },
+  CLOSED: { en: 'closed', ar: 'مغلقة' },
+};
+
+const notifyTicketOwner = async (ticket: SupportTicket, message: { en: string; ar: string }) => {
+  try {
+    const owner = await prisma.user.findUnique({ where: { id: ticket.userId }, select: { role: true } });
+    const base = owner?.role === 'VENDOR' ? '/vendor/tickets' : '/account/tickets';
+    await notifyUser(ticket.userId, {
+      type: NotificationType.TICKET_UPDATED,
+      title: 'Support ticket updated',
+      titleAr: 'تحديث على تذكرة الدعم',
+      message: message.en,
+      messageAr: message.ar,
+      link: `${base}/${ticket.id}`,
+      entityType: 'TICKET',
+      entityId: ticket.id,
+    });
+  } catch (err) {
+    console.error('Failed to notify ticket owner:', err);
+  }
+};
 
 const createTicketSchema = z.object({
   subject: z.string().min(5).max(255),
@@ -204,6 +231,13 @@ export const replyTicket = async (req: AuthRequest, res: Response) => {
       return msg;
     });
 
+    if (isAdminOrStaff && !isOwner) {
+      await notifyTicketOwner(ticket, {
+        en: `Support replied to your ticket "${ticket.subject}".`,
+        ar: `فريق الدعم رد على تذكرتك "${ticket.subject}".`,
+      });
+    }
+
     res.status(201).json({
       message: 'Reply submitted successfully',
       reply: newMessage,
@@ -265,6 +299,13 @@ export const updateTicketStatus = async (req: AuthRequest, res: Response) => {
       where: { id },
       data: updateData,
     });
+
+    if (isAdminOrStaff && !isOwner && status !== undefined && status !== ticket.status) {
+      await notifyTicketOwner(ticket, {
+        en: `Your ticket "${ticket.subject}" is now ${TICKET_STATUS_TEXT[status].en}.`,
+        ar: `حالة تذكرتك "${ticket.subject}" أصبحت ${TICKET_STATUS_TEXT[status].ar}.`,
+      });
+    }
 
     res.json({
       message: 'Support ticket updated successfully',

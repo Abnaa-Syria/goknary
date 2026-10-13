@@ -4,13 +4,17 @@ import api from '../../lib/api';
 export interface Category {
   id: string;
   name: string;
+  nameAr?: string | null;
   slug: string;
   description?: string;
   image?: string;
-  parentId?: string;
+  parentId?: string | null;
+  orderIndex?: number;
   children?: Category[];
-  parent?: Category;
+  parent?: Category | null;
   siblings?: Category[];
+  /** Top-level category first, direct parent last. */
+  ancestors?: Category[];
 }
 
 interface CategoriesState {

@@ -1,18 +1,23 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../../lib/api';
 import { formatPrice } from '../../lib/utils';
+import { parseVariantSnapshot } from '../../lib/variants';
+import OrderItemVariant from '../../components/common/OrderItemVariant';
 import { Clock, CheckCircle2, Package, Truck, XCircle, RotateCcw, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { getImageUrl } from '../../utils/image';
+import { IMAGE_PLACEHOLDER, getImageUrl } from '../../utils/image';
 import { useTranslation } from 'react-i18next';
 import { mapEnum, orderStatusMap, paymentMethodMap, paymentStatusMap } from '../../utils/localization';
+import { OrderItemRefundSummary } from '../../lib/refunds';
+import { RefundStatusBadge } from '../../components/refunds/RefundParts';
 
 interface OrderItem {
   id: string;
   quantity: number;
   price: number;
   discountPrice?: number | null;
+  variantInfo?: string | null;
   product: {
     name: string;
     images?: string[] | string;
@@ -20,10 +25,7 @@ interface OrderItem {
       name: string;
     } | null;
   };
-  refundRequest?: {
-    id: string;
-    status: string;
-  } | null;
+  refundRequests?: OrderItemRefundSummary[];
 }
 
 interface OrderDetails {
@@ -165,8 +167,6 @@ const VendorOrderDetailsPage: React.FC = () => {
         return ['SHIPPED', 'CANCELLED'];
       case 'SHIPPED':
         return ['DELIVERED'];
-      case 'DELIVERED':
-        return ['REFUNDED'];
       default:
         return [];
     }
@@ -342,7 +342,8 @@ const VendorOrderDetailsPage: React.FC = () => {
             const images = typeof item.product.images === 'string'
               ? JSON.parse(item.product.images as string)
               : item.product.images || [];
-            const mainImage = images?.[0] || '/imgs/default-product.jpg';
+            const variantSnapshot = parseVariantSnapshot(item.variantInfo);
+            const mainImage = variantSnapshot?.image || images?.[0] || IMAGE_PLACEHOLDER;
             const unitPrice = item.discountPrice || item.price;
 
             return (
@@ -353,12 +354,18 @@ const VendorOrderDetailsPage: React.FC = () => {
                 <div className="flex-grow min-w-0">
                   <div className="flex justify-between items-start gap-4">
                     <p className="font-black text-gray-900 truncate tracking-tight">{item.product.name}</p>
-                    {item.refundRequest && (
-                      <span className="text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded uppercase flex-shrink-0">
-                        Refund: {item.refundRequest.status.replace('_', ' ')}
-                      </span>
+                    {(item.refundRequests ?? []).length > 0 && (
+                      <Link to="/vendor/refunds" className="flex flex-col items-end gap-1 flex-shrink-0">
+                        {(item.refundRequests ?? []).map((request) => (
+                          <span key={request.id} className="flex items-center gap-1">
+                            <span className="text-[10px] text-gray-500">×{request.quantity}</span>
+                            <RefundStatusBadge status={request.status} className="!text-[10px] !py-0" />
+                          </span>
+                        ))}
+                      </Link>
                     )}
                   </div>
+                  <OrderItemVariant snapshot={variantSnapshot} className="text-xs text-gray-500 mt-1" />
                   <div className="flex items-center gap-3 mt-1.5">
                     <span className="text-[10px] font-black uppercase bg-gray-100 text-gray-500 px-2 py-0.5 rounded">{t('product.quantity', 'Qty')}: {item.quantity}</span>
                     <span className="text-[10px] font-black uppercase bg-primary-100 text-primary-600 px-2 py-0.5 rounded">{formatPrice(unitPrice)} / {t('vendor.ordersPage.unit', 'unit')}</span>

@@ -10,6 +10,51 @@ interface MegaMenuProps {
   onClose: () => void;
 }
 
+const MAX_LINKS_PER_LIST = 8;
+/** Levels rendered inside a column before a "view all" link takes over, so the panel stays bounded. */
+const MAX_NESTED_DEPTH = 2;
+
+const MenuBranch: React.FC<{
+  parent: Category;
+  depth: number;
+  getName: (c: Category) => string;
+  viewAllLabel: string;
+  onClose: () => void;
+}> = ({ parent, depth, getName, viewAllLabel, onClose }) => {
+  const children = parent.children ?? [];
+  if (children.length === 0) return null;
+  if (depth > MAX_NESTED_DEPTH) {
+    return (
+      <Link to={`/category/${parent.slug}`} onClick={onClose} className="block ps-3 py-1 text-xs text-primary-600 hover:underline">
+        {viewAllLabel}
+      </Link>
+    );
+  }
+  return (
+    <ul className={depth > 0 ? 'ps-3 border-s border-gray-100 ms-1' : ''}>
+      {children.slice(0, MAX_LINKS_PER_LIST).map((child) => (
+        <li key={child.id}>
+          <Link
+            to={`/category/${child.slug}`}
+            onClick={onClose}
+            className={`block px-2 py-1 rounded hover:bg-primary-50 hover:text-primary-600 transition-colors ${depth === 0 ? 'text-sm text-gray-700' : 'text-xs text-gray-500'}`}
+          >
+            {getName(child)}
+          </Link>
+          <MenuBranch parent={child} depth={depth + 1} getName={getName} viewAllLabel={viewAllLabel} onClose={onClose} />
+        </li>
+      ))}
+      {children.length > MAX_LINKS_PER_LIST && (
+        <li>
+          <Link to={`/category/${parent.slug}`} onClick={onClose} className="block px-2 py-1 text-xs font-semibold text-primary-600 hover:underline">
+            {viewAllLabel}
+          </Link>
+        </li>
+      )}
+    </ul>
+  );
+};
+
 const MegaMenu: React.FC<MegaMenuProps> = ({ categories, isOpen, onClose }) => {
   const { t, i18n } = useTranslation();
   const isRTL = i18n.language === 'ar';
@@ -21,13 +66,10 @@ const MegaMenu: React.FC<MegaMenuProps> = ({ categories, isOpen, onClose }) => {
     return isRTL && (category as any).nameAr ? (category as any).nameAr : category.name;
   };
 
-  // Get top-level categories (no parentId)
+  // The API returns the tree: roots with nested children.
   const topLevelCategories = categories.filter((cat) => !cat.parentId);
-
-  // Get subcategories for hovered category - use children if available, otherwise filter
-  const subcategories = hoveredCategory
-    ? (hoveredCategory.children || categories.filter((cat) => cat.parentId === hoveredCategory.id))
-    : [];
+  const subcategories = hoveredCategory?.children ?? [];
+  const viewAllLabel = isRTL ? 'عرض الكل' : 'View all';
 
   // Close on escape key
   useEffect(() => {
@@ -111,17 +153,19 @@ const MegaMenu: React.FC<MegaMenuProps> = ({ categories, isOpen, onClose }) => {
               {hoveredCategory ? (
                 <div>
                   <h3 className="text-lg font-bold text-gray-900 mb-4">{getCategoryName(hoveredCategory)}</h3>
-                  {subcategories && subcategories.length > 0 ? (
-                    <div className="grid grid-cols-2 gap-2">
+                  {subcategories.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-3 max-h-[60vh] overflow-y-auto">
                       {subcategories.map((subcat) => (
-                        <Link
-                          key={subcat.id}
-                          to={`/category/${subcat.slug}`}
-                          className="px-4 py-2.5 text-sm text-gray-700 hover:bg-primary-50 hover:text-primary-600 rounded-lg transition-colors font-medium"
-                          onClick={onClose}
-                        >
-                          {getCategoryName(subcat)}
-                        </Link>
+                        <div key={subcat.id}>
+                          <Link
+                            to={`/category/${subcat.slug}`}
+                            className="block px-2 py-1.5 text-sm text-gray-900 hover:text-primary-600 rounded-lg transition-colors font-semibold"
+                            onClick={onClose}
+                          >
+                            {getCategoryName(subcat)}
+                          </Link>
+                          <MenuBranch parent={subcat} depth={0} getName={getCategoryName} viewAllLabel={viewAllLabel} onClose={onClose} />
+                        </div>
                       ))}
                     </div>
                   ) : (

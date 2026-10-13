@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   LayoutDashboard, ShoppingBag, Package, Settings, BarChart2,
   LogOut, DollarSign, Plus, Store, Clock, ArrowUpRight, X,
-  RefreshCw, TrendingUp, MessageSquare
+  RefreshCw, TrendingUp, MessageSquare, Eye, Wallet, AlertTriangle, Tag
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -14,11 +14,14 @@ import { logout } from '../../store/slices/authSlice';
 import api from '../../lib/api';
 import { formatPrice } from '../../lib/utils';
 import { mapEnum, orderStatusMap, paymentMethodMap, paymentStatusMap } from '../../utils/localization';
+import { formatRate, RateTrend, toStatTrend, ValueTrend } from '../../lib/vendorAnalytics';
 import VendorProductsPage from './VendorProductsPage';
 import VendorProductFormPage from './VendorProductFormPage';
+import VendorProductPreviewPage from './VendorProductPreviewPage';
 import VendorOrdersPage from './VendorOrdersPage';
 import VendorOrderDetailsPage from './VendorOrderDetailsPage';
 import VendorAnalyticsPage from './VendorAnalyticsPage';
+import VendorDiscountSuggestionsPage from './VendorDiscountSuggestionsPage';
 import VendorApplyPage from './VendorApplyPage';
 import VendorSettingsPage from './VendorSettingsPage';
 import { DashboardFooter } from '../../components/layout/DashboardFooter';
@@ -26,6 +29,8 @@ import VendorPayoutsPage from './VendorPayoutsPage';
 import VendorRefundsPage from './VendorRefundsPage';
 import VendorTicketsPage from './VendorTicketsPage';
 import VendorTicketDetailsPage from './VendorTicketDetailsPage';
+import VendorStorePreviewPage from './VendorStorePreviewPage';
+import ProductCommandCenterPage from '../common/ProductCommandCenterPage';
 
 import {
   StatCard, ChartCard, DashboardSkeleton, EmptyState, DashboardTopNav
@@ -47,6 +52,13 @@ interface VendorStats {
   pendingSales?: number;
   pendingEarnings?: number;
   deliveredEarnings?: number;
+  vendorEarnings?: number;
+  unitsSold?: number;
+  views?: number;
+  conversionRate?: number | null;
+  returnRate?: number | null;
+  lowStockCount?: number;
+  outOfStockCount?: number;
 }
 
 interface SalesByDay {
@@ -62,6 +74,7 @@ interface TopProduct {
 
 interface VendorDashData {
   stats: VendorStats;
+  trends: Record<string, ValueTrend | RateTrend>;
   revenueTrends: SalesByDay[];
   topProducts: TopProduct[];
   recentOrders: any[];
@@ -181,9 +194,7 @@ const VendorDashboardHome: React.FC<{
 
   if (!data) return <DashboardSkeleton />;
 
-  const { stats, topProducts = [], recentOrders = [] } = data;
-  const realizedOrderCount = stats.deliveredOrders || 0;
-  const avgOrderValue = realizedOrderCount > 0 ? Math.round(stats.totalSales / realizedOrderCount) : 0;
+  const { stats, trends, topProducts = [], recentOrders = [] } = data;
 
   return (
     <div className="space-y-8 pb-12">
@@ -233,50 +244,64 @@ const VendorDashboardHome: React.FC<{
       )}
 
       {/* KPI Grid */}
+      <p className="text-xs text-gray-400 -mt-4">
+        {t('vendor.analyticsPage.comparedToPrevious', 'Last 30 days, compared with the 30 days before.')}
+      </p>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         <StatCard
-          title={t('vendor.realizedSales', 'Realized Sales')}
+          title={t('vendor.analyticsPage.grossSales', 'Gross Sales')}
           value={formatPrice(stats.totalSales)}
           icon={DollarSign}
-          trend={{ value: 12.4, isPositive: true }}
+          trend={toStatTrend(trends.grossSales, t)}
+          color="success"
+        />
+        <StatCard
+          title={t('vendor.analyticsPage.vendorEarnings', 'Vendor Earnings')}
+          value={formatPrice(stats.vendorEarnings || 0)}
+          icon={Wallet}
+          trend={toStatTrend(trends.vendorEarnings, t)}
           color="success"
         />
         <StatCard
           title={t('vendor.totalOrders', 'Total Orders')}
           value={stats.totalOrders}
           icon={ShoppingBag}
-          trend={{ value: 4.8, isPositive: true }}
+          trend={toStatTrend(trends.totalOrders, t)}
           color="primary"
         />
         <StatCard
-          title={t('vendor.avgDeliveredOrderValue', 'Avg. Delivered Order')}
-          value={formatPrice(avgOrderValue)}
-          icon={TrendingUp}
-          color="info"
-        />
-        <StatCard
-          title={t('vendor.totalProducts', 'Products')}
-          value={stats.totalProducts}
+          title={t('vendor.analyticsPage.unitsSold', 'Units Sold')}
+          value={stats.unitsSold || 0}
           icon={Package}
+          trend={toStatTrend(trends.unitsSold, t)}
           color="info"
         />
         <StatCard
-          title={t('vendor.pendingEarnings', 'Pending Earnings')}
-          value={formatPrice(stats.pendingEarnings || 0)}
-          icon={Clock}
-          color="warning"
+          title={t('vendor.analyticsPage.productViews', 'Product Views')}
+          value={stats.views || 0}
+          icon={Eye}
+          trend={toStatTrend(trends.views, t)}
+          color="info"
         />
         <StatCard
-          title={t('vendor.pendingSales', 'Pending Sales')}
-          value={formatPrice(stats.pendingSales || 0)}
-          icon={ShoppingBag}
-          color="warning"
-        />
-        <StatCard
-          title={t('vendor.deliveredOrders', 'Delivered Orders')}
-          value={realizedOrderCount}
+          title={t('vendor.analyticsPage.conversionRate', 'Conversion Rate')}
+          value={formatRate(stats.conversionRate, t)}
           icon={TrendingUp}
-          color="success"
+          trend={toStatTrend(trends.conversionRate, t)}
+          color="primary"
+        />
+        <StatCard
+          title={t('vendor.analyticsPage.returnRate', 'Return Rate')}
+          value={formatRate(stats.returnRate, t)}
+          icon={RefreshCw}
+          trend={toStatTrend(trends.returnRate, t, false)}
+          color="warning"
+        />
+        <StatCard
+          title={t('vendor.analyticsPage.stockAlerts', 'Low / Out of Stock')}
+          value={`${stats.lowStockCount || 0} / ${stats.outOfStockCount || 0}`}
+          icon={AlertTriangle}
+          color={(stats.outOfStockCount || 0) > 0 ? 'danger' : 'warning'}
         />
       </div>
 
@@ -463,8 +488,9 @@ const VendorDashboard: React.FC = () => {
 
       const allOrders: any[] = ordersRes.data?.orders || [];
 
-      if (vendorRes.data) {
-        setVendorInfo({ storeName: vendorRes.data.storeName, status: vendorRes.data.status });
+      const vendorProfile = vendorRes.data?.vendor ?? vendorRes.data;
+      if (vendorProfile) {
+        setVendorInfo({ storeName: vendorProfile.storeName, status: vendorProfile.status });
       }
 
       setDashData({
@@ -477,7 +503,15 @@ const VendorDashboard: React.FC = () => {
           pendingSales: summary.pendingSales || 0,
           pendingEarnings: summary.pendingEarnings || 0,
           deliveredEarnings: summary.deliveredEarnings || 0,
+          vendorEarnings: summary.vendorEarnings ?? summary.deliveredEarnings ?? 0,
+          unitsSold: summary.unitsSold || 0,
+          views: summary.views || 0,
+          conversionRate: summary.conversionRate ?? null,
+          returnRate: summary.returnRate ?? null,
+          lowStockCount: summary.lowStockCount || 0,
+          outOfStockCount: summary.outOfStockCount || 0,
         },
+        trends: analyticsRes.data?.trends || {},
         revenueTrends,
         topProducts,
         recentOrders: allOrders.slice(0, 10),
@@ -511,6 +545,8 @@ const VendorDashboard: React.FC = () => {
     { path: '/vendor/refunds', name: t('vendor.refunds', 'Refund Requests'), icon: RefreshCw },
     { path: '/vendor/tickets', name: t('vendor.tickets', 'Support Tickets'), icon: MessageSquare },
     { path: '/vendor/analytics', name: t('vendor.analytics', 'Analytics'), icon: BarChart2 },
+    { path: '/vendor/discount-suggestions', name: t('discountSuggestions.vendorNav', 'Smart Suggestions'), icon: Tag },
+    { path: '/vendor/store-preview', name: t('policies.storePreview', 'Store Preview'), icon: Eye },
     { path: '/vendor/settings', name: t('vendor.settings', 'Settings'), icon: Settings },
   ];
 
@@ -616,6 +652,8 @@ const VendorDashboard: React.FC = () => {
             <Route path="products" element={<VendorProductsPage />} />
             <Route path="products/new" element={<VendorProductFormPage />} />
             <Route path="products/:id/edit" element={<VendorProductFormPage />} />
+            <Route path="products/:id/preview" element={<VendorProductPreviewPage />} />
+            <Route path="products/:id" element={<ProductCommandCenterPage role="vendor" />} />
             <Route path="orders" element={<VendorOrdersPage />} />
             <Route path="orders/:id" element={<VendorOrderDetailsPage />} />
             <Route path="payouts" element={<VendorPayoutsPage />} />
@@ -623,8 +661,10 @@ const VendorDashboard: React.FC = () => {
             <Route path="tickets" element={<VendorTicketsPage />} />
             <Route path="tickets/:id" element={<VendorTicketDetailsPage />} />
             <Route path="analytics" element={<VendorAnalyticsPage />} />
+            <Route path="discount-suggestions" element={<VendorDiscountSuggestionsPage />} />
             <Route path="apply" element={<VendorApplyPage />} />
             <Route path="settings" element={<VendorSettingsPage />} />
+            <Route path="store-preview" element={<VendorStorePreviewPage />} />
             <Route path="*" element={<Navigate to="/vendor" replace />} />
           </Routes>
         </main>

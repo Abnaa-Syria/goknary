@@ -4,11 +4,30 @@ import { AuthRequest } from '../middleware/auth';
 import { ValidationError, NotFoundError } from '../lib/errors';
 import { z } from 'zod';
 import { slugify } from '../lib/utils';
+import { Prisma } from '@prisma/client';
+
+const SLUG_TAKEN_MESSAGE = 'Store URL is already in use';
+
+const isSlugUniqueViolation = (error: unknown): boolean => {
+  const e = error as Partial<Prisma.PrismaClientKnownRequestError> | null;
+  return e?.code === 'P2002' && String(e.meta?.target ?? '').includes('slug');
+};
 
 const applyForVendorSchema = z.object({
   storeName: z.string().min(2),
   description: z.string().optional(),
 });
+
+export const POLICY_MAX_LENGTH = 5000;
+export const RETURN_WINDOW_MAX_DAYS = 365;
+
+// Omitted = keep the stored value; empty string or null = clear it.
+const policyText = z
+  .string()
+  .max(POLICY_MAX_LENGTH, `Policy text must be at most ${POLICY_MAX_LENGTH} characters`)
+  .nullable()
+  .optional()
+  .transform((v) => (v === undefined ? undefined : v?.trim() || null));
 
 const updateVendorSchema = z.object({
   storeName: z.string().min(2).optional(),
@@ -16,6 +35,19 @@ const updateVendorSchema = z.object({
   logo: z.string().optional(),
   banner: z.string().optional(),
   slug: z.string().optional(),
+  returnPolicy: policyText,
+  returnPolicyAr: policyText,
+  shippingPolicy: policyText,
+  shippingPolicyAr: policyText,
+  exchangePolicy: policyText,
+  exchangePolicyAr: policyText,
+  returnWindowDays: z
+    .number({ invalid_type_error: 'returnWindowDays must be a whole number' })
+    .int('returnWindowDays must be a whole number')
+    .min(0, 'returnWindowDays cannot be negative')
+    .max(RETURN_WINDOW_MAX_DAYS, `returnWindowDays cannot exceed ${RETURN_WINDOW_MAX_DAYS}`)
+    .nullable()
+    .optional(),
 }).partial();
 
 export const applyForVendor = async (req: AuthRequest, res: Response) => {
@@ -140,6 +172,21 @@ export const updateVendorProfile = async (req: AuthRequest, res: Response) => {
       }
 
       updateData.slug = newSlug;
+    } else if (updateData.slug !== undefined) {
+      // slugify falls back to a random value for input without letters/digits; reject that instead.
+      if (!/[\p{L}\p{N}]/u.test(updateData.slug)) {
+        return res.status(400).json({ error: 'Invalid store URL' });
+      }
+      const requestedSlug = slugify(updateData.slug);
+      if (requestedSlug === vendor.slug) {
+        delete updateData.slug;
+      } else {
+        const existingSlug = await prisma.vendor.findUnique({ where: { slug: requestedSlug }, select: { id: true } });
+        if (existingSlug && existingSlug.id !== vendor.id) {
+          return res.status(400).json({ error: SLUG_TAKEN_MESSAGE });
+        }
+        updateData.slug = requestedSlug;
+      }
     }
 
     const updated = await prisma.vendor.update({
@@ -164,6 +211,10 @@ export const updateVendorProfile = async (req: AuthRequest, res: Response) => {
     }
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid request data', details: error.errors });
+    }
+    // A concurrent update can claim the slug between the pre-check and the write.
+    if (isSlugUniqueViolation(error)) {
+      return res.status(400).json({ error: SLUG_TAKEN_MESSAGE });
     }
     console.error('Error updating vendor profile:', error);
     res.status(500).json({ error: 'Failed to update vendor profile' });

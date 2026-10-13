@@ -12,7 +12,6 @@ import {
   AlertCircle,
   LucideIcon,
   Search,
-  Bell,
   User,
   ChevronRight,
   Menu,
@@ -23,6 +22,7 @@ import {
   Languages
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import NotificationBadge from '../../components/layout/NotificationBadge';
 import { 
   AreaChart, 
   Area, 
@@ -45,6 +45,10 @@ export interface StatCardProps {
   trend?: {
     value: number;
     isPositive: boolean;
+    /** Replaces the "value%" text (e.g. "+1.2 pts", "New", "No previous data"). */
+    label?: string;
+    /** Grey badge without an arrow (no baseline or no change). */
+    neutral?: boolean;
   };
   color: 'primary' | 'success' | 'warning' | 'danger' | 'info';
   loading?: boolean;
@@ -95,10 +99,10 @@ export const StatCard: React.FC<StatCardProps> = ({
         </div>
         {trend && (
           <div className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full ${
-            trend.isPositive ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'
+            trend.neutral ? 'bg-gray-100 text-gray-500' : trend.isPositive ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'
           }`}>
-            {trend.isPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-            {trend.value}%
+            {!trend.neutral && (trend.isPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />)}
+            {trend.label ?? `${trend.value}%`}
           </div>
         )}
       </div>
@@ -186,10 +190,10 @@ export const DashboardTopNav: React.FC<{
             />
           </div>
           
-          <button className="p-2 relative" style={roleTheme ? { color: '#fff' } : { color: '#9ca3af' }}>
-            <Bell size={20} />
-            <span className="absolute top-2 right-2 w-2 h-2 rounded-full border-2" style={roleTheme ? { backgroundColor: roleTheme.accent, borderColor: roleTheme.navbarBg } : { backgroundColor: '#2563EB', borderColor: '#ffffff' }}></span>
-          </button>
+          <NotificationBadge
+            iconColor={roleTheme ? '#fff' : '#9ca3af'}
+            buttonClassName="p-2 relative rounded-lg transition-colors focus:outline-none hover:bg-black/5"
+          />
           
           <div className="h-8 w-px bg-gray-200 mx-1"></div>
 

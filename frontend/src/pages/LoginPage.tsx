@@ -19,6 +19,7 @@ const LoginPage: React.FC = () => {
   });
 
   const from = (location.state as any)?.from?.pathname || '/';
+  const passwordReset = Boolean((location.state as any)?.passwordReset);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -77,6 +78,11 @@ const LoginPage: React.FC = () => {
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          {passwordReset && !error && (
+            <div role="status" className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg text-sm">
+              {t('auth.passwordResetLoginHint')}
+            </div>
+          )}
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
               {t('auth.invalidCredentials')}

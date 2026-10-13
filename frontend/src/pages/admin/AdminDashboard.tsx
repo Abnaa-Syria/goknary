@@ -7,7 +7,8 @@ import {
   Image as ImageIcon, Tag, Briefcase, LogOut,
   DollarSign, X, Store, MessageSquare, Percent,
   TrendingUp, ShoppingCart, RefreshCw, ArrowUpRight,
-  Truck, Megaphone, Shield
+  Truck, Megaphone, Shield, Trophy,
+  CheckCircle2, AlertTriangle, Clock, CreditCard, ArrowRight
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -22,10 +23,15 @@ import AdminBrandsPage from './AdminBrandsPage';
 import AdminBannersPage from './AdminBannersPage';
 import AdminOrdersPage from './AdminOrdersPage';
 import AdminSettingsPage from './AdminSettingsPage';
+import AdminRankingPage from './AdminRankingPage';
+import AdminDiscountSuggestionsPage from './AdminDiscountSuggestionsPage';
 import AdminReviewsPage from './AdminReviewsPage';
 import AdminProductsPage from './AdminProductsPage';
 import AdminVendorProductsPage from './AdminVendorProductsPage';
 import AdminPendingProductsPage from './AdminPendingProductsPage';
+import AdminProductPreviewPage from './AdminProductPreviewPage';
+import AdminProductStudioPage from './AdminProductStudioPage';
+import ProductCommandCenterPage from '../common/ProductCommandCenterPage';
 import AdminCouponsPage from './AdminCouponsPage';
 import AdminOrderDetailPage from './AdminOrderDetailPage';
 import AdminShippingPage from './AdminShippingPage';
@@ -79,13 +85,13 @@ interface DashboardData {
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   const colors: Record<string, string> = {
-    PENDING:    'bg-yellow-100 text-yellow-800',
-    CONFIRMED:  'bg-blue-100 text-blue-800',
+    PENDING: 'bg-yellow-100 text-yellow-800',
+    CONFIRMED: 'bg-blue-100 text-blue-800',
     PROCESSING: 'bg-purple-100 text-purple-800',
-    SHIPPED:    'bg-indigo-100 text-indigo-800',
-    DELIVERED:  'bg-green-100 text-green-800',
-    CANCELLED:  'bg-red-100 text-red-800',
-    REFUNDED:   'bg-gray-100 text-gray-800',
+    SHIPPED: 'bg-indigo-100 text-indigo-800',
+    DELIVERED: 'bg-green-100 text-green-800',
+    CANCELLED: 'bg-red-100 text-red-800',
+    REFUNDED: 'bg-gray-100 text-gray-800',
   };
   return (
     <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${colors[status] ?? 'bg-gray-100 text-gray-700'}`}>
@@ -233,18 +239,124 @@ const SidebarContent: React.FC<{
   );
 };
 
+// ─── Semantic Status Colors ───────────────────────────────────────────────────
+const ORDER_STATUS_COLORS: Record<string, { bg: string; text: string; hex: string }> = {
+  DELIVERED: { bg: 'bg-green-100', text: 'text-green-800', hex: '#22c55e' },
+  CONFIRMED: { bg: 'bg-blue-100', text: 'text-blue-800', hex: '#3b82f6' },
+  PROCESSING: { bg: 'bg-purple-100', text: 'text-purple-800', hex: '#a855f7' },
+  SHIPPED: { bg: 'bg-indigo-100', text: 'text-indigo-800', hex: '#6366f1' },
+  PENDING: { bg: 'bg-yellow-100', text: 'text-yellow-800', hex: '#f59e0b' },
+  CANCELLED: { bg: 'bg-red-100', text: 'text-red-800', hex: '#ef4444' },
+  REFUNDED: { bg: 'bg-gray-100', text: 'text-gray-800', hex: '#64748b' },
+};
+
+const ARABIC_MONTHS: Record<string, string> = {
+  Jan: 'يناير', Feb: 'فبراير', Mar: 'مارس', Apr: 'أبريل',
+  May: 'مايو', Jun: 'يونيو', Jul: 'يوليو', Aug: 'أغسطس',
+  Sep: 'سبتمبر', Oct: 'أكتوبر', Nov: 'نوفمبر', Dec: 'ديسمبر',
+};
+
 // ─── Dashboard Home ───────────────────────────────────────────────────────────
 const AdminDashboardHome: React.FC<{
   data: DashboardData | null;
   onRefresh: () => void;
   refreshing: boolean;
 }> = ({ data, onRefresh, refreshing }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isRTL = i18n.language === 'ar';
   const { user } = useAppSelector((state) => state.auth);
   const [settling, setSettling] = useState(false);
 
+  // Operational Queues state (loaded strictly from real existing endpoints)
+  const [queueData, setQueueData] = useState<{
+    pendingRefunds: number | null;
+    pendingPayouts: number | null;
+    openTickets: number | null;
+    loading: boolean;
+  }>({
+    pendingRefunds: null,
+    pendingPayouts: null,
+    openTickets: null,
+    loading: true,
+  });
+
   const checkPerm = (perm: string) => hasPermission(user, perm);
   const roleTheme = getRoleTheme(user);
+
+  // Fetch real operational queues
+  useEffect(() => {
+    let isMounted = true;
+    const loadQueues = async () => {
+      try {
+        const promises: Promise<{ key: string; count: number | null }>[] = [];
+
+        if (checkPerm('READ_ORDERS')) {
+          promises.push(
+            api.get('/refunds')
+              .then((res) => {
+                const list = res.data?.refunds || [];
+                return {
+                  key: 'pendingRefunds',
+                  count: list.filter((r: any) =>
+                    ['REQUESTED', 'UNDER_REVIEW', 'ITEM_RECEIVED'].includes(r.status || r.currentStatus)
+                  ).length,
+                };
+              })
+              .catch(() => ({ key: 'pendingRefunds', count: null }))
+          );
+        }
+
+        if (checkPerm('READ_VENDORS')) {
+          promises.push(
+            api.get('/payouts/admin')
+              .then((res) => {
+                const list = res.data?.payouts || [];
+                return {
+                  key: 'pendingPayouts',
+                  count: list.filter((p: any) => p.status === 'PENDING').length,
+                };
+              })
+              .catch(() => ({ key: 'pendingPayouts', count: null }))
+          );
+        }
+
+        if (checkPerm('READ_USERS')) {
+          promises.push(
+            api.get('/tickets')
+              .then((res) => {
+                const list = res.data?.tickets || [];
+                return {
+                  key: 'openTickets',
+                  count: list.filter((tk: any) => ['OPEN', 'IN_PROGRESS'].includes(tk.status)).length,
+                };
+              })
+              .catch(() => ({ key: 'openTickets', count: null }))
+          );
+        }
+
+        const results = await Promise.all(promises);
+        if (!isMounted) return;
+
+        const counts: Record<string, number | null> = {};
+        results.forEach((r) => {
+          counts[r.key] = r.count;
+        });
+
+        setQueueData((prev) => ({
+          ...prev,
+          ...counts,
+          loading: false,
+        }));
+      } catch {
+        if (isMounted) setQueueData((prev) => ({ ...prev, loading: false }));
+      }
+    };
+
+    loadQueues();
+    return () => {
+      isMounted = false;
+    };
+  }, [data, refreshing]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSettlePlatform = async () => {
     const confirmed = window.confirm(
@@ -257,7 +369,7 @@ const AdminDashboardHome: React.FC<{
 
     setSettling(true);
     try {
-      const response = await api.post('/admin/platform/settle');
+      await api.post('/admin/platform/settle');
       toast.success(
         t('admin.settlePlatformSuccess', 'Platform statistics successfully reset!')
       );
@@ -270,12 +382,15 @@ const AdminDashboardHome: React.FC<{
     }
   };
 
-  const trendData = useMemo(
-    () => (data?.revenueTrends || []),
-    [data]
-  );
 
   const PIE_COLORS = ['#f59e0b', '#3b82f6', '#8b5cf6', '#6366f1', '#22c55e', '#ef4444', '#6b7280'];
+  const trendData = useMemo(() => {
+    const raw = data?.revenueTrends || [];
+    return raw.map((d) => ({
+      ...d,
+      displayName: isRTL ? ARABIC_MONTHS[d.name] || d.name : d.name,
+    }));
+  }, [data, isRTL]);
 
   if (!data) return <DashboardSkeleton />;
 
@@ -283,21 +398,76 @@ const AdminDashboardHome: React.FC<{
 
   const avgOrderValue =
     (stats.deliveredOrders || 0) > 0 ? Math.round(stats.totalSales / (stats.deliveredOrders || 1)) : 0;
+  const periodTotalDeliveredOrders = trendData.reduce((sum, d) => sum + d.orders, 0);
   const periodAvgOrders =
-    trendData.length > 0
-      ? Math.round(trendData.reduce((sum, d) => sum + d.orders, 0) / trendData.length)
-      : 0;
+    trendData.length > 0 ? Math.round(periodTotalDeliveredOrders / trendData.length) : 0;
+  const periodTotalRevenue = trendData.reduce((sum, d) => sum + d.revenue, 0);
+
+  // Peak month
+  const peakMonth = trendData.reduce(
+    (max, d) => (d.revenue > max.revenue ? d : max),
+    { displayName: '—', revenue: 0, orders: 0 }
+  );
+
+  // Filter out 0-count statuses for clean pie presentation
+  const activeOrdersByStatus = ordersByStatus.filter((s) => s.count > 0);
+  const totalTrackedOrders = ordersByStatus.reduce((sum, s) => sum + s.count, 0);
 
   // ── Check all visible permissions ──
-  const hasDashboard    = checkPerm('READ_DASHBOARD');
-  const hasOrders       = checkPerm('READ_ORDERS');
-  const hasVendors      = checkPerm('READ_VENDORS');
-  const hasUsers        = checkPerm('READ_USERS');
-  const hasProducts     = checkPerm('READ_PRODUCTS');
+  const hasDashboard = checkPerm('READ_DASHBOARD');
+  const hasOrders = checkPerm('READ_ORDERS');
+  const hasVendors = checkPerm('READ_VENDORS');
+  const hasUsers = checkPerm('READ_USERS');
+  const hasProducts = checkPerm('READ_PRODUCTS');
   const hasManageVendors = checkPerm('MANAGE_VENDORS');
 
   const hasAnyWidget =
     hasDashboard || hasOrders || hasVendors || hasUsers || hasProducts || hasManageVendors;
+
+  // Define Needs Attention queue items based strictly on available real counts
+  const attentionItems = [
+    (hasVendors || hasManageVendors) && {
+      id: 'pending-vendors',
+      title: isRTL ? 'بائعون بانتظار الموافقة' : 'Vendors Awaiting Approval',
+      count: stats.pendingVendors || 0,
+      link: '/admin/vendors?status=PENDING',
+      icon: Briefcase,
+    },
+    hasProducts && {
+      id: 'pending-products',
+      title: isRTL ? 'منتجات بانتظار المراجعة' : 'Products Awaiting Review',
+      count: stats.pendingProducts || 0,
+      link: '/admin/pending-products',
+      icon: Package,
+    },
+    hasOrders && queueData.pendingRefunds !== null && {
+      id: 'pending-refunds',
+      title: isRTL ? 'طلبات استرداد مفتوحة' : 'Open Refund Requests',
+      count: queueData.pendingRefunds,
+      link: '/admin/refunds',
+      icon: RefreshCw,
+    },
+    hasVendors && queueData.pendingPayouts !== null && {
+      id: 'pending-payouts',
+      title: isRTL ? 'طلبات سحب معلقة' : 'Pending Payouts',
+      count: queueData.pendingPayouts,
+      link: '/admin/payouts',
+      icon: DollarSign,
+    },
+    hasUsers && queueData.openTickets !== null && {
+      id: 'open-tickets',
+      title: isRTL ? 'تذاكر دعم مفتوحة' : 'Open Support Tickets',
+      count: queueData.openTickets,
+      link: '/admin/tickets',
+      icon: MessageSquare,
+    },
+  ].filter(Boolean) as Array<{
+    id: string;
+    title: string;
+    count: number;
+    link: string;
+    icon: any;
+  }>;
 
   // ── Empty state for STAFF with zero visible widgets ──
   if (user?.role === 'STAFF' && !hasAnyWidget) {
@@ -326,18 +496,18 @@ const AdminDashboardHome: React.FC<{
   }
 
   return (
-    <div className="space-y-8 pb-12">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-6">
+    <div className="space-y-6 pb-12">
+      {/* ── A. Page Header ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-5">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
             {t('admin.overview', 'Overview')}
           </h1>
-          <p className="text-gray-500 mt-1 text-sm">
-            Real-time marketplace performance &amp; analytics
+          <p className="text-gray-500 mt-0.5 text-sm">
+            {t('admin.overviewSubtitle', 'Marketplace performance overview')}
           </p>
           {data.settlementDate && (
-            <p className="text-xs text-purple-600 mt-1 font-semibold flex items-center gap-1">
+            <p className="text-xs text-purple-600 mt-1 font-semibold flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-purple-600 animate-pulse inline-block" />
               {t('admin.statsCalculatedFrom', 'Statistics calculated from: {{date}}', {
                 date: new Date(data.settlementDate).toLocaleString(),
@@ -345,50 +515,97 @@ const AdminDashboardHome: React.FC<{
             </p>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           {checkPerm('MANAGE_ROLES') && (
             <button
               onClick={handleSettlePlatform}
               disabled={settling || refreshing}
-              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white text-sm font-semibold rounded-xl hover:bg-purple-700 transition-all shadow-md shadow-purple-200 disabled:opacity-60"
+              className="flex items-center gap-2 px-3.5 py-2 bg-purple-600 text-white text-xs sm:text-sm font-semibold rounded-xl hover:bg-purple-700 transition-all shadow-sm shadow-purple-200 disabled:opacity-60"
             >
-              <RefreshCw size={15} className={settling ? 'animate-spin' : ''} />
+              <RefreshCw size={14} className={settling ? 'animate-spin' : ''} />
               {t('admin.settlePlatform', 'Settle Platform')}
             </button>
           )}
           <button
             onClick={onRefresh}
             disabled={refreshing || settling}
-            className="flex items-center gap-2 px-4 py-2 text-white text-sm font-semibold rounded-xl transition-all shadow-md disabled:opacity-60"
+            className="flex items-center gap-2 px-3.5 py-2 text-white text-xs sm:text-sm font-semibold rounded-xl transition-all shadow-sm disabled:opacity-60"
             style={{ backgroundColor: roleTheme.accent }}
           >
-            <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />
+            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
             {t('common.refresh', 'Refresh')}
           </button>
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 text-start">
-        {checkPerm('READ_DASHBOARD') && (
+      {/* ── B. Operational Attention (Real Queue Counts Only) ── */}
+      {attentionItems.length > 0 && (
+        <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-4 sm:p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-3.5">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-600">
+                <AlertTriangle size={16} />
+              </div>
+              <h2 className="text-sm font-bold text-gray-900">
+                {isRTL ? 'يحتاج إلى انتباهك' : 'Needs Attention'}
+              </h2>
+            </div>
+            <span className="text-xs font-semibold text-amber-800 bg-amber-100/80 px-2.5 py-0.5 rounded-full">
+              {attentionItems.filter((i) => i.count > 0).length} {isRTL ? 'مهام معلقة' : 'pending queues'}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            {attentionItems.map((item) => {
+              const Icon = item.icon;
+              const hasPending = item.count > 0;
+              return (
+                <Link
+                  key={item.id}
+                  to={item.link}
+                  className={`flex flex-col justify-between p-3.5 rounded-xl border transition-all ${
+                    hasPending
+                      ? 'bg-white border-amber-200 hover:border-amber-400 hover:shadow-sm'
+                      : 'bg-white/60 border-gray-100 hover:bg-white text-gray-500'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-1 mb-2">
+                    <span className="text-xs font-semibold text-gray-700 truncate">{item.title}</span>
+                    <Icon size={14} className={hasPending ? 'text-amber-600' : 'text-gray-400'} />
+                  </div>
+                  <div className="flex items-baseline justify-between mt-1">
+                    <span className={`text-xl font-black ${hasPending ? 'text-gray-900' : 'text-gray-400'}`}>
+                      {item.count.toLocaleString()}
+                    </span>
+                    <span className="text-[11px] font-bold text-blue-600 hover:underline inline-flex items-center gap-0.5">
+                      {isRTL ? 'مراجعة' : 'Review'} →
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── C. Primary KPI Row (Max 6 core marketplace cards) ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 text-start">
+        {hasDashboard && (
           <StatCard
             title={t('admin.realizedRevenue', 'Realized Revenue')}
             value={formatPrice(stats.totalSales)}
             icon={DollarSign}
-            trend={{ value: 14.2, isPositive: true }}
             color="success"
           />
         )}
-        {checkPerm('READ_ORDERS') && (
+        {hasOrders && (
           <StatCard
             title={t('admin.totalOrders', 'Total Orders')}
             value={stats.totalOrders.toLocaleString()}
             icon={ShoppingBag}
-            trend={{ value: 5.6, isPositive: true }}
             color="primary"
           />
         )}
-        {checkPerm('READ_DASHBOARD') && (
+        {hasDashboard && (
           <StatCard
             title={t('admin.avgDeliveredOrderValue', 'Avg. Delivered Order')}
             value={formatPrice(avgOrderValue)}
@@ -396,24 +613,15 @@ const AdminDashboardHome: React.FC<{
             color="info"
           />
         )}
-        {checkPerm('MANAGE_VENDORS') && (
-          <StatCard
-            title={t('admin.pendingVendors', 'Pending Vendors')}
-            value={stats.pendingVendors}
-            icon={Briefcase}
-            trend={{ value: stats.pendingVendors, isPositive: false }}
-            color="warning"
-          />
-        )}
-        {checkPerm('READ_VENDORS') && (
+        {hasVendors && (
           <StatCard
             title={t('admin.totalVendors', 'Approved Vendors')}
-            value={stats.approvedVendors || stats.totalVendors}
+            value={(stats.approvedVendors || stats.totalVendors).toLocaleString()}
             icon={Store}
             color="primary"
           />
         )}
-        {checkPerm('READ_USERS') && (
+        {hasUsers && (
           <StatCard
             title={t('admin.customers', 'Customers')}
             value={stats.totalUsers.toLocaleString()}
@@ -421,118 +629,151 @@ const AdminDashboardHome: React.FC<{
             color="info"
           />
         )}
-        {checkPerm('READ_PRODUCTS') && (
+        {hasProducts && (
           <StatCard
             title={t('admin.activeProducts', 'Active Products')}
             value={(stats.activeProducts || stats.totalProducts).toLocaleString()}
             icon={Package}
-            color="info"
-          />
-        )}
-        {checkPerm('READ_PRODUCTS') && (
-          <StatCard
-            title={t('admin.totalProducts', 'Total Products')}
-            value={stats.totalProducts.toLocaleString()}
-            icon={ShoppingCart}
             color="primary"
           />
         )}
       </div>
 
-      {/* Charts Row */}
-      {(checkPerm('READ_DASHBOARD') || checkPerm('READ_ORDERS')) && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-          {checkPerm('READ_DASHBOARD') && (
-            <ChartCard
-              title={t('admin.revenueTrend', 'Revenue Trend')}
-              subtitle={t('admin.revenueTrendSubtitle', 'Last {{count}} months gross sales', {
-                count: trendData.length,
-              })}
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={trendData}>
-                  <defs>
-                    <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={roleTheme.accent} stopOpacity={0.18} />
-                      <stop offset="95%" stopColor={roleTheme.accent} stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis
-                    dataKey="name"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#94a3b8', fontSize: 12 }}
-                    dy={10}
-                  />
-                  <YAxis
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#94a3b8', fontSize: 12 }}
-                    tickFormatter={(v) => (v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v)}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: '16px',
-                      border: 'none',
-                      boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)',
-                    }}
-                    formatter={(val: any) => [formatPrice(Number(val)), t('admin.dashboard.revenue', 'Revenue')]}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="revenue"
-                    stroke={roleTheme.accent}
-                    strokeWidth={3}
-                    fillOpacity={1}
-                    fill="url(#revGrad)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </ChartCard>
+      {/* ── D. Revenue & Orders Trend (2-Column Grid) ── */}
+      {(hasDashboard || hasOrders) && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
+          {hasDashboard && (
+            <div className="lg:col-span-2 bg-white p-5 sm:p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-between">
+              <div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-4">
+                  <div>
+                    <h3 className="text-base font-bold text-gray-900">
+                      {t('admin.revenueTrend', 'Revenue Trend')}
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {isRTL
+                        ? `إجمالي مبيعات آخر ${trendData.length} أشهر`
+                        : `Last ${trendData.length} months gross delivered sales`}
+                    </p>
+                  </div>
+                  <div className="text-xs text-gray-500 font-medium bg-gray-50 px-2.5 py-1 rounded-lg border border-gray-100 w-fit">
+                    {isRTL ? 'إجمالي الفترة:' : 'Period Total:'}{' '}
+                    <span className="font-bold text-gray-900">{formatPrice(periodTotalRevenue)}</span>
+                  </div>
+                </div>
+
+                <div className="h-[250px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={trendData}>
+                      <defs>
+                        <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={roleTheme.accent} stopOpacity={0.2} />
+                          <stop offset="95%" stopColor={roleTheme.accent} stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis
+                        dataKey="displayName"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#94a3b8', fontSize: 11 }}
+                        dy={8}
+                      />
+                      <YAxis
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#94a3b8', fontSize: 11 }}
+                        tickFormatter={(v) => (v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v)}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          borderRadius: '14px',
+                          border: 'none',
+                          boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)',
+                          fontSize: '12px',
+                        }}
+                        formatter={(val: any) => [formatPrice(Number(val)), t('admin.dashboard.revenue', 'Revenue')]}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="revenue"
+                        stroke={roleTheme.accent}
+                        strokeWidth={2.5}
+                        fillOpacity={1}
+                        fill="url(#revGrad)"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="pt-3 mt-2 border-t border-gray-50 flex items-center justify-between text-xs text-gray-500">
+                <span>
+                  {isRTL ? 'أعلى شهر مبيعاً:' : 'Peak Month:'}{' '}
+                  <strong className="text-gray-800">{peakMonth.displayName}</strong> ({formatPrice(peakMonth.revenue)})
+                </span>
+                <span className="text-[11px] text-gray-400">
+                  {isRTL ? 'مبيعات الطلبات المسلمة فقط' : 'Delivered orders only'}
+                </span>
+              </div>
+            </div>
           )}
 
-          {checkPerm('READ_ORDERS') && (
-            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col gap-4">
+          {hasOrders && (
+            <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-between">
               <div>
-                <h3 className="text-base font-bold text-gray-900">
-                  {t('admin.orderVolume', 'Order Volume')}
-                </h3>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {t('admin.orderVolumeSubtitle', 'Monthly transaction count')}
-                </p>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-base font-bold text-gray-900">
+                      {isRTL ? 'حجم الطلبات المسلمة' : 'Delivered Order Volume'}
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {isRTL ? 'عدد الطلبات شهرياً' : 'Monthly transaction volume'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="h-[250px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={trendData}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis
+                        dataKey="displayName"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#94a3b8', fontSize: 11 }}
+                        dy={8}
+                      />
+                      <YAxis
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#94a3b8', fontSize: 11 }}
+                        allowDecimals={false}
+                      />
+                      <Tooltip
+                        cursor={{ fill: '#f8fafc' }}
+                        contentStyle={{
+                          borderRadius: '14px',
+                          border: 'none',
+                          boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)',
+                          fontSize: '12px',
+                        }}
+                        formatter={(val: any) => [val, t('admin.dashboard.orders', 'Orders')]}
+                      />
+                      <Bar dataKey="orders" radius={[6, 6, 0, 0]}>
+                        {trendData.map((_, i) => (
+                          <Cell
+                            key={i}
+                            fill={i === trendData.length - 1 ? roleTheme.accent : '#cbd5e1'}
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
-              <div className="flex-1 h-[260px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={trendData}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis
-                      dataKey="name"
-                      axisLine={false}
-                      tickLine={false}
-                      tick={{ fill: '#94a3b8', fontSize: 12 }}
-                    />
-                    <Tooltip
-                      cursor={{ fill: '#f8fafc' }}
-                      contentStyle={{
-                        borderRadius: '16px',
-                        border: 'none',
-                        boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)',
-                      }}
-                      formatter={(val: any) => [val, t('admin.dashboard.orders', 'Orders')]}
-                    />
-                    <Bar dataKey="orders" radius={[6, 6, 0, 0]}>
-                      {trendData.map((_, i) => (
-                        <Cell
-                          key={i}
-                          fill={i === trendData.length - 1 ? roleTheme.accent : '#e2e8f0'}
-                        />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="pt-3 border-t border-gray-50 flex items-center justify-between text-sm">
+
+              <div className="pt-3 mt-2 border-t border-gray-50 flex items-center justify-between text-xs">
                 <span className="text-gray-500 font-medium">
                   {t('admin.monthlyAvg', 'Monthly Avg.')}
                 </span>
@@ -545,133 +786,203 @@ const AdminDashboardHome: React.FC<{
         </div>
       )}
 
-      {/* Bottom Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {checkPerm('READ_VENDORS') && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-base font-bold text-gray-900">
-                {t('admin.topVendors', 'Top Vendors')}
-              </h3>
-              <Link
-                to="/admin/vendors"
-                className="text-xs hover:underline font-semibold flex items-center gap-1"
-                style={{ color: roleTheme.accent }}
-              >
-                {t('common.viewAll', 'View all')} <ArrowUpRight size={12} />
-              </Link>
-            </div>
-            <div className="space-y-3">
-              {topVendors.length === 0 ? (
-                <p className="text-gray-400 text-sm text-center py-4">
-                  {t('admin.noVendorData', 'No vendor data yet')}
-                </p>
-              ) : (
-                topVendors.map((vendor, i) => (
-                  <div key={vendor.id} className="flex items-center gap-3">
-                    <div
-                      className="w-7 h-7 rounded-full text-xs font-black flex items-center justify-center flex-shrink-0"
-                      style={{ backgroundColor: `${roleTheme.accent}20`, color: roleTheme.accent }}
-                    >
-                      {i + 1}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 truncate">
-                        {vendor.storeName}
-                      </p>
-                      <p className="text-xs text-gray-400">{vendor.orders} orders</p>
-                    </div>
-                    <span className="text-sm font-bold text-green-600 whitespace-nowrap">
-                      {formatPrice(vendor.revenue)}
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
-
-        {checkPerm('READ_ORDERS') && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-            <h3 className="text-base font-bold text-gray-900 mb-4">
-              {t('admin.orderStatus', 'Order Status')}
-            </h3>
-            {ordersByStatus.length === 0 ? (
-              <p className="text-gray-400 text-sm text-center py-8">
-                {t('admin.noOrders', 'No orders yet')}
-              </p>
-            ) : (
-              <div className="h-[220px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={ordersByStatus}
-                      dataKey="count"
-                      nameKey="status"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
-                      paddingAngle={3}
-                    >
-                      {ordersByStatus.map((_, i) => (
-                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(v: any, name: any) => [v, mapEnum(orderStatusMap, name)]} />
-                    <Legend formatter={(v) => mapEnum(orderStatusMap, v)} iconType="circle" iconSize={8} />
-                  </PieChart>
-                </ResponsiveContainer>
+      {/* ── E. Bottom Operational Grid (Top Vendors by Sales, Order Status, Recent Orders) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Column 1: Top Vendors by Sales */}
+        {hasVendors && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 sm:p-6 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">
+                    {isRTL ? 'أفضل البائعين حسب المبيعات' : 'Top Vendors by Sales'}
+                  </h3>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    {isRTL ? 'مرتب حسب إجمالي المبيعات المكتملة' : 'Ranked by delivered sales volume'}
+                  </p>
+                </div>
+                <Link
+                  to="/admin/vendors"
+                  className="text-xs hover:underline font-semibold flex items-center gap-1"
+                  style={{ color: roleTheme.accent }}
+                >
+                  {t('common.viewAll', 'View all')} <ArrowUpRight size={12} />
+                </Link>
               </div>
-            )}
+
+              <div className="space-y-3">
+                {topVendors.length === 0 ? (
+                  <p className="text-gray-400 text-sm text-center py-8">
+                    {t('admin.noVendorData', 'No vendor data yet')}
+                  </p>
+                ) : (
+                  topVendors.map((vendor, i) => (
+                    <div key={vendor.id} className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50 transition-colors">
+                      <div
+                        className="w-6 h-6 rounded-full text-xs font-black flex items-center justify-center flex-shrink-0"
+                        style={{ backgroundColor: `${roleTheme.accent}20`, color: roleTheme.accent }}
+                      >
+                        {i + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <Link
+                          to={`/admin/vendors/${vendor.id}`}
+                          className="text-sm font-semibold text-gray-900 hover:text-blue-600 truncate block"
+                        >
+                          {vendor.storeName}
+                        </Link>
+                        <p className="text-xs text-gray-400">
+                          {vendor.orders} {isRTL ? 'طلب مكتمل' : 'delivered orders'}
+                        </p>
+                      </div>
+                      <span className="text-sm font-bold text-green-600 whitespace-nowrap">
+                        {formatPrice(vendor.revenue)}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
         )}
 
-        {checkPerm('READ_ORDERS') && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-base font-bold text-gray-900">
-                {t('admin.recentOrders', 'Recent Orders')}
-              </h3>
-              <Link
-                to="/admin/orders"
-                className="text-xs hover:underline font-semibold flex items-center gap-1"
-                style={{ color: roleTheme.accent }}
-              >
-                {t('common.viewAll', 'View all')} <ArrowUpRight size={12} />
-              </Link>
-            </div>
-            <div className="space-y-3">
-              {recentOrders.length === 0 ? (
-                <p className="text-gray-400 text-sm text-center py-4">
+        {/* Column 2: Order Status Distribution */}
+        {hasOrders && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 sm:p-6 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">
+                    {t('admin.orderStatus', 'Order Status')}
+                  </h3>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    {isRTL ? 'توزيع حالات الطلبات النشطة' : 'Distribution across active orders'}
+                  </p>
+                </div>
+                <span className="text-xs font-bold text-gray-600 bg-gray-50 px-2 py-0.5 rounded-md border border-gray-100">
+                  {totalTrackedOrders} {isRTL ? 'طلب' : 'orders'}
+                </span>
+              </div>
+
+              {activeOrdersByStatus.length === 0 ? (
+                <p className="text-gray-400 text-sm text-center py-10">
                   {t('admin.noOrders', 'No orders yet')}
                 </p>
               ) : (
-                recentOrders.slice(0, 6).map((order: any) => (
-                  <div
-                    key={order.id}
-                    className="flex items-start gap-3 pb-3 border-b border-gray-50 last:border-0 last:pb-0"
-                  >
-                    <div className="w-8 h-8 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center flex-shrink-0">
-                      <ShoppingBag size={14} className="text-gray-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-gray-800 truncate">
-                        {order.user?.name || 'Guest'}
-                      </p>
-                      <p className="text-[10px] text-gray-400">{order.vendor?.storeName || '—'}</p>
-                      <p className="text-[10px] text-gray-400 mt-0.5">
-                        {mapEnum(paymentMethodMap, order.paymentMethod || 'COD')} • {mapEnum(paymentStatusMap, order.paymentStatus || 'PENDING')}
-                      </p>
-                    </div>
-                    <div className="text-end flex-shrink-0">
-                      <p className="text-xs font-bold text-gray-900">
-                        {formatPrice(order.total)}
-                      </p>
-                      <StatusBadge status={order.status} />
-                    </div>
+                <>
+                  <div className="h-[170px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={activeOrdersByStatus}
+                          dataKey="count"
+                          nameKey="status"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={45}
+                          outerRadius={70}
+                          paddingAngle={3}
+                        >
+                          {activeOrdersByStatus.map((entry) => (
+                            <Cell
+                              key={entry.status}
+                              fill={ORDER_STATUS_COLORS[entry.status]?.hex || '#94a3b8'}
+                            />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(v: any, name: any) => [
+                            `${v} (${totalTrackedOrders > 0 ? Math.round((Number(v) / totalTrackedOrders) * 100) : 0}%)`,
+                            mapEnum(orderStatusMap, name),
+                          ]}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
                   </div>
-                ))
+
+                  <div className="space-y-1.5 pt-2 border-t border-gray-50">
+                    {activeOrdersByStatus.slice(0, 5).map((s) => {
+                      const color = ORDER_STATUS_COLORS[s.status] || { hex: '#94a3b8', bg: 'bg-gray-100', text: 'text-gray-700' };
+                      const pct = totalTrackedOrders > 0 ? Math.round((s.count / totalTrackedOrders) * 100) : 0;
+                      return (
+                        <div key={s.status} className="flex items-center justify-between text-xs py-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color.hex }} />
+                            <span className="text-gray-700 font-medium">{mapEnum(orderStatusMap, s.status)}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-500 font-semibold">{s.count}</span>
+                            <span className="text-[10px] text-gray-400 w-8 text-end">({pct}%)</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Column 3: Recent Orders */}
+        {hasOrders && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 sm:p-6 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">
+                    {t('admin.recentOrders', 'Recent Orders')}
+                  </h3>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    {isRTL ? 'أحدث المعاملات بالمنصة' : 'Latest marketplace transactions'}
+                  </p>
+                </div>
+                <Link
+                  to="/admin/orders"
+                  className="text-xs hover:underline font-semibold flex items-center gap-1"
+                  style={{ color: roleTheme.accent }}
+                >
+                  {t('common.viewAll', 'View all')} <ArrowUpRight size={12} />
+                </Link>
+              </div>
+
+              <div className="space-y-2.5">
+                {recentOrders.length === 0 ? (
+                  <p className="text-gray-400 text-sm text-center py-8">
+                    {t('admin.noOrders', 'No orders yet')}
+                  </p>
+                ) : (
+                  recentOrders.slice(0, 5).map((order: any) => (
+                    <div
+                      key={order.id}
+                      className="p-2.5 rounded-xl border border-gray-50 hover:border-gray-200 transition-all bg-gray-50/40 hover:bg-white"
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <span className="text-xs font-bold text-gray-900">
+                          #{order.id.slice(0, 8)}
+                        </span>
+                        <span className="text-xs font-extrabold text-gray-900">
+                          {formatPrice(order.total)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-gray-500 mb-1.5">
+                        <span className="truncate max-w-[140px] font-medium text-gray-700">
+                          {order.user?.name || 'Customer'}
+                        </span>
+                        <span className="truncate max-w-[120px] text-gray-400">
+                          {order.vendor?.storeName || '—'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between pt-1 border-t border-gray-100/60">
+                        <span className="text-[10px] text-gray-400">
+                          {mapEnum(paymentMethodMap, order.paymentMethod || 'COD')} • {mapEnum(paymentStatusMap, order.paymentStatus || 'PENDING')}
+                        </span>
+                        <StatusBadge status={order.status} />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -746,25 +1057,27 @@ const AdminDashboard: React.FC = () => {
   const handleRefresh = () => fetchStats(true);
 
   const menuItems = [
-    { path: '/admin',               name: t('admin.overview',   'Overview'),       icon: LayoutDashboard, permission: 'READ_DASHBOARD'    },
+    { path: '/admin', name: t('admin.overview', 'Overview'), icon: LayoutDashboard, permission: 'READ_DASHBOARD' },
     { path: '/admin/search-analytics', name: t('search.analyticsTitle', 'Search Analytics'), icon: TrendingUp, permission: 'READ_DASHBOARD' },
-    { path: '/admin/users',         name: t('admin.users',      'Users'),           icon: Users,           permission: 'READ_USERS'         },
-    { path: '/admin/vendors',       name: t('admin.vendors',    'Vendors'),         icon: Briefcase,       permission: 'READ_VENDORS',  countKey: 'pendingVendors' },
-    { path: '/admin/payouts',       name: t('admin.payouts',    'Payout Requests'), icon: DollarSign,      permission: 'READ_VENDORS'       },
-    { path: '/admin/products',      name: t('admin.products',   'Products'),        icon: Package,         permission: 'READ_PRODUCTS'      },
+    { path: '/admin/users', name: t('admin.users', 'Users'), icon: Users, permission: 'READ_USERS' },
+    { path: '/admin/vendors', name: t('admin.vendors', 'Vendors'), icon: Briefcase, permission: 'READ_VENDORS', countKey: 'pendingVendors' },
+    { path: '/admin/payouts', name: t('admin.payouts', 'Payout Requests'), icon: DollarSign, permission: 'READ_VENDORS' },
+    { path: '/admin/products', name: t('admin.products', 'Products'), icon: Package, permission: 'READ_PRODUCTS' },
     { path: '/admin/pending-products', name: t('admin.pendingProducts.nav', 'Pending Products'), icon: Package, permission: 'READ_PRODUCTS', countKey: 'pendingProducts' },
-    { path: '/admin/categories',    name: t('admin.categories', 'Categories'),      icon: Tag,             permission: 'READ_CATEGORIES'    },
-    { path: '/admin/brands',        name: t('admin.brands',     'Brands'),          icon: ShoppingBag,     permission: 'READ_BRANDS'        },
-    { path: '/admin/banners',       name: t('admin.banners',    'Banners'),         icon: ImageIcon,       permission: 'READ_BANNERS'       },
-    { path: '/admin/orders',        name: t('admin.orders',     'Orders'),          icon: Package,         permission: 'READ_ORDERS'        },
-    { path: '/admin/refunds',       name: t('admin.refunds',    'Refund Requests'), icon: RefreshCw,       permission: 'READ_ORDERS'        },
-    { path: '/admin/reviews',       name: t('admin.reviews',    'Reviews'),         icon: MessageSquare,   permission: 'READ_REVIEWS'       },
-    { path: '/admin/tickets',       name: t('admin.tickets',    'Support Tickets'), icon: MessageSquare,   permission: 'READ_USERS'         },
-    { path: '/admin/coupons',       name: t('admin.coupons',    'Coupons'),         icon: Percent,         permission: 'READ_COUPONS'       },
-    { path: '/admin/shipping',      name: t('admin.shipping',   'Shipping Rates'),  icon: Truck,           permission: 'READ_SHIPPING'      },
-    { path: '/admin/announcements', name: t('admin.broadcast',  'Site Broadcast'),  icon: Megaphone,       permission: 'READ_ANNOUNCEMENTS' },
-    { path: '/admin/settings',      name: t('admin.settings',   'Settings'),        icon: Settings,        permission: 'MANAGE_ROLES'       },
-    { path: '/admin/roles',         name: t('admin.roles',      'Roles & Access'),  icon: Shield,          permission: 'MANAGE_ROLES'       },
+    { path: '/admin/categories', name: t('admin.categories', 'Categories'), icon: Tag, permission: 'READ_CATEGORIES' },
+    { path: '/admin/brands', name: t('admin.brands', 'Brands'), icon: ShoppingBag, permission: 'READ_BRANDS' },
+    { path: '/admin/banners', name: t('admin.banners', 'Banners'), icon: ImageIcon, permission: 'READ_BANNERS' },
+    { path: '/admin/orders', name: t('admin.orders', 'Orders'), icon: Package, permission: 'READ_ORDERS' },
+    { path: '/admin/refunds', name: t('admin.refunds', 'Refund Requests'), icon: RefreshCw, permission: 'READ_ORDERS' },
+    { path: '/admin/reviews', name: t('admin.reviews', 'Reviews'), icon: MessageSquare, permission: 'READ_REVIEWS' },
+    { path: '/admin/tickets', name: t('admin.tickets', 'Support Tickets'), icon: MessageSquare, permission: 'READ_USERS' },
+    { path: '/admin/coupons', name: t('admin.coupons', 'Coupons'), icon: Percent, permission: 'READ_COUPONS' },
+    { path: '/admin/shipping', name: t('admin.shipping', 'Shipping Rates'), icon: Truck, permission: 'READ_SHIPPING' },
+    { path: '/admin/announcements', name: t('admin.broadcast', 'Site Broadcast'), icon: Megaphone, permission: 'READ_ANNOUNCEMENTS' },
+    { path: '/admin/ranking', name: t('admin.rankingNav', 'Ranking'), icon: Trophy, permission: 'READ_SETTINGS' },
+    { path: '/admin/discount-suggestions', name: t('discountSuggestions.adminNav', 'Discount Suggestions'), icon: Tag, permission: 'READ_PRODUCTS' },
+    { path: '/admin/settings', name: t('admin.settings', 'Settings'), icon: Settings, permission: 'MANAGE_ROLES' },
+    { path: '/admin/roles', name: t('admin.roles', 'Roles & Access'), icon: Shield, permission: 'MANAGE_ROLES' },
   ];
 
   const visibleMenuItems = menuItems.filter((item) => hasPermission(user, item.permission));
@@ -892,10 +1205,14 @@ const AdminDashboard: React.FC = () => {
             <Route path="users" element={<Guard perm="READ_USERS"><AdminUsersPage /></Guard>} />
             <Route path="vendors" element={<Guard perm="READ_VENDORS"><AdminVendorsPage /></Guard>} />
             <Route path="vendors/:vendorId" element={<Guard perm="READ_VENDORS"><AdminVendorDetailPage /></Guard>} />
-            <Route path="vendors/:vendorId/products" element={<Guard perm="READ_VENDORS"><AdminVendorProductsPage /></Guard>} />
+            <Route path="vendors/:vendorId/products" element={<Guard perm="READ_PRODUCTS"><AdminVendorProductsPage /></Guard>} />
             <Route path="payouts" element={<Guard perm="READ_VENDORS"><AdminPayoutsPage /></Guard>} />
             <Route path="products" element={<Guard perm="READ_PRODUCTS"><AdminProductsPage /></Guard>} />
             <Route path="pending-products" element={<Guard perm="READ_PRODUCTS"><AdminPendingProductsPage /></Guard>} />
+            <Route path="products/new" element={<Guard perm="CREATE_PRODUCTS"><AdminProductStudioPage /></Guard>} />
+            <Route path="products/:id/edit" element={<Guard perm="UPDATE_PRODUCTS"><AdminProductStudioPage /></Guard>} />
+            <Route path="products/:id/preview" element={<Guard perm="READ_PRODUCTS"><AdminProductPreviewPage /></Guard>} />
+            <Route path="products/:id" element={<Guard perm="READ_PRODUCTS"><ProductCommandCenterPage role="admin" /></Guard>} />
             <Route path="categories" element={<Guard perm="READ_CATEGORIES"><AdminCategoriesPage /></Guard>} />
             <Route path="brands" element={<Guard perm="READ_BRANDS"><AdminBrandsPage /></Guard>} />
             <Route path="banners" element={<Guard perm="READ_BANNERS"><AdminBannersPage /></Guard>} />
@@ -909,8 +1226,10 @@ const AdminDashboard: React.FC = () => {
             <Route path="shipping" element={<Guard perm="READ_SHIPPING"><AdminShippingPage /></Guard>} />
             <Route path="announcements" element={<Guard perm="READ_ANNOUNCEMENTS"><AdminAnnouncementPage /></Guard>} />
             <Route path="roles" element={<Guard perm="MANAGE_ROLES"><AdminRolesPage /></Guard>} />
+            <Route path="ranking" element={<Guard perm="READ_SETTINGS"><AdminRankingPage /></Guard>} />
+            <Route path="discount-suggestions" element={<Guard perm="READ_PRODUCTS"><AdminDiscountSuggestionsPage /></Guard>} />
             <Route path="settings" element={<Guard perm="MANAGE_ROLES"><AdminSettingsPage /></Guard>} />
-            <Route path="*"                        element={<Navigate to="/admin" replace />} />
+            <Route path="*" element={<Navigate to="/admin" replace />} />
           </Routes>
         </main>
         <DashboardFooter />

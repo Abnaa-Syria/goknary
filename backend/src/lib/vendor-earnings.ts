@@ -35,6 +35,11 @@ export function isOrderFinanciallyConfirmed(order: {
   return (order.paymentStatus || '').toUpperCase() === 'PAID';
 }
 
+/** Database form of isOrderFinanciallyConfirmed (MySQL string comparison is case-insensitive). */
+export const FINANCIALLY_CONFIRMED_ORDER_WHERE: Prisma.OrderWhereInput = {
+  OR: [{ paymentMethod: null }, { paymentMethod: '' }, { paymentMethod: 'COD' }, { paymentStatus: 'PAID' }],
+};
+
 /** Balance is credited to the vendor only after delivery and payment confirmation. */
 export function canSettleVendorEarnings(order: {
   paymentMethod?: string | null;

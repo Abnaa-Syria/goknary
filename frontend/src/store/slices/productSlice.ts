@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import api from '../../lib/api';
+import type { VendorPolicyFields } from '../../lib/vendorPolicies';
 
 export interface ProductVariant {
   id: string;
@@ -9,6 +10,8 @@ export interface ProductVariant {
   discountPrice?: number | null;
   stock: number;
   image?: string | null;
+  imageAlt?: string | null;
+  imageAltAr?: string | null;
   attributes: Array<{
     name: string;
     nameAr?: string;
@@ -32,9 +35,11 @@ export interface Product {
   ratingAvg: number;
   ratingCount: number;
   images: string[];
+  /** JSON `[{ url, altEn, altAr }]`; NULL for products saved before per-image alt text existed. */
+  imageMetadata?: string | null;
   hasVariants?: boolean;
   variants?: ProductVariant[];
-  vendor: {
+  vendor: VendorPolicyFields & {
     id: string;
     storeName: string;
     storeNameAr?: string;

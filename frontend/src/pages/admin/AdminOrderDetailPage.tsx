@@ -3,7 +3,10 @@ import { useTranslation } from 'react-i18next';
 import { useParams, Link } from 'react-router-dom';
 import api from '../../lib/api';
 import { formatPrice } from '../../lib/utils';
+import { parseVariantSnapshot } from '../../lib/variants';
+import OrderItemVariant from '../../components/common/OrderItemVariant';
 import { orderStatusMap, paymentMethodMap, paymentStatusMap, mapEnum } from '../../utils/localization';
+import { IMAGE_PLACEHOLDER } from '../../utils/image';
 
 interface OrderDetails {
   id: string;
@@ -37,6 +40,7 @@ interface OrderDetails {
     quantity: number;
     price: number;
     discountPrice?: number;
+    variantInfo?: string | null;
   }>;
   statusHistory: Array<{
     status: string;
@@ -173,7 +177,8 @@ const AdminOrderDetailPage: React.FC = () => {
             <div className="space-y-4">
               {order.items.map((item, index) => {
                 const displayPrice = item.discountPrice || item.price;
-                const mainImage = item.product.images?.[0] || '/imgs/default-product.jpg';
+                const variantSnapshot = parseVariantSnapshot(item.variantInfo);
+                const mainImage = variantSnapshot?.image || item.product.images?.[0] || IMAGE_PLACEHOLDER;
 
                 return (
                   <div key={index} className="flex gap-4 pb-4 border-b last:border-0">
@@ -186,6 +191,7 @@ const AdminOrderDetailPage: React.FC = () => {
                     </div>
                     <div className="flex-grow">
                       <p className="font-medium">{item.product.name}</p>
+                      <OrderItemVariant snapshot={variantSnapshot} />
                       <p className="text-sm text-gray-500">{t('admin.orderDetail.quantity', { count: item.quantity })}</p>
                       <p className="font-medium mt-1">
                         {formatPrice(displayPrice)} × {item.quantity} ={' '}

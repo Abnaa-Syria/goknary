@@ -8,6 +8,7 @@ import Layout from './components/layout/Layout';
 import ProtectedRoute from './components/routing/ProtectedRoute';
 import HomePage from './pages/HomePage';
 import CategoryPage from './pages/CategoryPage';
+import CategoriesPage from './pages/CategoriesPage';
 import ProductPage from './pages/ProductPage';
 import CartPage from './pages/CartPage';
 import CheckoutPage from './pages/CheckoutPage';
@@ -82,6 +83,7 @@ function App() {
         {/* Public Routes with Vendor Lockdown */}
         <Route path="/" element={<VendorLockdown><Layout /></VendorLockdown>}>
           <Route index element={<HomePage />} />
+          <Route path="categories" element={<CategoriesPage />} />
           <Route path="category/:slug" element={<CategoryPage />} />
           <Route path="product/:slug" element={<ProductPage />} />
           <Route path="cart" element={<CartPage />} />

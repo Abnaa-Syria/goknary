@@ -5,6 +5,27 @@ import { NotFoundError, ValidationError } from '../lib/errors';
 import { z } from 'zod';
 import { formatPrice } from '../lib/utils';
 import { sendOrderPlacedNotification } from '../services/whatsapp.service';
+import { NotificationType, notifyAdmins, notifyVendor, notifyVendorOrderStatus, shortId } from '../lib/notify';
+import { withoutPaymentReferences } from '../lib/payment-reference';
+import {
+  buildVariantSnapshot,
+  cancelOrderWithStockRestore,
+  getUnitPrice,
+  reserveStock,
+  resolveVariant,
+} from '../lib/variants';
+import { trackPurchasesForOrders } from '../lib/user-events';
+import { allocateShippingCost, calculateCheckoutShipping } from '../lib/shipping';
+import { calculateCheckoutExpiresAt } from '../lib/checkout-expiry-config';
+import { Prisma } from '@prisma/client';
+import {
+  IDEMPOTENCY_KEY_REUSE,
+  assertMatchingFingerprint,
+  createCheckoutAtomically,
+  createCheckoutAttemptIdentity,
+  fingerprintCheckout,
+  readIdempotencyKey,
+} from '../lib/checkout-idempotency';
 
 const createOrderSchema = z.object({
   addressId: z.string().optional(),
@@ -14,11 +35,14 @@ const createOrderSchema = z.object({
   couponCode: z.string().optional(),
   items: z.array(z.object({
     productId: z.string(),
+    variantId: z.string().optional().nullable(),
     quantity: z.number().int().positive(),
+    // Ignored: prices are always read from the database
     price: z.number().optional()
   })),
   paymentMethod: z.string().optional(),
   paymentStatus: z.string().optional(),
+  idempotencyKey: z.string().optional(),
 });
 
 // Helper to read guest session id (same header used by cart controller)
@@ -27,24 +51,60 @@ const getSessionId = (req: Request): string | null => {
 };
 
 export const createOrder = async (req: AuthRequest, res: Response) => {
+  let userId = '';
+  let idempotencyKey = '';
+  let requestFingerprint = '';
   try {
-    console.log("RECEIVED BODY:", req.body);
-
     if (!req.user) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const userId = req.user.id;
+    userId = req.user.id;
     
     // Explicit parsing with Zod bounds
-    const { address, shippingMethod, couponCode, items, notes, paymentMethod } = createOrderSchema.parse(req.body);
+    const { address, shippingMethod, couponCode, items, notes, paymentMethod, idempotencyKey: bodyKey } = createOrderSchema.parse(req.body);
     const normalizedPaymentMethod = String(paymentMethod || 'COD').toUpperCase() === 'KASHIER' ? 'KASHIER' : 'COD';
     const initialOrderStatus = normalizedPaymentMethod === 'COD' ? 'CONFIRMED' : 'PENDING';
+    idempotencyKey = readIdempotencyKey(req.headers['idempotency-key'], bodyKey);
+    requestFingerprint = fingerprintCheckout({
+      address,
+      shippingMethod,
+      couponCode,
+      items,
+      notes,
+      paymentMethod: normalizedPaymentMethod,
+    });
+    console.log(`Creating order: userId=${userId} itemCount=${items?.length ?? 0} paymentMethod=${normalizedPaymentMethod}`);
 
     const cartWhere = { userId };
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: "Cart is empty" });
+    }
+
+    const existingAttempt = await prisma.checkoutAttempt.findUnique({
+      where: { userId_idempotencyKey: { userId, idempotencyKey } },
+      include: {
+        orders: {
+          include: {
+            items: { include: { product: true } },
+            vendor: { select: { storeName: true, slug: true } },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+    if (existingAttempt) {
+      assertMatchingFingerprint(existingAttempt.requestFingerprint, requestFingerprint);
+      return res.status(200).json({
+        message: 'Existing checkout returned',
+        checkoutAttemptId: existingAttempt.id,
+        idempotentReplay: true,
+        orders: existingAttempt.orders.map((order) => ({
+          ...order,
+          address: (() => { try { return JSON.parse(order.addressJson); } catch { return {}; } })(),
+        })),
+      });
     }
 
     // Map strict backend products from frontend payload definitions
@@ -58,22 +118,31 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
 
     const productMap = new Map(productsData.map(p => [p.id, p]));
 
-    // Construct exactly what the calculation sequence expects
-    const cartItems = items.map(item => {
+    // Construct exactly what the calculation sequence expects.
+    // For products with variants, the selected variant is the source of truth for price and stock.
+    const cartItems = [];
+    for (const item of items) {
       const product = productMap.get(item.productId);
       if (!product) throw new ValidationError(`Mapped Product ${item.productId} could not be resolved`);
-      return {
+
+      const resolution = await resolveVariant(prisma, product, item.variantId);
+      if (!resolution.ok) throw new ValidationError(resolution.message);
+      const variant = resolution.variant;
+
+      cartItems.push({
         id: 'runtime-checkout-payload',
         productId: item.productId,
         quantity: item.quantity,
         product,
-      };
-    });
+        variant,
+        priceSource: variant ?? product,
+        label: variant ? `${product.name} (${variant.name})` : product.name,
+      });
+    }
 
     // Evaluate Global Subtotals for accurate promotional deductions
     const globalSubtotal = cartItems.reduce((acc, item) => {
-      const p = item.product.discountPrice || item.product.price;
-      return acc + (p * item.quantity);
+      return acc + (getUnitPrice(item.priceSource) * item.quantity);
     }, 0);
 
     let globalDiscount = 0;
@@ -116,76 +185,101 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Address is required' });
     }
 
-    // Create orders for each vendor (multi-vendor support)
-    const orders = [];
-
     // Fetch free shipping threshold from settings
     const thresholdSetting = await prisma.setting.findUnique({
       where: { key: 'free_shipping_threshold' }
     });
     const freeShippingThreshold = thresholdSetting ? parseFloat(thresholdSetting.value) : 500;
 
-    for (const [vendorId, vendorItems] of itemsByVendor.entries()) {
+    const governorate = typeof orderAddress.state === 'string' ? orderAddress.state.trim() : '';
+    const shippingRate = governorate
+      ? await prisma.shippingRate.findFirst({
+          where: { governorate, isActive: true },
+          select: { cost: true },
+        })
+      : null;
+    const checkoutShippingCost = calculateCheckoutShipping(
+      globalSubtotal,
+      Number.isFinite(freeShippingThreshold) ? freeShippingThreshold : 500,
+      shippingRate?.cost,
+    );
+    const vendorEntries = Array.from(itemsByVendor.entries());
+    const vendorSubtotals = vendorEntries.map(([, vendorItems]) =>
+      vendorItems.reduce(
+        (subtotal, item) => subtotal + (getUnitPrice(item.priceSource) * item.quantity),
+        0,
+      ),
+    );
+    const shippingAllocations = allocateShippingCost(checkoutShippingCost, vendorSubtotals);
+
+    const preparedOrders = vendorEntries.map(([vendorId, vendorItems], vendorIndex) => {
       // Calculate totals
       let subtotal = 0;
       const orderItemsData = vendorItems.map((item) => {
-        const price = item.product.discountPrice || item.product.price;
+        const price = getUnitPrice(item.priceSource);
         const itemTotal = price * item.quantity;
         subtotal += itemTotal;
 
         // Check stock
-        if (item.product.stock < item.quantity) {
-          throw new ValidationError(`Insufficient stock for ${item.product.name}`);
+        const availableStock = item.variant ? item.variant.stock : item.product.stock;
+        if (availableStock < item.quantity) {
+          throw new ValidationError(`Insufficient stock for ${item.label}`);
         }
 
         return {
           productId: item.productId,
+          variantId: item.variant?.id ?? null,
+          variantInfo: item.variant ? buildVariantSnapshot(item.variant) : null,
           quantity: item.quantity,
-          price: item.product.price,
-          discountPrice: item.product.discountPrice,
+          price: item.priceSource.price,
+          discountPrice: item.priceSource.discountPrice,
         };
       });
 
       const orderShare = globalSubtotal > 0 ? (subtotal / globalSubtotal) : 0;
       const orderDiscountAmount = globalDiscount * orderShare;
 
-      const shippingCost = subtotal >= freeShippingThreshold ? 0 : 50; // Free shipping threshold from settings
+      const shippingCost = shippingAllocations[vendorIndex] ?? 0;
       const total = (subtotal - orderDiscountAmount) + shippingCost;
 
-      // C-01 Fix: Wrap order creation + stock decrement in a single transaction
-      // to prevent race conditions / overselling when concurrent orders hit low stock.
-      const order = await prisma.$transaction(async (tx) => {
-        // Re-verify stock inside the transaction (prevents TOCTOU race)
-        for (const item of vendorItems) {
-          const freshProduct = await tx.product.findUnique({
-            where: { id: item.productId },
-            select: { stock: true, name: true },
-          });
-          if (!freshProduct || freshProduct.stock < item.quantity) {
-            throw new ValidationError(
-              `Insufficient stock for "${item.product.name}". Only ${freshProduct?.stock ?? 0} left.`
-            );
-          }
-        }
+      return { vendorId, vendorItems, subtotal, orderItemsData, orderDiscountAmount, shippingCost, total };
+    });
 
-        // Create the order
-        const createdOrder = await tx.order.create({
-          data: {
+    const identity = createCheckoutAttemptIdentity();
+    const expiresAt = normalizedPaymentMethod === 'KASHIER' ? calculateCheckoutExpiresAt() : null;
+    const checkout = await createCheckoutAtomically(prisma, {
+      attempt: {
+        ...identity,
+        userId,
+        idempotencyKey,
+        requestFingerprint,
+        paymentMethod: normalizedPaymentMethod,
+        status: normalizedPaymentMethod === 'COD' ? 'COMPLETED' : 'ORDERS_CREATED',
+        expiresAt,
+      },
+      orders: preparedOrders.map((prepared) => ({
+        stockLines: prepared.vendorItems.map((item) => ({
+          productId: item.productId,
+          variantId: item.variant?.id ?? null,
+          quantity: item.quantity,
+          label: item.label,
+        })),
+        data: {
             userId,
-            vendorId,
+            vendorId: prepared.vendorId,
             status: initialOrderStatus,
-            subtotal,
-            shippingCost,
-            total,
+            subtotal: prepared.subtotal,
+            shippingCost: prepared.shippingCost,
+            total: prepared.total,
             couponCode: appliedCoupon?.code || null,
-            discountAmount: orderDiscountAmount,
+            discountAmount: prepared.orderDiscountAmount,
             addressJson: JSON.stringify(orderAddress),
             shippingMethod: shippingMethod || 'Standard',
             notes,
             paymentMethod: normalizedPaymentMethod,
             paymentStatus: 'PENDING',
             items: {
-              create: orderItemsData,
+              create: prepared.orderItemsData,
             },
             statusHistory: {
               create: {
@@ -196,7 +290,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
               },
             },
           },
-          include: {
+        include: {
             items: {
               include: {
                 product: true,
@@ -209,40 +303,31 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
               },
             },
           },
-        });
+      })),
+      couponId: appliedCoupon?.id,
+      clearCartWhere: normalizedPaymentMethod === 'COD' ? cartWhere : null,
+    }, reserveStock);
 
-        // Decrement stock atomically inside the same transaction
-        for (const item of vendorItems) {
-          await tx.product.update({
-            where: { id: item.productId },
-            data: { stock: { decrement: item.quantity } },
-          });
-        }
+    const orders = checkout.orders;
 
-        return createdOrder;
-      });
+    for (const order of orders) {
 
-      orders.push(order);
+      // COD orders are confirmed at creation; Kashier purchases are tracked on the verified paid webhook.
+      if (normalizedPaymentMethod === 'COD') {
+        void trackPurchasesForOrders([order.id]);
+      }
 
       // --- PHASE 1: VENDOR NOTIFICATION ---
-      try {
-        const vendor = await prisma.vendor.findUnique({
-          where: { id: vendorId },
-          select: { userId: true, storeName: true }
-        });
-        if (vendor?.userId) {
-          await prisma.notification.create({
-            data: {
-              userId: vendor.userId,
-              title: 'New Order Received!',
-              message: `You have received a new order (${order.id}) totaling ${formatPrice(order.total)}.`,
-              type: 'info'
-            }
-          });
-        }
-      } catch (err) {
-        console.error('Failed to dispatch vendor order notification', err);
-      }
+      await notifyVendor(order.vendorId, {
+        type: NotificationType.ORDER_CREATED,
+        title: 'New Order Received!',
+        titleAr: 'طلب جديد!',
+        message: `You have received a new order (${order.id}) totaling ${formatPrice(order.total)}.`,
+        messageAr: `وصلك طلب جديد (#${shortId(order.id)}) بإجمالي ${formatPrice(order.total)}.`,
+        link: `/vendor/orders/${order.id}`,
+        entityType: 'ORDER',
+        entityId: order.id,
+      });
 
       // --- PHASE 1.5: CUSTOMER WHATSAPP NOTIFICATION ---
       try {
@@ -264,48 +349,62 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
     }
 
     // --- PHASE 1: ADMIN NOTIFICATIONS ---
-    try {
-      const admins = await prisma.user.findMany({
-        where: { role: 'ADMIN' },
-        select: { id: true }
-      });
-      const adminNotifications = admins.map(admin => ({
-        userId: admin.id,
-        title: 'New Platform Transaction',
-        message: `A new order flow was completed. ${orders.length} sub-orders generated.`,
-        type: 'info'
-      }));
-      if (adminNotifications.length > 0) {
-        await prisma.notification.createMany({
-          data: adminNotifications
-        });
-      }
-    } catch (err) {
-      console.error('Failed to dispatch admin root notifications', err);
-    }
-
-    // Increment Coupon Utility Use Count
-    if (appliedCoupon) {
-      await prisma.coupon.update({
-        where: { id: appliedCoupon.id },
-        data: { usedCount: { increment: 1 } }
-      });
-    }
-
-    // Clear cart after order creation (both user and session carts)
-    await prisma.cartItem.deleteMany({
-      where: cartWhere,
+    await notifyAdmins({
+      type: NotificationType.ORDER_CREATED,
+      title: 'New Platform Transaction',
+      titleAr: 'عملية شراء جديدة على المنصة',
+      message: `A new order flow was completed. ${orders.length} sub-orders generated.`,
+      messageAr: `تم إتمام طلب جديد، وتم إنشاء ${orders.length} طلب فرعي.`,
+      link: orders.length === 1 ? `/admin/orders/${orders[0].id}` : '/admin/orders',
+      entityType: 'ORDER',
+      entityId: orders.length === 1 ? orders[0].id : undefined,
     });
 
     res.status(201).json({
       message: 'Order created successfully',
-      orders: orders.map((order) => ({
+      checkoutAttemptId: checkout.attempt.id,
+      idempotentReplay: false,
+      orders: orders.map((order: any) => ({
         ...order,
         // H-09 Fix: safe JSON.parse — malformed addressJson won't crash the endpoint
         address: (() => { try { return JSON.parse(order.addressJson); } catch { return {}; } })(),
       })),
     });
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002' && userId && idempotencyKey) {
+      const existingAttempt = await prisma.checkoutAttempt.findUnique({
+        where: { userId_idempotencyKey: { userId, idempotencyKey } },
+        include: {
+          orders: {
+            include: {
+              items: { include: { product: true } },
+              vendor: { select: { storeName: true, slug: true } },
+            },
+            orderBy: { createdAt: 'asc' },
+          },
+        },
+      });
+      if (existingAttempt) {
+        if (existingAttempt.requestFingerprint !== requestFingerprint) {
+          return res.status(409).json({
+            error: IDEMPOTENCY_KEY_REUSE,
+            message: 'This idempotency key was already used with a different checkout payload',
+          });
+        }
+        return res.status(200).json({
+          message: 'Existing checkout returned',
+          checkoutAttemptId: existingAttempt.id,
+          idempotentReplay: true,
+          orders: existingAttempt.orders.map((order) => ({
+            ...order,
+            address: (() => { try { return JSON.parse(order.addressJson); } catch { return {}; } })(),
+          })),
+        });
+      }
+    }
+    if (error instanceof Error && error.name === IDEMPOTENCY_KEY_REUSE) {
+      return res.status(409).json({ error: IDEMPOTENCY_KEY_REUSE, message: error.message });
+    }
     if (error instanceof z.ZodError || (error as any).name === 'ZodError') {
       console.log("VALIDATION ERROR:", error);
       return res.status(400).json({ message: "Validation Failed", details: (error as any).errors || error });
@@ -344,8 +443,10 @@ export const getOrders = async (req: AuthRequest, res: Response) => {
                 select: {
                   id: true,
                   name: true,
+                  nameAr: true,
                   slug: true,
                   images: true,
+                  imageMetadata: true,
                 },
               },
             },
@@ -369,7 +470,7 @@ export const getOrders = async (req: AuthRequest, res: Response) => {
 
     res.json({
       orders: orders.map((order) => ({
-        ...order,
+        ...withoutPaymentReferences(order),
         address: (() => { try { return JSON.parse(order.addressJson); } catch { return {}; } })(),
         items: order.items.map((item) => ({
           ...item,
@@ -430,7 +531,7 @@ export const getOrderById = async (req: AuthRequest, res: Response) => {
                 },
               },
             },
-            refundRequest: true,
+            refundRequests: { select: { id: true, status: true, quantity: true, amount: true, createdAt: true } },
           },
         },
         vendor: {
@@ -453,7 +554,7 @@ export const getOrderById = async (req: AuthRequest, res: Response) => {
     }
 
     res.json({
-      ...order,
+      ...withoutPaymentReferences(order),
       // H-09 Fix: safe JSON.parse — a corrupt addressJson won't crash the endpoint
       address: (() => { try { return JSON.parse(order.addressJson); } catch { return {}; } })(),
       items: order.items.map((item) => ({
@@ -500,18 +601,11 @@ export const cancelOrder = async (req: AuthRequest, res: Response) => {
 
     // Atomic transaction: update status + increment stock + add history
     const updatedOrder = await prisma.$transaction(async (tx) => {
-      const updated = await tx.order.update({
-        where: { id },
-        data: { status: 'CANCELLED' },
-      });
-
-      // Restore stock
-      for (const item of order.items) {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stock: { increment: item.quantity } },
-        });
+      const cancelled = await cancelOrderWithStockRestore(tx, id, ['PENDING', 'CONFIRMED', 'PROCESSING']);
+      if (!cancelled) {
+        throw new ValidationError('Order cannot be cancelled in its current state');
       }
+      const updated = await tx.order.findUniqueOrThrow({ where: { id } });
 
       // Add to history
       await tx.orderStatusHistory.create({
@@ -525,7 +619,12 @@ export const cancelOrder = async (req: AuthRequest, res: Response) => {
       return updated;
     });
 
-    res.json({ message: 'Order cancelled successfully', order: updatedOrder });
+    await notifyVendorOrderStatus(updatedOrder.vendorId, id, 'CANCELLED', {
+      en: `The customer cancelled order #${shortId(id)}.`,
+      ar: `العميل ألغى الطلب رقم #${shortId(id)}.`,
+    });
+
+    res.json({ message: 'Order cancelled successfully', order: withoutPaymentReferences(updatedOrder) });
   } catch (error) {
     if (error instanceof NotFoundError || error instanceof ValidationError) {
       return res.status(error.statusCode).json({ error: error.message });
@@ -535,48 +634,31 @@ export const cancelOrder = async (req: AuthRequest, res: Response) => {
   }
 };
 
+/**
+ * Deprecated: used to mark the whole order REFUNDED without any refund or stock movement.
+ * Kept so older clients get a clear answer; returns now go through POST /api/refunds per item.
+ */
 export const returnOrder = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { id } = req.params;
-    const userId = req.user.id;
-    const { reason } = req.body;
-
     const order = await prisma.order.findFirst({
-      where: { id, userId },
+      where: { id: req.params.id, userId: req.user.id },
+      select: { id: true },
     });
 
     if (!order) {
       throw new NotFoundError('Order not found');
     }
 
-    if (order.status !== 'DELIVERED') {
-      throw new ValidationError('Only delivered orders can be returned');
-    }
-
-    const updatedOrder = await prisma.$transaction(async (tx) => {
-      const updated = await tx.order.update({
-        where: { id },
-        data: { status: 'REFUNDED' }, // Using REFUNDED as the terminal return state
-      });
-
-      await tx.orderStatusHistory.create({
-        data: {
-          orderId: id,
-          status: 'REFUNDED',
-          notes: `Return requested. Reason: ${reason || 'Not specified'}`,
-        },
-      });
-
-      return updated;
+    res.status(410).json({
+      error: 'Whole-order returns are no longer supported. Request a return for each item from the order page.',
+      errorAr: 'إرجاع الطلب بالكامل لم يعد متاحاً. اطلب إرجاع كل منتج من صفحة الطلب.',
     });
-
-    res.json({ message: 'Return request processed', order: updatedOrder });
   } catch (error) {
-    if (error instanceof NotFoundError || error instanceof ValidationError) {
+    if (error instanceof NotFoundError) {
       return res.status(error.statusCode).json({ error: error.message });
     }
     console.error('Error requesting return:', error);
@@ -636,4 +718,3 @@ export const getOrderStatusHistory = async (req: AuthRequest, res: Response) => 
     res.status(500).json({ error: 'Failed to fetch order history' });
   }
 };
-

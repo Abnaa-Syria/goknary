@@ -1,6 +1,7 @@
-import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../lib/api';
-import { Product } from './productSlice';
+import { Product, ProductVariant } from './productSlice';
+import { ensureCartSessionId } from '../../lib/cartSession';
 
 export interface CartItem {
   id: string;
@@ -9,7 +10,24 @@ export interface CartItem {
   price: number;
   discountPrice?: number;
   itemTotal: number;
+  variantId?: string | null;
+  variant?: ProductVariant | null;
+  variantAutoSelected?: boolean;
+  requiresVariantSelection?: boolean;
+  unavailable?: boolean;
+  availableStock?: number;
 }
+
+/** A line the backend would reject at checkout because its variant is missing or inactive. */
+export const hasVariantProblem = (item: CartItem): boolean =>
+  !!item.requiresVariantSelection || !!item.unavailable;
+
+/** Stock the backend checks at order time: the line's variant stock, or the product stock for simple products. */
+export const getCartItemStock = (item: CartItem): number => item.availableStock ?? item.product.stock;
+
+/** Checkout would fail for this line: its option needs attention or there is not enough stock. */
+export const hasCartItemProblem = (item: CartItem): boolean =>
+  hasVariantProblem(item) || getCartItemStock(item) < item.quantity;
 
 interface CartState {
   items: CartItem[];
@@ -17,6 +35,7 @@ interface CartState {
   total: number;
   itemCount: number;
   loading: boolean;
+  hydrationStatus: 'idle' | 'loading' | 'succeeded' | 'failed';
   error: string | null;
 }
 
@@ -26,24 +45,15 @@ const initialState: CartState = {
   total: 0,
   itemCount: 0,
   loading: false,
+  hydrationStatus: 'idle',
   error: null,
-};
-
-// Get or generate session ID for guest users
-const getSessionId = (): string => {
-  let sessionId = localStorage.getItem('cart_session_id');
-  if (!sessionId) {
-    sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-    localStorage.setItem('cart_session_id', sessionId);
-  }
-  return sessionId;
 };
 
 export const fetchCart = createAsyncThunk(
   'cart/fetchCart',
   async (_, { rejectWithValue }) => {
     try {
-      const sessionId = getSessionId();
+      const sessionId = ensureCartSessionId();
       const response = await api.get('/cart', {
         headers: {
           'x-session-id': sessionId,
@@ -58,12 +68,15 @@ export const fetchCart = createAsyncThunk(
 
 export const addToCart = createAsyncThunk(
   'cart/addToCart',
-  async ({ productId, quantity }: { productId: string; quantity: number }, { rejectWithValue, dispatch }) => {
+  async (
+    { productId, variantId, quantity }: { productId: string; variantId?: string | null; quantity: number },
+    { rejectWithValue, dispatch }
+  ) => {
     try {
-      const sessionId = getSessionId();
+      const sessionId = ensureCartSessionId();
       const response = await api.post(
         '/cart/items',
-        { productId, quantity },
+        variantId ? { productId, variantId, quantity } : { productId, quantity },
         {
           headers: {
             'x-session-id': sessionId,
@@ -83,7 +96,7 @@ export const updateCartItem = createAsyncThunk(
   'cart/updateCartItem',
   async ({ itemId, quantity }: { itemId: string; quantity: number }, { rejectWithValue, dispatch }) => {
     try {
-      const sessionId = getSessionId();
+      const sessionId = ensureCartSessionId();
       await api.patch(
         `/cart/items/${itemId}`,
         { quantity },
@@ -106,7 +119,7 @@ export const removeFromCart = createAsyncThunk(
   'cart/removeFromCart',
   async (itemId: string, { rejectWithValue, dispatch }) => {
     try {
-      const sessionId = getSessionId();
+      const sessionId = ensureCartSessionId();
       await api.delete(`/cart/items/${itemId}`, {
         headers: {
           'x-session-id': sessionId,
@@ -125,7 +138,7 @@ export const clearCart = createAsyncThunk(
   'cart/clearCart',
   async (_, { rejectWithValue, dispatch }) => {
     try {
-      const sessionId = getSessionId();
+      const sessionId = ensureCartSessionId();
       await api.delete('/cart', {
         headers: {
           'x-session-id': sessionId,
@@ -147,16 +160,19 @@ const cartSlice = createSlice({
       state.subtotal = 0;
       state.total = 0;
       state.itemCount = 0;
+      state.hydrationStatus = 'succeeded';
     },
   },
   extraReducers: (builder) => {
     builder
       .addCase(fetchCart.pending, (state) => {
         state.loading = true;
+        state.hydrationStatus = 'loading';
         state.error = null;
       })
       .addCase(fetchCart.fulfilled, (state, action) => {
         state.loading = false;
+        state.hydrationStatus = 'succeeded';
         state.items = action.payload.items.map((item: any) => ({
           ...item,
           product: {
@@ -170,6 +186,7 @@ const cartSlice = createSlice({
       })
       .addCase(fetchCart.rejected, (state, action) => {
         state.loading = false;
+        state.hydrationStatus = 'failed';
         state.error = action.payload as string;
       })
       .addCase(addToCart.pending, (state) => {
@@ -187,4 +204,3 @@ const cartSlice = createSlice({
 
 export const { clearCartState } = cartSlice.actions;
 export default cartSlice.reducer;
-

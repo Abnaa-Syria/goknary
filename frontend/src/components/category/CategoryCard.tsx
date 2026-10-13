@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Category } from '../../store/slices/categorySlice';
-import { getImageUrl } from '../../utils/image';
+import { IMAGE_PLACEHOLDER, getImageUrl } from '../../utils/image';
 
 interface CategoryCardProps {
   category: Category;
@@ -12,13 +12,13 @@ const CategoryCard: React.FC<CategoryCardProps> = ({ category }) => {
   const { i18n } = useTranslation();
   const isRTL = i18n.language === 'ar';
   
-  const imageUrl = category.image || '/imgs/default-category.jpg';
+  const imageUrl = category.image || IMAGE_PLACEHOLDER;
   const categoryName = isRTL && (category as any).nameAr ? (category as any).nameAr : category.name;
 
   return (
     <Link
       to={`/category/${category.slug}`}
-      className="card p-3 sm:p-4 text-center hover:shadow-card-hover transition-all duration-200 group"
+      className="card block h-full p-3 sm:p-4 text-center hover:shadow-card-hover transition-all duration-200 group"
     >
       <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 mx-auto mb-2 sm:mb-3 rounded-full overflow-hidden bg-gray-100">
         <img
@@ -26,7 +26,7 @@ const CategoryCard: React.FC<CategoryCardProps> = ({ category }) => {
           alt={categoryName}
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200"
           onError={(e) => {
-            (e.target as HTMLImageElement).src = '/imgs/default-category.jpg';
+            (e.target as HTMLImageElement).src = IMAGE_PLACEHOLDER;
           }}
         />
       </div>

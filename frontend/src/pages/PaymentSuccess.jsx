@@ -5,12 +5,21 @@ import { clearCartState } from '../store/slices/cartSlice';
 import api from '../lib/api';
 import { formatPrice } from '../lib/utils';
 import { CheckCircle2, Clock, Home, PackageCheck, Printer, ShoppingBag } from 'lucide-react';
-import { getImageUrl } from '../utils/image';
+import { IMAGE_PLACEHOLDER, getImageUrl } from '../utils/image';
+import { parseVariantSnapshot } from '../lib/variants';
+import OrderItemVariant from '../components/common/OrderItemVariant';
+import {
+  getPaymentConfirmationState,
+  isValidOrderReference,
+  shouldClearCartAfterConfirmation,
+} from '../lib/paymentConfirmation';
+import { clearCartSessionId } from '../lib/cartSession';
+import { clearCheckoutIdempotencyKey } from '../lib/checkoutIdempotency';
 
 const parseOrderIds = (searchParams) => {
   const orderIds = searchParams.get('order_ids');
   if (orderIds) {
-    return orderIds.split(',').map((id) => id.trim()).filter(Boolean);
+    return [...new Set(orderIds.split(',').map((id) => id.trim()).filter(isValidOrderReference))].slice(0, 25);
   }
 
   const singleReference = [
@@ -19,7 +28,9 @@ const parseOrderIds = (searchParams) => {
     searchParams.get('order_id'),
   ].find(Boolean);
 
-  return singleReference ? String(singleReference).split('__').filter(Boolean) : [];
+  return singleReference
+    ? [...new Set(String(singleReference).split('__').filter(isValidOrderReference))].slice(0, 25)
+    : [];
 };
 
 const normalizeImages = (images) => {
@@ -46,8 +57,8 @@ const PaymentSuccess = () => {
   const isAr = document.documentElement.lang?.startsWith('ar');
   const labels = {
     loading: isAr ? 'جاري تحميل الفاتورة...' : 'Loading invoice...',
-    fallbackTitle: isAr ? 'تم استلام الطلب' : 'Order Received',
-    fallbackDesc: isAr ? 'لم نتمكن من تحميل تفاصيل الفاتورة، لكن تم استلام مرجع الطلب.' : 'We could not load the invoice details, but your order reference was received.',
+    fallbackTitle: isAr ? 'تعذر تأكيد الطلب' : 'Order Confirmation Unavailable',
+    fallbackDesc: isAr ? 'تعذر التحقق من تفاصيل الطلب. راجع صفحة طلباتك للتأكد من حالته.' : 'We could not verify this order. Check My Orders for its current status.',
     viewOrders: isAr ? 'عرض طلباتي' : 'View My Orders',
     thankYou: isAr ? 'شكراً لطلبك' : 'Thank you for your order',
     thankYouDesc: isAr ? 'تم استلام طلبك بنجاح. هذه الصفحة تعمل كفاتورة وتأكيد لعملية الشراء.' : 'Your order has been received successfully. This page works as your order invoice and purchase confirmation.',
@@ -58,6 +69,9 @@ const PaymentSuccess = () => {
     payment: isAr ? 'الدفع' : 'Payment',
     paid: isAr ? 'مدفوع / مؤكد' : 'Paid / Confirmed',
     pending: isAr ? 'بانتظار التأكيد' : 'Pending Confirmation',
+    orderConfirmed: isAr ? 'تم تأكيد الطلب' : 'Order Confirmed',
+    paymentPending: isAr ? 'الدفع معلق' : 'Payment Pending',
+    paymentConfirmed: isAr ? 'تم تأكيد الدفع' : 'Payment Confirmed',
     method: isAr ? 'طريقة الدفع' : 'Method',
     kashier: isAr ? 'كاشير - دفع إلكتروني' : 'Kashier online payment',
     cod: isAr ? 'الدفع عند الاستلام' : 'Cash on delivery',
@@ -68,12 +82,6 @@ const PaymentSuccess = () => {
     print: isAr ? 'طباعة الفاتورة' : 'Print Invoice',
     home: isAr ? 'العودة للرئيسية' : 'Return Home',
   };
-
-  useEffect(() => {
-    dispatch(clearCartState());
-    localStorage.removeItem('cart_session_id');
-    localStorage.removeItem('cartSessionId');
-  }, [dispatch]);
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -139,7 +147,15 @@ const PaymentSuccess = () => {
 
   const firstOrder = orders[0];
   const isKashier = paymentMethod === 'kashier' || firstOrder?.paymentMethod === 'KASHIER';
-  const isPaid = orders.every((order) => order.paymentStatus === 'PAID') || !isKashier;
+  const confirmationState = getPaymentConfirmationState(orders);
+  const isPaymentConfirmed = confirmationState === 'payment-confirmed';
+
+  useEffect(() => {
+    if (!shouldClearCartAfterConfirmation(confirmationState)) return;
+    dispatch(clearCartState());
+    clearCartSessionId();
+    clearCheckoutIdempotencyKey();
+  }, [confirmationState, dispatch]);
 
   if (loading) {
     return (
@@ -181,7 +197,7 @@ const PaymentSuccess = () => {
           <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
             {orderIds.map((id) => (
               <span key={id} className="px-4 py-2 bg-gray-50 rounded-xl text-xs font-black text-gray-600 uppercase tracking-widest">
-                #{id}
+                 #{id.slice(-8).toUpperCase()}
               </span>
             ))}
           </div>
@@ -200,7 +216,7 @@ const PaymentSuccess = () => {
                   <div className="flex flex-wrap justify-between gap-3 mb-5">
                     <div>
                       <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{labels.order}</p>
-                      <p className="font-black text-gray-900">#{order.id}</p>
+                       <p className="font-black text-gray-900">#{order.id.slice(-8).toUpperCase()}</p>
                     </div>
                     <div className="text-start lg:text-end">
                       <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{labels.vendor}</p>
@@ -211,17 +227,19 @@ const PaymentSuccess = () => {
                   <div className="space-y-3">
                     {(order.items || []).map((item) => {
                       const images = normalizeImages(item.product?.images);
+                      const snapshot = parseVariantSnapshot(item.variantInfo);
                       return (
                         <div key={item.id} className="flex items-center gap-4 bg-gray-50/60 rounded-2xl p-3">
                           <div className="w-14 h-14 rounded-xl bg-white overflow-hidden border border-gray-100">
                             <img
-                              src={getImageUrl(images[0] || '/imgs/default-product.jpg')}
-                              alt={item.product?.name}
+                              src={getImageUrl(snapshot?.image || images[0] || IMAGE_PLACEHOLDER)}
+                              alt={(snapshot?.image && snapshot.name) || item.product?.name}
                               className="w-full h-full object-cover"
                             />
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="font-bold text-gray-900 truncate">{item.product?.name}</p>
+                            <OrderItemVariant snapshot={snapshot} className="text-xs text-gray-500" />
                             <p className="text-xs text-gray-400 font-bold">{labels.qty}: {item.quantity}</p>
                           </div>
                           <p className="text-sm font-black text-gray-900">
@@ -239,8 +257,12 @@ const PaymentSuccess = () => {
           <aside className="bg-white rounded-[2rem] border border-gray-100 shadow-sm p-6 h-fit space-y-5">
             <div>
               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">{labels.payment}</p>
-              <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase ${isPaid ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-                {isPaid ? labels.paid : labels.pending}
+               <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase ${isPaymentConfirmed ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                 {confirmationState === 'payment-confirmed'
+                   ? labels.paymentConfirmed
+                   : confirmationState === 'order-confirmed'
+                     ? `${labels.orderConfirmed} / ${labels.paymentPending}`
+                     : labels.paymentPending}
               </div>
               <p className="text-xs text-gray-400 mt-2">
                 {labels.method}: {isKashier ? labels.kashier : labels.cod}

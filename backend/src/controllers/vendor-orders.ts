@@ -5,6 +5,9 @@ import { NotFoundError } from '../lib/errors';
 import { z } from 'zod';
 import { sendOrderStatusNotification } from '../services/whatsapp.service';
 import { isCodOrder, isOrderFinanciallyConfirmed, settleOrderOnDelivery } from '../lib/vendor-earnings';
+import { cancelOrderWithStockRestore } from '../lib/variants';
+import { notifyCustomerOrderStatus } from '../lib/notify';
+import { withoutPaymentReferences } from '../lib/payment-reference';
 
 const updateStatusSchema = z.object({
   status: z.enum(['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED']),
@@ -82,7 +85,7 @@ export const getVendorOrders = async (req: AuthRequest, res: Response) => {
 
     res.json({
       orders: orders.map((order) => ({
-        ...order,
+        ...withoutPaymentReferences(order),
         address: JSON.parse(order.addressJson),
         items: order.items.map((item) => ({
           ...item,
@@ -153,7 +156,7 @@ export const getVendorOrder = async (req: AuthRequest, res: Response) => {
                 },
               },
             },
-            refundRequest: true,
+            refundRequests: { select: { id: true, status: true, quantity: true, amount: true, createdAt: true } },
           },
         },
         statusHistory: {
@@ -169,7 +172,7 @@ export const getVendorOrder = async (req: AuthRequest, res: Response) => {
     }
 
     res.json({
-      ...order,
+      ...withoutPaymentReferences(order),
       // H-09 Fix: safe JSON.parse
       address: (() => { try { return JSON.parse(order.addressJson); } catch { return {}; } })(),
       items: order.items.map((item) => ({
@@ -241,23 +244,14 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response) => {
 
     // H-08 Fix: wrap status update + history in a single atomic transaction
     // If history creation fails, the status rollback is automatic
+    let cancelledNow = false;
     const updated = await prisma.$transaction(async (tx) => {
       if (status === 'DELIVERED' && order.status !== 'DELIVERED') {
         await settleOrderOnDelivery(tx, order, vendor);
       }
 
-      if (status === 'CANCELLED' && order.status !== 'CANCELLED') {
-        const orderItems = await tx.orderItem.findMany({
-          where: { orderId: id },
-          select: { productId: true, quantity: true },
-        });
-
-        for (const item of orderItems) {
-          await tx.product.update({
-            where: { id: item.productId },
-            data: { stock: { increment: item.quantity } },
-          });
-        }
+      if (status === 'CANCELLED') {
+        cancelledNow = await cancelOrderWithStockRestore(tx, id, ['PENDING', 'CONFIRMED', 'PROCESSING']);
       }
 
       const updatedOrder = await tx.order.update({
@@ -281,6 +275,10 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response) => {
       return updatedOrder;
     });
 
+    if (status !== order.status && (status !== 'CANCELLED' || cancelledNow)) {
+      await notifyCustomerOrderStatus(order.userId, id, status);
+    }
+
     // Send WhatsApp order status update notification to the customer
     if (order.user && order.user.phone && order.user.name) {
       sendOrderStatusNotification(
@@ -293,7 +291,7 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response) => {
 
     res.json({
       message: 'Order status updated successfully',
-      order: updated,
+      order: withoutPaymentReferences(updated),
     });
   } catch (error) {
     if (error instanceof NotFoundError) {

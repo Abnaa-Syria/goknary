@@ -1,14 +1,14 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../lib/prisma';
+import { publicProductWhere, toPublicProduct } from '../lib/visibility';
+import { RECOMMENDED_PRODUCT_ORDER } from '../lib/ranking-config';
 
 export const getRelatedProducts = async (req: Request, res: Response) => {
   try {
     const { slug } = req.params;
     
-    const product = await prisma.product.findUnique({
-      where: { slug },
+    const product = await prisma.product.findFirst({
+      where: publicProductWhere({ slug }),
       select: { id: true, categoryId: true }
     });
 
@@ -17,21 +17,20 @@ export const getRelatedProducts = async (req: Request, res: Response) => {
     }
 
     const related = await prisma.product.findMany({
-      where: {
+      where: publicProductWhere({
         categoryId: product.categoryId,
         id: { not: product.id },
-        status: { in: ['ACTIVE' as any, 'APPROVED' as any] },
-      },
+      }),
       include: {
         vendor: { select: { storeName: true, slug: true } },
         category: { select: { name: true, slug: true } },
         brand: { select: { name: true, slug: true } },
       },
       take: 4,
-      orderBy: { ratingAvg: 'desc' }
+      orderBy: RECOMMENDED_PRODUCT_ORDER
     });
 
-    res.json({ products: related });
+    res.json({ products: related.map(toPublicProduct) });
   } catch (error) {
     console.error('Error fetching related cross-sell matrix:', error);
     res.status(500).json({ error: 'Failed to extract related items' });

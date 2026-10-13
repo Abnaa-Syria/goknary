@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { fetchProducts, Product } from '../store/slices/productSlice';
 import { fetchCategories } from '../store/slices/categorySlice';
+import { findCategoryInTree } from '../utils/categoryTree';
 import ProductCard from '../components/product/ProductCard';
 import api from '../lib/api';
 import { Search, X, Info, Tag } from 'lucide-react';
@@ -73,7 +74,7 @@ const SearchPage: React.FC = () => {
     setSearchParams(newParams);
   };
 
-  const selectedCategory = categories.find((c) => c.id === categoryId);
+  const selectedCategory = categoryId ? findCategoryInTree(categories, categoryId) : undefined;
   const categoryName = selectedCategory
     ? (isRTL && (selectedCategory as any).nameAr ? (selectedCategory as any).nameAr : selectedCategory.name)
     : '';
@@ -176,6 +177,7 @@ const SearchPage: React.FC = () => {
               className="bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500"
             >
               <option value="relevance">{t('product.sortRelevance', 'الأكثر ملاءمة')}</option>
+              <option value="recommended">{t('shop.sortRecommended', 'المقترح')}</option>
               <option value="price_low">{t('product.sortPriceLow', 'السعر: من الأقل للأعلى')}</option>
               <option value="price_high">{t('product.sortPriceHigh', 'السعر: من الأعلى للأقل')}</option>
               <option value="rating">{t('product.sortRating', 'التقييم')}</option>

@@ -10,23 +10,47 @@ import {
   Loader2,
   Key,
   Globe,
-  Camera
+  Camera,
+  ScrollText
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import api from '../../lib/api';
+import api, { storeAuthTokens } from '../../lib/api';
 import { useAppDispatch } from '../../store/hooks';
 import { getCurrentUser } from '../../store/slices/authSlice';
 import ImageUploader from '../../components/common/ImageUploader';
-import { uploadImages } from '../../utils/upload';
+import { getRequestErrorMessage, uploadImages } from '../../utils/upload';
 import { getImageUrl } from '../../utils/image';
+import { POLICY_MAX_LENGTH, RETURN_WINDOW_MAX_DAYS, VendorPolicyFields } from '../../lib/vendorPolicies';
 
-interface Vendor {
+interface Vendor extends VendorPolicyFields {
   id: string;
   storeName: string;
   description?: string;
   logo?: string;
   banner?: string;
 }
+
+const POLICY_TEXT_FIELDS = [
+  ['returnPolicy', 'Return Policy'],
+  ['returnPolicyAr', 'Return Policy (Arabic)'],
+  ['shippingPolicy', 'Shipping Policy'],
+  ['shippingPolicyAr', 'Shipping Policy (Arabic)'],
+  ['exchangePolicy', 'Exchange Policy'],
+  ['exchangePolicyAr', 'Exchange Policy (Arabic)'],
+] as const;
+
+type PolicyTextField = (typeof POLICY_TEXT_FIELDS)[number][0];
+type PolicyForm = Record<PolicyTextField, string> & { returnWindowDays: string };
+
+const toPolicyForm = (v: VendorPolicyFields): PolicyForm => ({
+  returnPolicy: v.returnPolicy || '',
+  returnPolicyAr: v.returnPolicyAr || '',
+  shippingPolicy: v.shippingPolicy || '',
+  shippingPolicyAr: v.shippingPolicyAr || '',
+  exchangePolicy: v.exchangePolicy || '',
+  exchangePolicyAr: v.exchangePolicyAr || '',
+  returnWindowDays: v.returnWindowDays === null || v.returnWindowDays === undefined ? '' : String(v.returnWindowDays),
+});
 
 const VendorSettingsPage: React.FC = () => {
   const { t } = useTranslation();
@@ -42,6 +66,11 @@ const VendorSettingsPage: React.FC = () => {
     banner: [] as (File | string)[],
   });
 
+  // Policies Form State
+  const [policiesLoading, setPoliciesLoading] = useState(false);
+  const [policyForm, setPolicyForm] = useState<PolicyForm>(toPolicyForm({}));
+  const [policyErrors, setPolicyErrors] = useState<Partial<Record<keyof PolicyForm, string>>>({});
+
   // Password Form State
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordData, setPasswordData] = useState({
@@ -54,7 +83,7 @@ const VendorSettingsPage: React.FC = () => {
     fetchVendorProfile();
   }, []);
 
-  const fetchVendorProfile = async () => {
+  const fetchVendorProfile = async (resetPolicies = true) => {
     try {
       const response = await api.get('/vendor/me');
       const vendorData = response.data.vendor;
@@ -65,6 +94,7 @@ const VendorSettingsPage: React.FC = () => {
         logo: vendorData.logo ? [vendorData.logo] : [],
         banner: vendorData.banner ? [vendorData.banner] : [],
       });
+      if (resetPolicies) setPolicyForm(toPolicyForm(vendorData));
     } catch (error: any) {
       toast.error(t('vendor.failedLoadProfile', 'Failed to load store profile'));
     }
@@ -91,12 +121,45 @@ const VendorSettingsPage: React.FC = () => {
         banner: bannerUrl || '',
       });
       toast.success(t('vendor.updateSuccess', 'Storefront updated successfully'));
-      fetchVendorProfile();
+      fetchVendorProfile(false);
       dispatch(getCurrentUser()); // Sync global user state if store info is linked
     } catch (error: any) {
-      toast.error(error.response?.data?.error || t('vendor.updateFailed', 'Failed to update storefront'));
+      toast.error(getRequestErrorMessage(error, t('vendor.updateFailed', 'Failed to update storefront'), t('common.uploadFailed')));
     } finally {
       setProfileLoading(false);
+    }
+  };
+
+  const handlePoliciesSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const errors: Partial<Record<keyof PolicyForm, string>> = {};
+    for (const [field] of POLICY_TEXT_FIELDS) {
+      if (policyForm[field].length > POLICY_MAX_LENGTH) {
+        errors[field] = t('policies.policyTooLong', { max: POLICY_MAX_LENGTH, defaultValue: 'Each policy can be at most {{max}} characters' });
+      }
+    }
+    const daysRaw = policyForm.returnWindowDays.trim();
+    const days = daysRaw === '' ? null : Number(daysRaw);
+    if (days !== null && (!/^\d+$/.test(daysRaw) || days > RETURN_WINDOW_MAX_DAYS)) {
+      errors.returnWindowDays = t('policies.returnWindowInvalid', 'Return window must be a whole number between 0 and 365');
+    }
+    setPolicyErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
+    setPoliciesLoading(true);
+    try {
+      // Only policy fields are sent, so branding fields on the server stay untouched.
+      const payload: Record<string, string | number | null> = { returnWindowDays: days };
+      for (const [field] of POLICY_TEXT_FIELDS) payload[field] = policyForm[field].trim() || null;
+      const response = await api.patch('/vendor/me', payload);
+      setVendor(response.data.vendor);
+      setPolicyForm(toPolicyForm(response.data.vendor));
+      toast.success(t('policies.saved', 'Store policies updated'));
+    } catch (error: any) {
+      const details = error.response?.data?.details;
+      toast.error(details?.[0]?.message || error.response?.data?.error || t('policies.saveFailed', 'Failed to update store policies'));
+    } finally {
+      setPoliciesLoading(false);
     }
   };
 
@@ -109,10 +172,11 @@ const VendorSettingsPage: React.FC = () => {
 
     setPasswordLoading(true);
     try {
-      await api.post('/auth/change-password', {
+      const { data } = await api.post('/auth/change-password', {
         currentPassword: passwordData.currentPassword,
         newPassword: passwordData.newPassword,
       });
+      storeAuthTokens(data?.accessToken, data?.refreshToken);
       toast.success(t('vendor.credentialsUpdated', 'Security credentials updated'));
       setPasswordData({
         currentPassword: '',
@@ -304,6 +368,77 @@ const VendorSettingsPage: React.FC = () => {
               >
                 {passwordLoading ? <Loader2 className="animate-spin" size={20} /> : <Shield size={20} />}
                 <span>{t('vendor.saveChanges', 'Update Access Credentials')}</span>
+              </button>
+            </div>
+          </form>
+        </section>
+
+        {/* Card 3: Store Policies */}
+        <section className="xl:col-span-2 bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+          <div className="p-6 border-b border-gray-50 bg-gray-50/50 flex items-center gap-3">
+            <div className="p-2 bg-blue-100 text-blue-600 rounded-xl">
+              <ScrollText size={20} />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">{t('policies.storePolicies', 'Store Policies')}</h2>
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-tighter">{t('policies.storePoliciesDesc', 'Return, shipping and exchange terms shown to customers')}</p>
+            </div>
+          </div>
+
+          <form onSubmit={handlePoliciesSubmit} className="p-8 space-y-6" noValidate>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {POLICY_TEXT_FIELDS.map(([field, fallback]) => (
+                <div key={field} className="relative group">
+                  <label htmlFor={`policy-${field}`} className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ms-1 group-focus-within:text-blue-600 transition-colors">
+                    {t(`policies.${field}`, fallback)}
+                  </label>
+                  <textarea
+                    id={`policy-${field}`}
+                    value={policyForm[field]}
+                    onChange={(e) => setPolicyForm({ ...policyForm, [field]: e.target.value })}
+                    rows={4}
+                    maxLength={POLICY_MAX_LENGTH}
+                    dir={field.endsWith('Ar') ? 'rtl' : 'ltr'}
+                    className={`w-full px-4 py-3 bg-gray-50 border rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all ${policyErrors[field] ? 'border-red-400' : 'border-gray-200'}`}
+                    placeholder={t('policies.policyPlaceholder', 'Plain text. Line breaks are kept.')}
+                  />
+                  <div className="flex justify-between mt-1 px-1 text-[11px]">
+                    <span className="text-red-500">{policyErrors[field]}</span>
+                    <span className="text-gray-400">{policyForm[field].length}/{POLICY_MAX_LENGTH}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="relative group max-w-xs">
+              <label htmlFor="policy-returnWindowDays" className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ms-1 group-focus-within:text-blue-600 transition-colors">
+                {t('policies.returnWindowDays', 'Return Window (days)')}
+              </label>
+              <input
+                id="policy-returnWindowDays"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={RETURN_WINDOW_MAX_DAYS}
+                step={1}
+                value={policyForm.returnWindowDays}
+                onChange={(e) => setPolicyForm({ ...policyForm, returnWindowDays: e.target.value })}
+                className={`w-full px-4 py-3 bg-gray-50 border rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all ${policyErrors.returnWindowDays ? 'border-red-400' : 'border-gray-200'}`}
+                placeholder="14"
+              />
+              <p className={`mt-1 px-1 text-[11px] ${policyErrors.returnWindowDays ? 'text-red-500' : 'text-gray-400'}`}>
+                {policyErrors.returnWindowDays || t('policies.returnWindowHelp', 'Leave empty if you do not offer a fixed return period. Whole number from 0 to 365.')}
+              </p>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="submit"
+                disabled={policiesLoading}
+                className="w-full md:w-auto flex items-center justify-center gap-2 px-8 py-3.5 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 disabled:opacity-50 transition-all shadow-lg shadow-blue-100"
+              >
+                {policiesLoading ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
+                <span>{t('policies.save', 'Save Policies')}</span>
               </button>
             </div>
           </form>

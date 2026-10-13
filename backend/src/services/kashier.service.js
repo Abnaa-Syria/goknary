@@ -1,11 +1,12 @@
 import crypto from 'crypto';
 import axios from 'axios';
+import { calculateCheckoutExpiresAt } from '../lib/checkout-expiry-config.js';
 
 /**
  * KashierService (V3 API Implementation)
  * Handles Session API calls according to Kashier V3 documentation.
  */
-class KashierService {
+export class KashierService {
   constructor() {
     this.merchantId = process.env.KASHIER_MERCHANT_ID;
     this.apiKey = process.env.KASHIER_PAYMENT_API_KEY;
@@ -33,7 +34,16 @@ class KashierService {
     return crypto.createHmac('sha256', this.apiKey).update(path).digest('hex');
   }
 
-async createPaymentSession(orderReference, amount, customerEmail, currency = 'EGP', orderIds = []) {
+  get headers() {
+    return {
+      'Authorization': this.secretKey,
+      'api-key': this.apiKey,
+      'Content-Type': 'application/json'
+    };
+  }
+
+  /** @param {Date|string|null} checkoutExpiresAt */
+async createPaymentSession(orderReference, amount, customerEmail, currency = 'EGP', orderIds = [], checkoutExpiresAt = null) {
     try {
       const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
       const redirectBase = process.env.KASHIER_REDIRECT_URL || `${baseUrl}/payment-success`;
@@ -42,8 +52,8 @@ async createPaymentSession(orderReference, amount, customerEmail, currency = 'EG
         : `order_id=${encodeURIComponent(orderReference)}&method=kashier`;
       const redirectUrl = `${redirectBase}${redirectBase.includes('?') ? '&' : '?'}${query}`;
       
-      const expireAt = new Date();
-      expireAt.setHours(expireAt.getHours() + 24);
+      const expireAt = checkoutExpiresAt ? new Date(checkoutExpiresAt) : calculateCheckoutExpiresAt();
+      if (Number.isNaN(expireAt.getTime())) throw new Error('Invalid checkout expiration timestamp');
 
       const normalizedAmount = String(parseFloat(amount).toFixed(2));
       this.generateOrderHash(orderReference, normalizedAmount, currency, orderReference);
@@ -75,11 +85,7 @@ async createPaymentSession(orderReference, amount, customerEmail, currency = 'EG
       // شيلت الـ console.log(response) من هنا عشان كانت هتعمل Crash
 
       const response = await axios.post(this.baseUrl, payload, {
-        headers: {
-          'Authorization': this.secretKey,
-          'api-key': this.apiKey,
-          'Content-Type': 'application/json'
-        }
+        headers: this.headers
       });
 
       const sessionUrl = response.data?.sessionUrl;
@@ -89,11 +95,80 @@ async createPaymentSession(orderReference, amount, customerEmail, currency = 'EG
         throw new Error('Session URL not found in Kashier V3 response');
       }
 
-      return sessionUrl;
+      return {
+        sessionId: response.data?._id || response.data?.id || null,
+        sessionUrl,
+        status: response.data?.status || 'CREATED',
+        expiresAt: expireAt,
+      };
     } catch (error) {
       console.error('Kashier V3 Session Error:', error.response?.data || error.message);
-      throw new Error(error.response?.data?.message || 'Failed to initiate Kashier V3 session');
+      const wrapped = new Error(error.response?.data?.message || 'Failed to initiate Kashier V3 session');
+      wrapped.statusCode = error.response?.status || null;
+      wrapped.providerCode = error.response?.data?.code || error.response?.data?.errorCode || null;
+      // A timeout/no response, 5xx, or duplicate-reference response can all mean that Kashier
+      // created the session but our response was lost. These outcomes must be reconciled, not retried blindly.
+      wrapped.ambiguous = !error.response || error.response.status >= 500 || wrapped.providerCode === 'ERR_ORD_02';
+      throw wrapped;
     }
+  }
+
+  async getPaymentSession(sessionId) {
+    const response = await axios.get(`${this.baseUrl}/${encodeURIComponent(sessionId)}/payment`, {
+      headers: this.headers,
+    });
+    const data = response.data?.data || response.data;
+    return {
+      sessionId: data?.sessionId || data?._id || data?.id || sessionId,
+      sessionUrl: data?.sessionUrl || data?.url || null,
+      status: data?.status || null,
+      merchantOrderId: data?.merchantOrderId || data?.orderReference || null,
+      transactionId: data?.transactionId || null,
+      providerOrderId: data?.orderId && data.orderId !== 'NA' ? data.orderId : null,
+    };
+  }
+
+  /** Provider reconciliation endpoint: exact-match our stable merchant order reference. */
+  async findPaymentOrderByReference(orderReference) {
+    const ordersUrl = this.baseUrl.replace('/payment/sessions', '/payment/orders');
+    const response = await axios.get(ordersUrl, {
+      headers: this.headers,
+      params: { search: orderReference, limit: 20 },
+    });
+    const body = response.data?.data || response.data;
+    const rows = Array.isArray(body) ? body : (body?.orders || body?.docs || body?.data || []);
+    const match = rows.find((row) => (
+      String(row?.merchantOrderId || row?.orderReference || row?.order || '') === String(orderReference)
+    ));
+    if (!match) return null;
+    const successfulTransaction = (match.transactions || []).find((transaction) => (
+      String(transaction?.status || '').toUpperCase() === 'SUCCESS' &&
+      ['APPROVED', 'CAPTURED', 'SUCCESS'].includes(String(transaction?.transactionResponseCode || '').toUpperCase())
+    ));
+    return {
+      status: match.status || null,
+      merchantOrderId: match.merchantOrderId || match.orderReference || null,
+      providerOrderId: match.orderId || match.kashierOrderId || null,
+      transactionId: successfulTransaction?.transactionId || successfulTransaction?.transactionInfoId || match.transactionId || null,
+      sessionId: match.sessionId || match.paymentSessionId || match.session?._id || null,
+      sessionUrl: match.sessionUrl || match.session?.sessionUrl || null,
+      transactions: Array.isArray(match.transactions) ? match.transactions : [],
+    };
+  }
+
+  /** Recover a session after an ambiguous create response using the stable merchant reference. */
+  async findPaymentSessionByReference(orderReference) {
+    const order = await this.findPaymentOrderByReference(orderReference);
+    if (!order) return null;
+    if (!order.sessionId) return order;
+    const session = await this.getPaymentSession(order.sessionId);
+    return {
+      ...order,
+      ...session,
+      status: order.status || session.status,
+      transactionId: order.transactionId || session.transactionId,
+      providerOrderId: order.providerOrderId || session.providerOrderId,
+    };
   }
 
   /**

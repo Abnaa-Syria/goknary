@@ -1,37 +1,48 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { FiPlusCircle, FiEdit2, FiTrash } from 'react-icons/fi';
+import ImageUploader from '../../components/common/ImageUploader';
+import CategoryTreeOptions from '../../components/category/CategoryTreeOptions';
+import { getRequestErrorMessage, uploadImages } from '../../utils/upload';
+import { getImageUrl } from '../../utils/image';
+import { CategoryLike, buildCategoryTree, flattenCategoryTree, getCategoryLabel } from '../../utils/categoryTree';
 
 interface Category {
   id: string;
   name: string;
-  nameAr?: string;
+  nameAr?: string | null;
   slug: string;
-  description?: string;
-  descriptionAr?: string;
-  parentId?: string;
-  parent?: Category;
+  description?: string | null;
+  descriptionAr?: string | null;
+  image?: string | null;
+  orderIndex?: number;
+  parentId?: string | null;
+  parent?: Category | null;
   children?: Category[];
 }
+
+const emptyForm = {
+  name: '',
+  nameAr: '',
+  slug: '',
+  description: '',
+  descriptionAr: '',
+  image: [] as (File | string)[],
+  parentId: '',
+  orderIndex: 0,
+};
 
 const AdminCategoriesPage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const isRTL = i18n.language === 'ar';
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    nameAr: '',
-    description: '',
-    descriptionAr: '',
-    image: '',
-    parentId: '',
-    orderIndex: 0,
-  });
+  const [formData, setFormData] = useState(emptyForm);
 
   useEffect(() => {
     fetchCategories();
@@ -48,13 +59,36 @@ const AdminCategoriesPage: React.FC = () => {
     }
   };
 
+  // The admin API is flat; the page shows and picks parents from the nested tree.
+  const tree = useMemo(() => buildCategoryTree(categories.map(({ children: _c, parent: _p, ...c }) => c)), [categories]);
+  const rows = useMemo(() => {
+    const ordered: Array<{ category: CategoryLike; depth: number }> = flattenCategoryTree<CategoryLike>(tree);
+    // Categories caught in a parent loop in old data are unreachable from a root; list them so they can be fixed.
+    const seen = new Set(ordered.map((r) => r.category.id));
+    categories.filter((c) => !seen.has(c.id)).forEach((c) => ordered.push({ category: c, depth: 0 }));
+    return ordered;
+  }, [tree, categories]);
+  const childCount = useMemo(() => {
+    const counts = new Map<string, number>();
+    categories.forEach((c) => c.parentId && counts.set(c.parentId, (counts.get(c.parentId) ?? 0) + 1));
+    return counts;
+  }, [categories]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSaving(true);
     try {
-      // Clean up data - remove empty parentId
+      const [image] = await uploadImages(formData.image);
+      // Every field is pre-filled from the category being edited, so nothing is reset by a save.
       const dataToSend = {
-        ...formData,
+        name: formData.name,
+        nameAr: formData.nameAr,
+        slug: formData.slug.trim(),
+        description: formData.description,
+        descriptionAr: formData.descriptionAr,
+        image: image || null,
         parentId: formData.parentId || null,
+        orderIndex: Number(formData.orderIndex) || 0,
       };
 
       if (editingCategory) {
@@ -67,15 +101,21 @@ const AdminCategoriesPage: React.FC = () => {
       fetchCategories();
       resetForm();
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to save category');
+      toast.error(getRequestErrorMessage(error, t('common.error', 'Error'), t('common.uploadFailed')));
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (category: Category) => {
+    if ((childCount.get(category.id) ?? 0) > 0) {
+      toast.error(t('admin.categoriesPage.deleteHasChildren', 'Move or delete its subcategories first'));
+      return;
+    }
     if (!window.confirm(t('messages.confirmDelete', 'Are you sure you want to delete this category?'))) return;
 
     try {
-      await api.delete(`/admin/categories/${id}`);
+      await api.delete(`/admin/categories/${category.id}`);
       toast.success(t('messages.deleteSuccess'));
       fetchCategories();
     } catch (error: any) {
@@ -84,15 +124,7 @@ const AdminCategoriesPage: React.FC = () => {
   };
 
   const resetForm = () => {
-    setFormData({
-      name: '',
-      nameAr: '',
-      description: '',
-      descriptionAr: '',
-      image: '',
-      parentId: '',
-      orderIndex: 0,
-    });
+    setFormData(emptyForm);
     setEditingCategory(null);
     setShowForm(false);
   };
@@ -102,20 +134,21 @@ const AdminCategoriesPage: React.FC = () => {
     setFormData({
       name: category.name,
       nameAr: category.nameAr || '',
+      slug: category.slug,
       description: category.description || '',
       descriptionAr: category.descriptionAr || '',
-      image: '',
+      image: category.image ? [category.image] : [],
       parentId: category.parentId || '',
-      orderIndex: 0,
+      orderIndex: category.orderIndex ?? 0,
     });
     setShowForm(true);
   };
 
+  const byId = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
+
   if (loading) {
     return <div className="text-center py-8">{t('common.loading', 'Loading categories...')}</div>;
   }
-
-  const topLevelCategories = categories.filter((c) => !c.parentId);
 
   return (
     <div>
@@ -199,23 +232,49 @@ const AdminCategoriesPage: React.FC = () => {
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-2">{t('admin.parentCategory')}</label>
-              <select
-                value={formData.parentId}
-                onChange={(e) => setFormData({ ...formData, parentId: e.target.value })}
-                className="input-field"
-              >
-                <option value="">{t('admin.categoriesPage.noneLevel', 'None (Top Level)')}</option>
-                {topLevelCategories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {isRTL && cat.nameAr ? cat.nameAr : cat.name}
-                  </option>
-                ))}
-              </select>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">{t('admin.parentCategory')}</label>
+                <select
+                  value={formData.parentId}
+                  onChange={(e) => setFormData({ ...formData, parentId: e.target.value })}
+                  className="input-field"
+                >
+                  <option value="">{t('admin.categoriesPage.noneLevel', 'None (Top Level)')}</option>
+                  <CategoryTreeOptions tree={tree} excludeId={editingCategory?.id} />
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">{t('admin.slug', 'Slug')}</label>
+                <input
+                  type="text"
+                  value={formData.slug}
+                  onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+                  className="input-field"
+                  dir="ltr"
+                  placeholder={t('admin.categoriesPage.placeholder.slug', 'Generated from the English name')}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">{t('admin.categoriesPage.orderIndex', 'Display order')}</label>
+                <input
+                  type="number"
+                  value={formData.orderIndex}
+                  onChange={(e) => setFormData({ ...formData, orderIndex: Number(e.target.value) })}
+                  className="input-field"
+                />
+              </div>
             </div>
+
+            <ImageUploader
+              label={t('admin.categoriesPage.image', 'Category image')}
+              value={formData.image}
+              onChange={(val) => setFormData({ ...formData, image: val })}
+              multiple={false}
+            />
+
             <div className="flex gap-4">
-              <button type="submit" className="btn-primary">
+              <button type="submit" className="btn-primary" disabled={saving}>
                 {editingCategory ? t('common.save') : t('common.add')}
               </button>
               <button type="button" onClick={resetForm} className="btn-outline">
@@ -241,39 +300,56 @@ const AdminCategoriesPage: React.FC = () => {
                 {t('admin.parentCategory')}
               </th>
               <th className="px-6 py-3 text-start text-xs font-medium text-gray-500 uppercase">
+                {t('admin.categoriesPage.orderIndex', 'Display order')}
+              </th>
+              <th className="px-6 py-3 text-start text-xs font-medium text-gray-500 uppercase">
                 {t('common.edit')}
               </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {categories.map((category) => (
-              <tr key={category.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 font-medium">{category.name}</td>
-                <td className="px-6 py-4 font-medium" dir="rtl">{category.nameAr || '-'}</td>
-                <td className="px-6 py-4 text-sm text-gray-500">/{category.slug}</td>
-                <td className="px-6 py-4 text-sm text-gray-500">
-                  {category.parent ? (isRTL && category.parent.nameAr ? category.parent.nameAr : category.parent.name) : '-'}
-                </td>
-                <td className="px-6 py-4">
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => startEdit(category)}
-                      className="p-2 text-primary-500 hover:bg-primary-50 rounded"
-                      title={t('common.edit')}
-                    >
-                      <FiEdit2 className="w-5 h-5" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(category.id)}
-                      className="p-2 text-red-500 hover:bg-red-50 rounded"
-                      title={t('common.delete')}
-                    >
-                      <FiTrash className="w-5 h-5" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+            {rows.map(({ category: row, depth }) => {
+              const category = byId.get(row.id)!;
+              const parent = category.parentId ? byId.get(category.parentId) : undefined;
+              return (
+                <tr key={category.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 font-medium">
+                    <div className="flex items-center gap-2" style={{ paddingInlineStart: depth * 20 }}>
+                      {depth > 0 && <span className="text-gray-300">└</span>}
+                      {category.image && (
+                        <img src={getImageUrl(category.image)} alt="" className="w-7 h-7 rounded-full object-cover" />
+                      )}
+                      <span>{category.name}</span>
+                      {(childCount.get(category.id) ?? 0) > 0 && (
+                        <span className="text-xs text-gray-400">({childCount.get(category.id)})</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 font-medium" dir="rtl">{category.nameAr || '-'}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500">/{category.slug}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500">{parent ? getCategoryLabel(parent, isRTL) : '-'}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500">{category.orderIndex ?? 0}</td>
+                  <td className="px-6 py-4">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => startEdit(category)}
+                        className="p-2 text-primary-500 hover:bg-primary-50 rounded"
+                        title={t('common.edit')}
+                      >
+                        <FiEdit2 className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(category)}
+                        className="p-2 text-red-500 hover:bg-red-50 rounded"
+                        title={t('common.delete')}
+                      >
+                        <FiTrash className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -282,4 +358,3 @@ const AdminCategoriesPage: React.FC = () => {
 };
 
 export default AdminCategoriesPage;
-

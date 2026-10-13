@@ -8,7 +8,8 @@ import { formatPrice, calculateDiscountPercentage } from '../lib/utils';
 import { SEO } from '../components/common/SEO';
 import EmptyState from '../components/common/EmptyState';
 import { addToCart } from '../store/slices/cartSlice';
-import { getImageUrl } from '../utils/image';
+import { IMAGE_PLACEHOLDER, getImageUrl } from '../utils/image';
+import { getProductImageAlt } from '../utils/imageAlt';
 
 const ComparePage: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -109,7 +110,7 @@ const ComparePage: React.FC = () => {
                 const discountPercentage = item.product.discountPrice
                   ? calculateDiscountPercentage(item.product.price, item.product.discountPrice)
                   : 0;
-                const mainImage = item.product.images?.[0] || '/imgs/default-product.jpg';
+                const mainImage = item.product.images?.[0] || IMAGE_PLACEHOLDER;
                 const productName = isRTL && (item.product as any).nameAr ? (item.product as any).nameAr : item.product.name;
                 const brandName = item.product.brand 
                   ? (isRTL && (item.product.brand as any).nameAr ? (item.product.brand as any).nameAr : item.product.brand.name)
@@ -134,7 +135,9 @@ const ComparePage: React.FC = () => {
                         <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
                           <img
                             src={getImageUrl(mainImage)}
-                            alt={productName}
+                            alt={getProductImageAlt(item.product, item.product.images?.[0], isRTL)}
+                            loading="lazy"
+                            decoding="async"
                             className="w-full h-full object-cover"
                           />
                         </div>

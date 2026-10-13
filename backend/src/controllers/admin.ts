@@ -2,12 +2,23 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
-import { NotFoundError } from '../lib/errors';
+import { AppError, ConflictError, NotFoundError } from '../lib/errors';
 import { ProductStatus, OrderStatus, UserRole, VendorStatus } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth';
 import { slugify } from '../lib/utils';
+import { findInvalidProductReferences, INVALID_REFERENCES_ERROR } from '../lib/product-validation';
+import { imageMetadataSchema, serializeImageMetadata } from '../lib/product-images';
 import { isCodOrder, isOrderFinanciallyConfirmed, settleOrderOnDelivery } from '../lib/vendor-earnings';
 import { sendOrderStatusNotification } from '../services/whatsapp.service';
+import { cancelOrderWithStockRestore } from '../lib/variants';
+import { formatPreviewProduct, previewProductInclude } from '../lib/product-preview';
+import {
+  ADMIN_TRANSITION_ERROR,
+  approvePendingProduct,
+  classifyAdminStatusChange,
+  rejectPendingProduct,
+} from '../lib/product-moderation';
+import { NotificationType, notifyCustomerOrderStatus, notifyVendor, notifyVendorOrderStatus, shortId } from '../lib/notify';
 
 /**
  * Fetch all orders across the ecosystem (Admin Paginated View)
@@ -500,7 +511,7 @@ export const getAdminOrderById = async (req: Request, res: Response) => {
                 },
               },
             },
-            refundRequest: true,
+            refundRequests: { select: { id: true, status: true, quantity: true, amount: true, createdAt: true } },
           },
         },
         vendor: {
@@ -661,51 +672,96 @@ export const getPendingAdminProducts = async (req: Request, res: Response) => {
   }
 };
 
+const sendModerationError = (res: Response, error: unknown, fallback: string) => {
+  if (error instanceof AppError) return res.status(error.statusCode).json({ error: error.message });
+  console.error(`${fallback}:`, error);
+  return res.status(500).json({ error: fallback });
+};
+
 /**
- * Update product listing status (Governance Approval/Rejection)
+ * Legacy status endpoint, kept for the admin product pages. Moderation decisions are delegated to
+ * the approve/reject actions; otherwise only hide/show of already reviewed products is allowed.
  */
-export const updateProductStatus = async (req: Request, res: Response) => {
+export const updateProductStatus = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { status, notes } = req.body;
+    const { status, notes, reason } = req.body ?? {};
 
-    // R-09 Resilient State Transition Bridge
-    let finalStatus = status;
-    const allowed = Object.values(ProductStatus) as string[];
-    
-    // Explicit Fallback mappings for in-flight migrations
-    if (status === 'APPROVED' && !allowed.includes('APPROVED') && allowed.includes('ACTIVE')) {
-      finalStatus = 'ACTIVE';
-    } else if (status === 'ACTIVE' && !allowed.includes('ACTIVE') && allowed.includes('APPROVED')) {
-      finalStatus = 'APPROVED';
-    } else if (status === 'REJECTED' && !allowed.includes('REJECTED') && allowed.includes('INACTIVE')) {
-      finalStatus = 'INACTIVE';
-    }
-
-    if (!allowed.includes(finalStatus as string)) {
-      console.warn(`Admin State Override Failed: Request ${status} -> Evaluated ${finalStatus}. Allowed:`, allowed);
-      return res.status(400).json({ 
-        error: 'Invalid product status ecosystem value',
-        details: { sent: status, evaluated: finalStatus, allowedValues: allowed }
-      });
+    if (!(Object.values(ProductStatus) as string[]).includes(status)) {
+      return res.status(400).json({ error: 'Invalid product status' });
     }
 
     const product = await prisma.product.findUnique({ where: { id } });
-    if (!product) throw new NotFoundError('Product not found in master catalog');
+    if (!product) throw new NotFoundError('Product not found');
 
-    const updated = await prisma.product.update({
-      where: { id },
-      data: { status: finalStatus as ProductStatus },
+    const change = classifyAdminStatusChange(product.status, status as ProductStatus);
+    if (change === 'approve') {
+      const updated = await approvePendingProduct(id, req.user!.id, status as ProductStatus);
+      return res.json({ message: 'Product approved', product: updated });
+    }
+    if (change === 'reject') {
+      const updated = await rejectPendingProduct(id, req.user!.id, reason ?? notes);
+      return res.json({ message: 'Product rejected', product: updated });
+    }
+    if (change === 'noop') throw new ConflictError(`Product is already ${product.status}`);
+    if (change === 'invalid') return res.status(400).json({ error: ADMIN_TRANSITION_ERROR });
+
+    const { count } = await prisma.product.updateMany({
+      where: { id, status: product.status },
+      data: { status: status as ProductStatus },
     });
+    if (count === 0) throw new ConflictError('Product status changed, please refresh');
 
-    res.json({ 
-      message: `Product status successfully updated to ${status}`, 
-      product: updated 
+    res.json({
+      message: `Product status successfully updated to ${status}`,
+      product: await prisma.product.findUniqueOrThrow({ where: { id } }),
     });
   } catch (error) {
-    if (error instanceof NotFoundError) return res.status(404).json({ error: error.message });
-    console.error('Error updating product status:', error);
-    res.status(500).json({ error: 'Failed to override product lifecycle state' });
+    sendModerationError(res, error, 'Failed to update product status');
+  }
+};
+
+/** POST /api/admin/products/:id/approve — PENDING → APPROVED (public), same result as the old approve button. */
+export const approveProduct = async (req: AuthRequest, res: Response) => {
+  try {
+    const product = await approvePendingProduct(req.params.id, req.user!.id);
+    res.json({ message: 'Product approved', product });
+  } catch (error) {
+    sendModerationError(res, error, 'Failed to approve product');
+  }
+};
+
+/** POST /api/admin/products/:id/reject — PENDING → REJECTED with a required reason. */
+export const rejectProduct = async (req: AuthRequest, res: Response) => {
+  try {
+    const product = await rejectPendingProduct(req.params.id, req.user!.id, req.body?.reason);
+    res.json({ message: 'Product rejected', product });
+  } catch (error) {
+    sendModerationError(res, error, 'Failed to reject product');
+  }
+};
+
+/**
+ * GET /api/admin/products/:id/preview — the product as customers would see it, for any status.
+ * Authenticated admin route, so the public slug endpoint keeps hiding unpublished products.
+ */
+export const getAdminProductPreview = async (req: AuthRequest, res: Response) => {
+  try {
+    const product = await prisma.product.findUnique({
+      where: { id: req.params.id },
+      include: previewProductInclude(false),
+    });
+    if (!product) throw new NotFoundError('Product not found');
+
+    let reviewerName: string | null = null;
+    if (product.reviewedBy) {
+      const reviewer = await prisma.user.findUnique({ where: { id: product.reviewedBy }, select: { name: true, email: true } });
+      reviewerName = reviewer?.name || reviewer?.email || null;
+    }
+
+    res.json({ ...(await formatPreviewProduct(product, { keepInternal: true })), reviewerName });
+  } catch (error) {
+    sendModerationError(res, error, 'Failed to load product preview');
   }
 };
 
@@ -779,6 +835,8 @@ export const updateAdminOrderStatus = async (req: any, res: Response) => {
       });
     }
 
+    let cancelledNow = false;
+
     // Update order status and create history entry in a transaction
     const updatedOrder = await prisma.$transaction(async (tx) => {
       if (status === 'DELIVERED' && order.status !== 'DELIVERED') {
@@ -788,6 +846,14 @@ export const updateAdminOrderStatus = async (req: any, res: Response) => {
         if (vendor) {
           await settleOrderOnDelivery(tx, order, vendor);
         }
+      }
+
+      if (status === 'CANCELLED') {
+        cancelledNow = await cancelOrderWithStockRestore(
+          tx,
+          id,
+          Object.values(OrderStatus).filter((s) => s !== OrderStatus.CANCELLED)
+        );
       }
 
       const updated = await tx.order.update({
@@ -815,6 +881,14 @@ export const updateAdminOrderStatus = async (req: any, res: Response) => {
 
       return updated;
     });
+
+    if (status !== order.status && (status !== 'CANCELLED' || cancelledNow)) {
+      await notifyCustomerOrderStatus(order.userId, id, status);
+      await notifyVendorOrderStatus(order.vendorId, id, status, {
+        en: `The platform administrator updated order #${shortId(id)} to ${status}.`,
+        ar: `إدارة المنصة غيرت حالة الطلب رقم #${shortId(id)} إلى ${status}.`,
+      });
+    }
 
     // Send WhatsApp order status update notification to the customer
     if (updatedOrder.user && updatedOrder.user.phone && updatedOrder.user.name) {
@@ -855,12 +929,19 @@ const platformProductSchema = z.object({
   discountType: z.enum(['PERCENTAGE', 'FIXED']).optional().nullable(),
   discountValue: z.number().nonnegative().optional().nullable(),
   stock: z.number().int().nonnegative(),
+  lowStockThreshold: z.number().int().nonnegative().optional(),
   images: z.array(z.string()).min(1),
+  imageMetadata: imageMetadataSchema.optional().nullable(),
 });
 
 export const createPlatformProduct = async (req: AuthRequest, res: Response) => {
   try {
     const data = platformProductSchema.parse(req.body);
+    const referenceIssues = await findInvalidProductReferences(prisma, {
+      categoryId: data.categoryId,
+      brandId: data.brandId || null,
+    });
+    if (referenceIssues.length) return res.status(400).json({ error: INVALID_REFERENCES_ERROR, details: referenceIssues });
     const PLATFORM_EMAIL = 'admin@goknary.com';
 
     // 1. Resolve or create Platform Vendor
@@ -903,7 +984,8 @@ export const createPlatformProduct = async (req: AuthRequest, res: Response) => 
     const slug = rawSlug ? slugify(rawSlug) : slugify(data.name);
     const existingSlug = await prisma.product.findUnique({ where: { slug } });
     if (existingSlug) {
-      return res.status(400).json({ error: 'Slug or product name is already taken' });
+      const message = 'Slug or product name is already taken';
+      return res.status(400).json({ error: message, details: [{ path: ['slug'], message }] });
     }
 
     const productId = `plat_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -925,7 +1007,9 @@ export const createPlatformProduct = async (req: AuthRequest, res: Response) => 
         discountType:  data.discountType ?? null,
         discountValue: data.discountValue ?? null,
         stock:         data.stock,
+        ...(data.lowStockThreshold !== undefined && { lowStockThreshold: data.lowStockThreshold }),
         images:        JSON.stringify(data.images),
+        imageMetadata: serializeImageMetadata(data.images, data.imageMetadata),
         status:        'ACTIVE', // Platform products are automatically active
         featured:      true,
       },

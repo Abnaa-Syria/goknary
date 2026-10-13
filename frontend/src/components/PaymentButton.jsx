@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
+import toast from 'react-hot-toast';
 import api from '../lib/api';
+import { clearCheckoutIdempotencyKey } from '../lib/checkoutIdempotency';
 
 /**
  * PaymentButton Component
@@ -18,23 +20,24 @@ const PaymentButton = ({ orderData, onInitiate }) => {
       const initData = await onInitiate();
       
       const orderIds = initData?.orderIds || (initData?.orderId ? [initData.orderId] : []);
-      if (!initData || orderIds.length === 0) {
+      if (!initData || orderIds.length === 0 || !initData.checkoutAttemptId) {
         throw new Error('Could not create order. Please try again.');
       }
 
       // 2. Call your backend to initiate the Kashier Session
       const response = await api.post('/payment/initiate', {
-        orderId: orderIds[0],
-        orderIds,
+        checkoutAttemptId: initData.checkoutAttemptId,
         amount: initData.amount,
         customerEmail: initData.customerEmail,
         currency: orderData.currency || 'EGP'
       });
 
       // 3. Extract the sessionUrl returned by the backend
-      const { success, sessionUrl, message } = response.data;
+      const { success, sessionUrl, message, paymentStatus } = response.data;
 
-      if (success && sessionUrl) {
+      if (success && paymentStatus === 'PAID') {
+        window.location.href = `/payment-success?order_ids=${encodeURIComponent(orderIds.join(','))}&method=kashier`;
+      } else if (success && sessionUrl) {
         console.log("🚀 Redirecting to Kashier Hosted Checkout...");
         // 4. Perform full page redirect to Kashier
         window.location.href = sessionUrl;
@@ -44,7 +47,10 @@ const PaymentButton = ({ orderData, onInitiate }) => {
 
     } catch (error) {
       console.error("❌ Kashier Payment Error:", error);
-      alert(`Payment Error: ${error.response?.data?.message || error.message}`);
+      if (error.response?.data?.code === 'CHECKOUT_CANCELLED') {
+        clearCheckoutIdempotencyKey();
+      }
+      toast.error(error.response?.data?.error || error.response?.data?.message || error.message);
     } finally {
       setLoading(false);
     }

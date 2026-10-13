@@ -6,10 +6,11 @@ import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import api from 'lib/api';
 import { formatPrice } from 'lib/utils';
-import { getImageUrl } from 'utils/image';
+import { IMAGE_PLACEHOLDER, getImageUrl } from 'utils/image';
 import { mapEnum, productStatusMap } from 'utils/localization';
 import { useAppSelector } from 'store/hooks';
 import { hasPermission } from 'utils/permissions';
+import RejectProductModal from 'components/admin/RejectProductModal';
 
 interface PendingProduct {
   id: string;
@@ -21,6 +22,7 @@ interface PendingProduct {
   status: string;
   images: string | string[];
   createdAt: string;
+  submittedAt?: string | null;
   category?: { name: string };
   brand?: { name: string };
   vendor: {
@@ -46,7 +48,7 @@ const parseImages = (images: string | string[]): string[] => {
 };
 
 const AdminPendingProductsPage: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { user } = useAppSelector((state) => state.auth);
   const [products, setProducts] = useState<PendingProduct[]>([]);
@@ -105,24 +107,34 @@ const AdminPendingProductsPage: React.FC = () => {
     [t]
   );
 
-  const handleStatusUpdate = async (id: string, status: 'APPROVED' | 'REJECTED') => {
-    if (status === 'REJECTED') {
-      const confirmed = window.confirm(
-        t('admin.pendingProducts.rejectConfirm', 'Are you sure you want to reject this product?')
-      );
-      if (!confirmed) return;
-    }
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [rejecting, setRejecting] = useState<PendingProduct | null>(null);
 
+  const handleApprove = async (id: string) => {
+    setBusyId(id);
     try {
-      await api.patch(`/admin/products/${id}/status`, { status });
-      toast.success(
-        status === 'APPROVED'
-          ? t('admin.pendingProducts.approveSuccess', 'Product approved successfully')
-          : t('admin.pendingProducts.rejectSuccess', 'Product rejected')
-      );
-      fetchProducts();
+      await api.post(`/admin/products/${id}/approve`);
+      toast.success(t('admin.pendingProducts.approveSuccess', 'Product approved successfully'));
     } catch (error: any) {
       toast.error(error.response?.data?.error || t('admin.pendingProducts.statusError', 'Failed to update product status'));
+    } finally {
+      setBusyId(null);
+      fetchProducts();
+    }
+  };
+
+  const handleReject = async (reason: string) => {
+    if (!rejecting) return;
+    setBusyId(rejecting.id);
+    try {
+      await api.post(`/admin/products/${rejecting.id}/reject`, { reason });
+      toast.success(t('admin.pendingProducts.rejectSuccess', 'Product rejected'));
+      setRejecting(null);
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || t('admin.pendingProducts.statusError', 'Failed to update product status'));
+    } finally {
+      setBusyId(null);
+      fetchProducts();
     }
   };
 
@@ -208,6 +220,9 @@ const AdminPendingProductsPage: React.FC = () => {
                     {t('admin.pendingProducts.table.priceStock', 'Price / Stock')}
                   </th>
                   <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                    {t('moderation.submittedColumn', 'Submitted')}
+                  </th>
+                  <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">
                     {t('admin.pendingProducts.table.status', 'Status')}
                   </th>
                   <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-end">
@@ -218,7 +233,7 @@ const AdminPendingProductsPage: React.FC = () => {
               <tbody className="divide-y divide-gray-50">
                 {products.map((product) => {
                   const images = parseImages(product.images);
-                  const mainImage = images[0] || '/imgs/default-product.jpg';
+                  const mainImage = images[0] || IMAGE_PLACEHOLDER;
 
                   return (
                     <tr key={product.id} className="hover:bg-gray-50/50 transition-colors group">
@@ -262,6 +277,9 @@ const AdminPendingProductsPage: React.FC = () => {
                           {product.stock} {t('common.inStock', 'in stock')}
                         </p>
                       </td>
+                      <td className="px-8 py-6 text-xs font-bold text-gray-600 whitespace-nowrap">
+                        {new Date(product.submittedAt || product.createdAt).toLocaleString(i18n.language === 'ar' ? 'ar-EG' : 'en-US')}
+                      </td>
                       <td className="px-8 py-6">
                         <span className="inline-flex items-center px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-yellow-100 text-yellow-700">
                           {mapEnum(productStatusMap, product.status)}
@@ -270,16 +288,17 @@ const AdminPendingProductsPage: React.FC = () => {
                       <td className="px-8 py-6 text-end">
                         <div className="flex items-center justify-end gap-2">
                           <button
-                            onClick={() => navigate(`/admin/vendors/${product.vendor.id}/products`)}
+                            onClick={() => navigate(`/admin/products/${product.id}/preview`)}
                             className="p-3 text-blue-500 hover:bg-blue-50 rounded-2xl transition-all"
-                            title={t('admin.pendingProducts.viewVendorProducts', 'View vendor products')}
+                            title={t('moderation.preview', 'Preview')}
                           >
                             <Eye size={18} />
                           </button>
                           {canUpdate && (
                             <button
-                              onClick={() => handleStatusUpdate(product.id, 'APPROVED')}
-                              className="p-3 text-green-500 hover:bg-green-50 rounded-2xl transition-all"
+                              disabled={busyId === product.id}
+                              onClick={() => handleApprove(product.id)}
+                              className="p-3 text-green-500 hover:bg-green-50 rounded-2xl transition-all disabled:opacity-40"
                               title={t('admin.pendingProducts.approve', 'Approve')}
                             >
                               <FiCheckCircle />
@@ -287,8 +306,9 @@ const AdminPendingProductsPage: React.FC = () => {
                           )}
                           {canUpdate && (
                             <button
-                              onClick={() => handleStatusUpdate(product.id, 'REJECTED')}
-                              className="p-3 text-red-500 hover:bg-red-50 rounded-2xl transition-all"
+                              disabled={busyId === product.id}
+                              onClick={() => setRejecting(product)}
+                              className="p-3 text-red-500 hover:bg-red-50 rounded-2xl transition-all disabled:opacity-40"
                               title={t('admin.pendingProducts.reject', 'Reject')}
                             >
                               <FiXCircle />
@@ -341,6 +361,13 @@ const AdminPendingProductsPage: React.FC = () => {
           )}
         </div>
       )}
+
+      <RejectProductModal
+        productName={rejecting?.name ?? null}
+        submitting={!!rejecting && busyId === rejecting.id}
+        onCancel={() => setRejecting(null)}
+        onConfirm={handleReject}
+      />
     </div>
   );
 };

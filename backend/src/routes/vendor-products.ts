@@ -2,8 +2,11 @@ import { Router } from 'express';
 import {
   getVendorProducts,
   getVendorProduct,
+  getVendorProductHub,
+  getVendorProductPreview,
   createVendorProduct,
   updateVendorProduct,
+  submitVendorProduct,
   deleteVendorProduct,
   getProductVariants,
   createProductVariant,
@@ -42,6 +45,20 @@ router.get(
   getVendorProduct
 );
 
+router.get(
+  '/:id/hub',
+  authorize('VENDOR', 'ADMIN', 'STAFF'),
+  requirePermission('READ_PRODUCTS'),
+  getVendorProductHub
+);
+
+router.get(
+  '/:id/preview',
+  authorize('VENDOR', 'ADMIN', 'STAFF'),
+  requirePermission('READ_PRODUCTS'),
+  getVendorProductPreview
+);
+
 router.post(
   '/',
   authorize('VENDOR', 'ADMIN', 'STAFF'),
@@ -54,6 +71,13 @@ router.patch(
   authorize('VENDOR', 'ADMIN', 'STAFF'),
   requirePermission('UPDATE_PRODUCTS'),
   updateVendorProduct
+);
+
+// Moderation submission is the vendor's own action; staff approve or reject from the admin queue.
+router.post(
+  '/:id/submit',
+  authorize('VENDOR'),
+  submitVendorProduct
 );
 
 router.delete(

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
-import api from '../../lib/api';
+import api, { storeAuthTokens } from '../../lib/api';
 
 interface ChangePasswordSectionProps {
   /** Optional heading; defaults to account.changePassword */
@@ -34,7 +34,8 @@ const ChangePasswordSection: React.FC<ChangePasswordSectionProps> = ({ title, cl
 
     setLoading(true);
     try {
-      await api.post('/auth/change-password', { currentPassword, newPassword });
+      const { data } = await api.post('/auth/change-password', { currentPassword, newPassword });
+      storeAuthTokens(data?.accessToken, data?.refreshToken);
       setSuccess(true);
       toast.success(t('account.passwordUpdated'));
       setCurrentPassword('');

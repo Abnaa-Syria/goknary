@@ -3,10 +3,29 @@ import { useParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import api from '../../lib/api';
 import { formatPrice } from '../../lib/utils';
+import { parseVariantSnapshot } from '../../lib/variants';
+import OrderItemVariant from '../../components/common/OrderItemVariant';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
-import { XCircle, RotateCcw, AlertTriangle, CheckCircle2, Clock, Truck, RefreshCw, Send, Check, Printer } from 'lucide-react';
-import { getImageUrl } from '../../utils/image';
+import { XCircle, RotateCcw, Send, Printer, ImagePlus, X } from 'lucide-react';
+import { getRequestErrorMessage, uploadImages } from '../../utils/upload';
+import { MAX_REFUND_IMAGES, OrderItemRefundSummary, RETURN_REASONS, RETURN_REASON_LABELS } from '../../lib/refunds';
+import { RefundStatusBadge } from '../../components/refunds/RefundParts';
+
+interface ReturnEligibility {
+  delivered: boolean;
+  windowDays: number | null;
+  deliveredAt: string | null;
+  deadline: string | null;
+  windowOpen: boolean;
+  message: string | null;
+  items: Array<{
+    orderItemId: string;
+    purchasedQuantity: number;
+    returnableQuantity: number;
+    eligible: boolean;
+  }>;
+}
 
 interface OrderDetails {
   id: string;
@@ -36,14 +55,8 @@ interface OrderDetails {
     quantity: number;
     price: number;
     discountPrice?: number;
-    refundRequest?: {
-      id: string;
-      status: 'PENDING' | 'VENDOR_APPROVED' | 'VENDOR_REJECTED' | 'ADMIN_APPROVED' | 'ADMIN_REJECTED';
-      reason: string;
-      amount: number;
-      vendorNotes?: string;
-      adminNotes?: string;
-    };
+    variantInfo?: string | null;
+    refundRequests?: OrderItemRefundSummary[];
   }>;
   statusHistory: Array<{
     status: string;
@@ -58,9 +71,13 @@ const OrderDetailsPage: React.FC = () => {
   const [order, setOrder] = useState<OrderDetails | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Item Refund Modal States
+  // Item return modal state
+  const [eligibility, setEligibility] = useState<ReturnEligibility | null>(null);
   const [selectedItem, setSelectedItem] = useState<OrderDetails['items'][0] | null>(null);
-  const [refundReason, setRefundReason] = useState('');
+  const [returnQuantity, setReturnQuantity] = useState(1);
+  const [returnReason, setReturnReason] = useState<string>(RETURN_REASONS[0]);
+  const [returnDescription, setReturnDescription] = useState('');
+  const [evidence, setEvidence] = useState<File[]>([]);
   const [submittingRefund, setSubmittingRefund] = useState(false);
 
   const getPaymentMethodLabel = (method?: string) => {
@@ -97,6 +114,14 @@ const OrderDetailsPage: React.FC = () => {
     try {
       const response = await api.get(`/orders/${id}`);
       setOrder(response.data);
+      if (response.data?.status === 'DELIVERED') {
+        try {
+          const eligibilityRes = await api.get(`/refunds/eligibility/${id}`);
+          setEligibility(eligibilityRes.data);
+        } catch {
+          setEligibility(null);
+        }
+      }
     } catch (error) {
       console.error('Failed to fetch order details:', error);
     } finally {
@@ -115,29 +140,69 @@ const OrderDetailsPage: React.FC = () => {
     }
   };
 
+  const itemEligibility = (itemId: string) => eligibility?.items.find((i) => i.orderItemId === itemId);
+
+  const openReturnModal = (item: OrderDetails['items'][0]) => {
+    setSelectedItem(item);
+    setReturnQuantity(1);
+    setReturnReason(RETURN_REASONS[0]);
+    setReturnDescription('');
+    setEvidence([]);
+  };
+
+  const closeReturnModal = () => {
+    setSelectedItem(null);
+    setEvidence([]);
+  };
+
+  const addEvidence = (files: FileList | null) => {
+    if (!files) return;
+    const valid = Array.from(files).filter((file) => {
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+        toast.error(t('returns.imageType', 'Only JPG, PNG or WEBP images are allowed'));
+        return false;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error(t('returns.imageSize', 'Each image must be under 10MB'));
+        return false;
+      }
+      return true;
+    });
+    setEvidence((current) => {
+      const next = [...current, ...valid];
+      if (next.length > MAX_REFUND_IMAGES) {
+        toast.error(t('returns.imageLimit', 'You can attach up to {{count}} images', { count: MAX_REFUND_IMAGES }));
+      }
+      return next.slice(0, MAX_REFUND_IMAGES);
+    });
+  };
+
   const handleSubmitItemRefund = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedItem) return;
-
-    if (refundReason.trim().length < 3) {
-      toast.error('Please write a detailed reason (at least 3 characters)');
+    const maxQuantity = itemEligibility(selectedItem.id)?.returnableQuantity ?? 0;
+    if (returnQuantity < 1 || returnQuantity > maxQuantity) {
+      toast.error(t('returns.invalidQuantity', 'Choose a quantity between 1 and {{max}}', { max: maxQuantity }));
       return;
     }
 
     setSubmittingRefund(true);
     try {
+      const images = evidence.length > 0 ? await uploadImages(evidence) : [];
       await api.post('/refunds', {
         orderItemId: selectedItem.id,
-        reason: refundReason
+        quantity: returnQuantity,
+        reason: returnReason,
+        description: returnDescription.trim() || undefined,
+        images: images.length > 0 ? images : undefined,
       });
 
-      toast.success('Return request submitted successfully!');
-      setSelectedItem(null);
-      setRefundReason('');
+      toast.success(t('returns.submitted', 'Return request submitted'));
+      closeReturnModal();
       fetchOrderDetails();
     } catch (error: any) {
-      console.error('Failed to submit refund:', error);
-      toast.error(error.response?.data?.error || 'Failed to request refund');
+      console.error('Failed to submit return request:', error);
+      toast.error(getRequestErrorMessage(error, t('returns.submitFailed', 'Failed to submit the return request'), t('common.uploadFailed')));
     } finally {
       setSubmittingRefund(false);
     }
@@ -162,21 +227,6 @@ const OrderDetailsPage: React.FC = () => {
       default:
         return 'bg-gray-100 text-gray-800 border border-gray-200';
     }
-  };
-
-  const getRefundStatusBadge = (status: string) => {
-    const badges: Record<string, string> = {
-      PENDING: 'bg-amber-50 text-amber-700 border-amber-200',
-      VENDOR_APPROVED: 'bg-blue-50 text-blue-700 border-blue-200',
-      VENDOR_REJECTED: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-      ADMIN_APPROVED: 'bg-green-50 text-green-700 border-green-200',
-      ADMIN_REJECTED: 'bg-red-50 text-red-700 border-red-200',
-    };
-    return (
-      <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${badges[status] || 'bg-gray-100 text-gray-800'}`}>
-        Refund: {status.replace('_', ' ')}
-      </span>
-    );
   };
 
   if (loading) {
@@ -410,22 +460,29 @@ const OrderDetailsPage: React.FC = () => {
                             itemCount > 3 ? 'py-2 print:py-1' : 'py-3.5 print:py-2'
                           }`}>
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                              <Link to={`/product/${item.product.slug}`} className="hover:text-primary-500 transition-colors">
-                                {productName}
-                              </Link>
-                              {item.refundRequest ? (
-                                <div className="print:hidden">{getRefundStatusBadge(item.refundRequest.status)}</div>
-                              ) : (
-                                order.status === 'DELIVERED' && (
+                              <div>
+                                <Link to={`/product/${item.product.slug}`} className="hover:text-primary-500 transition-colors">
+                                  {productName}
+                                </Link>
+                                <OrderItemVariant snapshot={parseVariantSnapshot(item.variantInfo)} className="text-xs font-normal text-gray-500 mt-0.5" />
+                              </div>
+                              <div className="print:hidden flex flex-col items-start sm:items-end gap-1">
+                                {(item.refundRequests ?? []).map((request) => (
+                                  <Link key={request.id} to="/account/refunds" className="flex items-center gap-1">
+                                    <span className="text-[10px] text-gray-500 font-normal">×{request.quantity}</span>
+                                    <RefundStatusBadge status={request.status} className="!text-[10px] !py-0" />
+                                  </Link>
+                                ))}
+                                {itemEligibility(item.id)?.eligible && (
                                   <button
-                                    onClick={() => setSelectedItem(item)}
-                                    className="print:hidden text-[10px] font-bold text-secondary-900 hover:text-secondary-800 bg-secondary-50 hover:bg-secondary-100 px-2 py-1 rounded-lg transition-colors flex items-center gap-0.5 self-start"
+                                    onClick={() => openReturnModal(item)}
+                                    className="text-[10px] font-bold text-secondary-900 hover:text-secondary-800 bg-secondary-50 hover:bg-secondary-100 px-2 py-1 rounded-lg transition-colors flex items-center gap-0.5"
                                   >
                                     <RotateCcw size={10} />
-                                    {i18n.language === 'ar' ? 'إرجاع المنتج' : 'Return Item'}
+                                    {t('returns.returnItem', 'Return item')}
                                   </button>
-                                )
-                              )}
+                                )}
+                              </div>
                             </div>
                           </td>
                           <td className={`px-4 text-end font-mono text-gray-700 ${
@@ -508,6 +565,21 @@ const OrderDetailsPage: React.FC = () => {
           <div className="card p-6 space-y-4">
             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider text-start">{t('account.orderActions', 'Actions')}</h3>
             
+            {eligibility && (
+              <div className={`text-xs rounded-xl border p-3 ${eligibility.windowOpen ? 'bg-green-50 border-green-100 text-green-800' : 'bg-gray-50 border-gray-200 text-gray-600'}`}>
+                <p className="font-bold mb-0.5">{t('returns.windowTitle', 'Returns')}</p>
+                {eligibility.windowOpen
+                  ? eligibility.deadline
+                    ? t('returns.windowOpenUntil', 'You can request a return until {{date}}.', {
+                        date: new Date(eligibility.deadline).toLocaleDateString(i18n.language === 'ar' ? 'ar-EG' : 'en-US'),
+                      })
+                    : t('returns.windowOpenNoLimit', 'You can request a return for the items in this order.')
+                  : eligibility.windowDays === 0
+                    ? t('returns.windowNone', 'This store does not accept returns.')
+                    : t('returns.windowClosed', 'The return window for this order has ended.')}
+              </div>
+            )}
+
             {['PENDING', 'CONFIRMED', 'PROCESSING'].includes(order.status) && (
               <button
                 onClick={handleCancelOrder}
@@ -528,84 +600,151 @@ const OrderDetailsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Item Refund Modal */}
+      {/* Item Return Modal */}
       <AnimatePresence>
-        {selectedItem && (
+        {selectedItem && (() => {
+          const maxQuantity = itemEligibility(selectedItem.id)?.returnableQuantity ?? 0;
+          const productName = i18n.language === 'ar' && selectedItem.product.nameAr ? selectedItem.product.nameAr : selectedItem.product.name;
+          return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 print:hidden">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-              onClick={() => setSelectedItem(null)}
+              onClick={closeReturnModal}
             />
 
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100 p-6 z-10 text-start"
+              className="relative w-full max-w-md max-h-[90vh] overflow-y-auto bg-white rounded-3xl shadow-2xl border border-gray-100 p-6 z-10 text-start"
             >
-              <h3 className="text-xl font-bold text-gray-900 mb-2 flex items-center gap-2">
-                <RotateCcw className="text-secondary-900 animate-spin-reverse" />
-                Return Item Refund Request
+              <h3 className="text-xl font-bold text-gray-900 mb-1 flex items-center gap-2">
+                <RotateCcw className="text-secondary-900" />
+                {t('returns.requestTitle', 'Request a return')}
               </h3>
-              <p className="text-gray-500 text-xs mb-4">
-                You are requesting a return for: <span className="font-bold text-gray-800">{selectedItem.product.name}</span>
-              </p>
+              <p className="text-gray-500 text-xs mb-1 font-bold">{productName}</p>
+              <OrderItemVariant snapshot={parseVariantSnapshot(selectedItem.variantInfo)} className="text-xs text-gray-500 mb-3" />
 
-              <div className="bg-gray-50 p-4 rounded-2xl mb-4 text-xs space-y-1">
+              <div className="bg-gray-50 p-4 rounded-2xl mb-4 text-xs space-y-1.5">
                 <div className="flex justify-between">
-                  <span className="text-gray-400 font-medium">Refund Estimate:</span>
-                  <span className="text-secondary-900 font-black text-sm">
-                    {formatPrice((selectedItem.discountPrice || selectedItem.price) * selectedItem.quantity)}
-                  </span>
+                  <span className="text-gray-400 font-medium">{t('returns.purchased', 'Purchased')}</span>
+                  <span className="text-gray-800 font-bold">{selectedItem.quantity}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-400 font-medium">Quantity:</span>
-                  <span className="text-gray-800 font-bold">{selectedItem.quantity} unit(s)</span>
+                  <span className="text-gray-400 font-medium">{t('returns.remaining', 'Still returnable')}</span>
+                  <span className="text-gray-800 font-bold">{maxQuantity}</span>
                 </div>
+                {eligibility?.deadline && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-400 font-medium">{t('returns.deadline', 'Return before')}</span>
+                    <span className="text-gray-800 font-bold">
+                      {new Date(eligibility.deadline).toLocaleDateString(i18n.language === 'ar' ? 'ar-EG' : 'en-US')}
+                    </span>
+                  </div>
+                )}
+                <p className="text-gray-400 pt-1 border-t border-gray-200">
+                  {t('returns.amountNote', 'GoKnary calculates the refund from what you paid for this item, including any coupon discount and excluding shipping.')}
+                </p>
               </div>
 
               <form onSubmit={handleSubmitItemRefund} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5 text-start">
-                    Reason for Return
-                  </label>
-                  <textarea
-                    rows={4}
-                    value={refundReason}
-                    onChange={(e) => setRefundReason(e.target.value)}
-                    required
-                    placeholder="Describe why you want to return this product (e.g. wrong size, damaged package, defective item)..."
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white text-sm transition-all text-start"
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">{t('returns.quantity', 'Quantity to return')}</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={maxQuantity}
+                    value={returnQuantity}
+                    onChange={(e) => setReturnQuantity(Math.floor(Number(e.target.value)) || 1)}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">{t('returns.reason', 'Reason')}</label>
+                  <select
+                    value={returnReason}
+                    onChange={(e) => setReturnReason(e.target.value)}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                  >
+                    {RETURN_REASONS.map((reason) => (
+                      <option key={reason} value={reason}>{t(`returns.reasons.${reason}`, RETURN_REASON_LABELS[reason])}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">{t('returns.descriptionLabel', 'Details (optional)')}</label>
+                  <textarea
+                    rows={3}
+                    maxLength={2000}
+                    value={returnDescription}
+                    onChange={(e) => setReturnDescription(e.target.value)}
+                    placeholder={t('returns.descriptionPlaceholder', 'Tell us what happened with the item...')}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                    {t('returns.evidenceLabel', 'Photos (optional, up to {{count}})', { count: MAX_REFUND_IMAGES })}
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {evidence.map((file, index) => (
+                      <div key={`${file.name}-${index}`} className="relative w-16 h-16">
+                        <img src={URL.createObjectURL(file)} alt="" className="w-16 h-16 rounded-xl object-cover border border-gray-100" />
+                        <button
+                          type="button"
+                          onClick={() => setEvidence((current) => current.filter((_, i) => i !== index))}
+                          className="absolute -top-1.5 -end-1.5 bg-red-500 text-white rounded-full p-0.5"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ))}
+                    {evidence.length < MAX_REFUND_IMAGES && (
+                      <label className="w-16 h-16 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center text-gray-400 hover:border-secondary-300 cursor-pointer">
+                        <ImagePlus size={18} />
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          multiple
+                          className="hidden"
+                          onChange={(e) => {
+                            addEvidence(e.target.files);
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex gap-3">
                   <button
                     type="button"
-                    onClick={() => {
-                      setSelectedItem(null);
-                      setRefundReason('');
-                    }}
+                    onClick={closeReturnModal}
                     className="flex-1 py-3 border border-gray-200 rounded-xl text-gray-700 font-semibold hover:bg-gray-50 transition-colors text-sm"
                   >
-                    Cancel
+                    {t('common.cancel', 'Cancel')}
                   </button>
                   <button
                     type="submit"
-                    disabled={submittingRefund}
+                    disabled={submittingRefund || maxQuantity < 1}
                     className="btn-secondary flex-1 py-3 rounded-xl flex items-center justify-center gap-1 disabled:opacity-50"
                   >
                     <Send size={12} />
-                    {submittingRefund ? 'Submitting...' : 'Submit Request'}
+                    {submittingRefund ? t('returns.submitting', 'Submitting...') : t('returns.submit', 'Submit request')}
                   </button>
                 </div>
               </form>
             </motion.div>
           </div>
-        )}
+          );
+        })()}
       </AnimatePresence>
     </div>
   );

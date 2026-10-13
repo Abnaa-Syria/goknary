@@ -1,26 +1,45 @@
 import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { NotFoundError } from '../lib/errors';
-import { VendorStatus } from '@prisma/client';
+import { PUBLIC_VENDOR_STATUS, publicProductWhere } from '../lib/visibility';
+import { Prisma, VendorStatus } from '@prisma/client';
+
+// Storefront-safe fields only: no balances, commission or owner contact details.
+export const PUBLIC_VENDOR_SELECT = {
+  id: true,
+  storeName: true,
+  storeNameAr: true,
+  slug: true,
+  description: true,
+  descriptionAr: true,
+  logo: true,
+  banner: true,
+  rating: true,
+  totalReviews: true,
+  verified: true,
+  createdAt: true,
+  returnPolicy: true,
+  returnPolicyAr: true,
+  shippingPolicy: true,
+  shippingPolicyAr: true,
+  exchangePolicy: true,
+  exchangePolicyAr: true,
+  returnWindowDays: true,
+} satisfies Prisma.VendorSelect;
 
 export const getVendorBySlug = async (req: Request, res: Response) => {
   try {
     const { slug } = req.params;
 
-    const vendor = await prisma.vendor.findUnique({
-      where: { slug },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
+    const vendor = await prisma.vendor.findFirst({
+      where: { slug, status: PUBLIC_VENDOR_STATUS },
+      select: {
+        ...PUBLIC_VENDOR_SELECT,
+        user: { select: { id: true, name: true } },
       },
     });
 
-    if (!vendor || vendor.status !== 'APPROVED') {
+    if (!vendor) {
       throw new NotFoundError('Vendor not found');
     }
 
@@ -43,8 +62,8 @@ export const getVendorProducts = async (req: Request, res: Response) => {
     const limitNum = parseInt(limit as string, 10);
     const skip = (pageNum - 1) * limitNum;
 
-    const vendor = await prisma.vendor.findUnique({
-      where: { slug },
+    const vendor = await prisma.vendor.findFirst({
+      where: { slug, status: PUBLIC_VENDOR_STATUS },
       select: { id: true },
     });
 
@@ -54,10 +73,7 @@ export const getVendorProducts = async (req: Request, res: Response) => {
 
     const [products, total] = await Promise.all([
       prisma.product.findMany({
-        where: {
-          vendorId: vendor.id,
-          status: { in: ['ACTIVE' as any, 'APPROVED' as any] },
-        },
+        where: publicProductWhere({ vendorId: vendor.id }),
         include: {
           category: {
             select: {
@@ -79,10 +95,7 @@ export const getVendorProducts = async (req: Request, res: Response) => {
         take: limitNum,
       }),
       prisma.product.count({
-        where: {
-          vendorId: vendor.id,
-          status: { in: ['ACTIVE' as any, 'APPROVED' as any] },
-        },
+        where: publicProductWhere({ vendorId: vendor.id }),
       }),
     ]);
 

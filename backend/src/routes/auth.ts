@@ -13,6 +13,7 @@ import {
   resetPassword,
 } from '../controllers/auth';
 import { authenticate } from '../middleware/auth';
+import { forgotPasswordLimiter, resetPasswordLimiter } from '../middleware/password-reset-limits';
 
 const router = Router();
 
@@ -21,8 +22,8 @@ router.post('/register', register);
 router.post('/login', login);
 router.post('/verify-email', verifyEmail);    // NEW: OTP verification
 router.post('/resend-otp', resendOTP);        // NEW: resend OTP code
-router.post('/forgot-password', forgotPassword);
-router.post('/reset-password', resetPassword);
+router.post('/forgot-password', forgotPasswordLimiter, forgotPassword);
+router.post('/reset-password', resetPasswordLimiter, resetPassword);
 router.post('/refresh', refreshToken);
 router.post('/logout', logout);
 

@@ -6,12 +6,10 @@ import {
   Trash2, 
   Eye, 
   Search, 
-  Filter, 
   MessageSquare,
   User,
   Package,
-  Calendar,
-  AlertCircle
+  Calendar
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
@@ -132,9 +130,6 @@ const AdminReviewsPage: React.FC = () => {
               className="ps-10 pe-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 outline-none w-64 transition-all"
             />
           </div>
-          <button className="p-2 bg-white border border-gray-200 rounded-xl text-gray-400 hover:text-gray-900 transition-colors">
-            <Filter size={20} />
-          </button>
         </div>
       </div>
 
@@ -147,24 +142,6 @@ const AdminReviewsPage: React.FC = () => {
           <div>
             <p className="text-xs font-black text-gray-400 tracking-widest">{t('admin.reviewsPage.totalReviews')}</p>
             <p className="text-xl font-black text-gray-900">{pagination.total}</p>
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded-2xl border border-gray-100 flex items-center gap-4">
-          <div className="p-3 bg-yellow-50 text-yellow-600 rounded-xl">
-            <Star size={20} />
-          </div>
-          <div>
-            <p className="text-xs font-black text-gray-400 tracking-widest">{t('admin.reviewsPage.avgRating')}</p>
-            <p className="text-xl font-black text-gray-900">4.8</p>
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded-2xl border border-gray-100 flex items-center gap-4">
-          <div className="p-3 bg-red-50 text-red-600 rounded-xl">
-            <AlertCircle size={20} />
-          </div>
-          <div>
-            <p className="text-xs font-black text-gray-400 tracking-widest">{t('admin.reviewsPage.reports')}</p>
-            <p className="text-xl font-black text-gray-900">0</p>
           </div>
         </div>
       </div>
@@ -242,12 +219,15 @@ const AdminReviewsPage: React.FC = () => {
                       </td>
                       <td className="px-6 py-5 text-end">
                         <div className="flex items-center justify-end gap-2">
-                          <button 
+                          <a
+                            href={`/product/${review.product.slug}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
                             className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-xl transition-all"
                             title={t('admin.reviewsPage.viewDetails')}
                           >
                             <Eye size={18} />
-                          </button>
+                          </a>
                           <button 
                             onClick={() => handleDeleteReview(review.id)}
                             className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"

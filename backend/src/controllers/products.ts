@@ -6,6 +6,11 @@ import { Prisma } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth';
 import jwt from 'jsonwebtoken';
 import { expandWithSynonyms } from '../config/search-synonyms';
+import { formatVariantForResponse } from '../lib/variants';
+import { publicProductWhere, toPublicProduct } from '../lib/visibility';
+import { getCategoryAncestors, getDescendantCategoryIds, loadAllCategories } from '../lib/category-tree';
+import { trackCustomerEventFromRequest } from '../lib/user-events';
+import { RECOMMENDED_PRODUCT_ORDER } from '../lib/ranking-config';
 
 const getArabicVariations = (term: string): string[] => {
   const variations = new Set<string>();
@@ -87,6 +92,67 @@ const getRelevanceScore = (product: any, terms: string[]): number => {
   return score;
 };
 
+const listingInclude = {
+  vendor: {
+    select: {
+      id: true,
+      storeName: true,
+      slug: true,
+      rating: true,
+    },
+  },
+  category: {
+    select: {
+      id: true,
+      name: true,
+      nameAr: true,
+      slug: true,
+    },
+  },
+  brand: {
+    select: {
+      id: true,
+      name: true,
+      nameAr: true,
+      slug: true,
+    },
+  },
+} satisfies Prisma.ProductInclude;
+
+/**
+ * sort=recommended without a search query: filtered, ordered and paged by the database.
+ * In-stock products come first (same rule as every listing), so the page is taken from the
+ * in-stock slice and continues into the out-of-stock slice.
+ */
+const listRecommended = async (where: Prisma.ProductWhereInput, skip: number, take: number) => {
+  const inStockWhere: Prisma.ProductWhereInput = { AND: [where, { stock: { gt: 0 } }] };
+  const outOfStockWhere: Prisma.ProductWhereInput = { AND: [where, { stock: { lte: 0 } }] };
+  const [totalCount, inStockCount] = await Promise.all([
+    prisma.product.count({ where }),
+    prisma.product.count({ where: inStockWhere }),
+  ]);
+
+  const products = [];
+  if (skip < inStockCount) {
+    products.push(
+      ...(await prisma.product.findMany({ where: inStockWhere, include: listingInclude, orderBy: RECOMMENDED_PRODUCT_ORDER, skip, take }))
+    );
+  }
+  const remaining = take - products.length;
+  if (remaining > 0 && totalCount > inStockCount) {
+    products.push(
+      ...(await prisma.product.findMany({
+        where: outOfStockWhere,
+        include: listingInclude,
+        orderBy: RECOMMENDED_PRODUCT_ORDER,
+        skip: Math.max(0, skip - inStockCount),
+        take: remaining,
+      }))
+    );
+  }
+  return { products, totalCount };
+};
+
 export const getProducts = async (req: Request, res: Response) => {
   try {
     const qRaw = req.query.q !== undefined ? req.query.q : req.query.search;
@@ -113,11 +179,12 @@ export const getProducts = async (req: Request, res: Response) => {
       { vendor: { status: 'APPROVED' } }
     ];
 
-    // Category filtering (supports both category and categoryId)
+    // Category filtering (supports both category and categoryId); a category includes all its subcategories.
     const categoryFilter = categoryId || category;
     if (categoryFilter) {
       const categoryList = (Array.isArray(categoryFilter) ? categoryFilter : [categoryFilter]) as string[];
-      and.push({ categoryId: { in: categoryList } });
+      const allCategories = await loadAllCategories();
+      and.push({ categoryId: { in: getDescendantCategoryIds(allCategories, categoryList) } });
     }
 
     // Brand filtering
@@ -222,35 +289,24 @@ export const getProducts = async (req: Request, res: Response) => {
 
     const where: Prisma.ProductWhereInput = { AND: and };
 
+    if (sort === 'recommended' && !isSearch) {
+      const { products, totalCount } = await listRecommended(where, skip, limitNum);
+      return res.json({
+        products: products.map(toPublicProduct),
+        totalCount,
+        pagination: {
+          totalCount,
+          currentPage: pageNum,
+          limit: limitNum,
+          totalPages: Math.ceil(totalCount / limitNum),
+        },
+      });
+    }
+
     // Fetch all candidates to perform in-memory weighted scoring and out-of-stock sorting
     const products = await prisma.product.findMany({
       where,
-      include: {
-        vendor: {
-          select: {
-            id: true,
-            storeName: true,
-            slug: true,
-            rating: true,
-          },
-        },
-        category: {
-          select: {
-            id: true,
-            name: true,
-            nameAr: true,
-            slug: true,
-          },
-        },
-        brand: {
-          select: {
-            id: true,
-            name: true,
-            nameAr: true,
-            slug: true,
-          },
-        },
-      },
+      include: listingInclude,
     });
 
     // Score products in memory if searching
@@ -271,6 +327,14 @@ export const getProducts = async (req: Request, res: Response) => {
           return b.price - a.price;
         case 'rating':
           return b.ratingAvg - a.ratingAvg;
+        // Only reached with a search query: text relevance above stays primary, ranking breaks ties.
+        case 'recommended':
+          return (
+            b.rankingScore - a.rankingScore ||
+            b.ratingAvg - a.ratingAvg ||
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() ||
+            (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+          );
         case 'newest':
         default:
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
@@ -327,10 +391,21 @@ export const getProducts = async (req: Request, res: Response) => {
       }).catch(err => {
         console.error('Failed to log search query:', err);
       });
+
+      // SearchLog stays the aggregate log for all searchers; UserEvent records a customer's
+      // own search once per query (later pages of the same results are not new searches).
+      if (pageNum === 1) {
+        trackCustomerEventFromRequest(req, {
+          type: 'SEARCH',
+          categoryId: paginatedProducts[0]?.categoryId ?? null,
+          searchQuery: qTrimmed,
+          metadata: { results: totalCount },
+        });
+      }
     }
 
     res.json({
-      products: paginatedProducts,
+      products: paginatedProducts.map(toPublicProduct),
       totalCount,
       pagination: {
         totalCount,
@@ -349,16 +424,24 @@ export const getProductBySlug = async (req: Request, res: Response) => {
   try {
     const { slug } = req.params;
 
-    const product = await prisma.product.findUnique({
-      where: { slug },
+    const product = await prisma.product.findFirst({
+      where: publicProductWhere({ slug }),
       include: {
         vendor: {
           select: {
             id: true,
             storeName: true,
+            storeNameAr: true,
             slug: true,
             rating: true,
             description: true,
+            returnPolicy: true,
+            returnPolicyAr: true,
+            shippingPolicy: true,
+            shippingPolicyAr: true,
+            exchangePolicy: true,
+            exchangePolicyAr: true,
+            returnWindowDays: true,
           },
         },
         category: {
@@ -393,14 +476,12 @@ export const getProductBySlug = async (req: Request, res: Response) => {
       throw new NotFoundError('Product not found');
     }
 
-    // Get similar products
+    // Same-category fallback list (the product page prefers /api/recommendations?context=product).
     const similarProducts = await prisma.product.findMany({
-      where: {
+      where: publicProductWhere({
         categoryId: product.categoryId,
         id: { not: product.id },
-        status: { in: ['ACTIVE' as any, 'APPROVED' as any] },
-        vendor: { status: 'APPROVED' },
-      },
+      }),
       take: 8,
       include: {
         vendor: {
@@ -410,23 +491,21 @@ export const getProductBySlug = async (req: Request, res: Response) => {
           },
         },
       },
-      orderBy: {
-        ratingAvg: 'desc',
-      },
+      orderBy: RECOMMENDED_PRODUCT_ORDER,
     });
+
+    const categoryAncestors = getCategoryAncestors(await loadAllCategories(), product.categoryId);
 
     // Parse variants attributes
     const productWithParsedVariants = {
-      ...product,
-      variants: product.variants.map(v => ({
-        ...v,
-        attributes: typeof v.attributes === 'string' ? JSON.parse(v.attributes) : v.attributes,
-      })),
+      ...toPublicProduct(product),
+      category: product.category ? { ...product.category, ancestors: categoryAncestors } : product.category,
+      variants: product.variants.map(formatVariantForResponse),
     };
 
     res.json({
       product: productWithParsedVariants,
-      similarProducts,
+      similarProducts: similarProducts.map(toPublicProduct),
     });
   } catch (error: any) {
     if (error instanceof NotFoundError) {
@@ -595,4 +674,3 @@ export const createProductReview = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ error: 'Failed to create review' });
   }
 };
-

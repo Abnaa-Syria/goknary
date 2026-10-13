@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import api from '../lib/api';
+import api, { clearAuthSession } from '../lib/api';
+import { useAppDispatch } from '../store/hooks';
+import { tokensSyncedFromStorage } from '../store/slices/authSlice';
 
+/** Email reset link target: /reset-password?token=... → POST /auth/reset-password { token, newPassword } */
 const ResetPasswordPage: React.FC = () => {
   const { t } = useTranslation();
+  const dispatch = useAppDispatch();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const token = searchParams.get('token') || '';
+  const token = (searchParams.get('token') || '').trim();
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -25,20 +29,23 @@ const ResetPasswordPage: React.FC = () => {
     e.preventDefault();
     setError(null);
     if (!token) return;
-    if (newPassword !== confirmPassword) {
-      setError(t('auth.passwordMismatch'));
-      return;
-    }
     if (newPassword.length < 8) {
       setError(t('account.passwordMinLength'));
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError(t('auth.passwordMismatch'));
       return;
     }
 
     setLoading(true);
     try {
       await api.post('/auth/reset-password', { token, newPassword });
+      // Every older session is revoked server-side; drop any on this device too.
+      clearAuthSession();
+      dispatch(tokensSyncedFromStorage({ accessToken: null, refreshToken: null }));
       setDone(true);
-      setTimeout(() => navigate('/login', { replace: true }), 2500);
+      setTimeout(() => navigate('/login', { replace: true, state: { passwordReset: true } }), 2500);
     } catch (err: any) {
       setError(err.response?.data?.error || t('messages.errorOccurred'));
     } finally {
@@ -55,13 +62,22 @@ const ResetPasswordPage: React.FC = () => {
         </div>
 
         {done ? (
-          <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg text-sm text-center">
+          <div role="status" className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg text-sm text-center">
             {t('auth.passwordResetSuccess')}
           </div>
         ) : (
-          <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          <form className="mt-8 space-y-6" onSubmit={handleSubmit} noValidate>
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>
+              <div role="alert" className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                {error}
+                {!token || /invalid|expired/i.test(error) ? (
+                  <div className="mt-2">
+                    <Link to="/forgot-password" className="font-medium underline">
+                      {t('auth.requestNewResetLink')}
+                    </Link>
+                  </div>
+                ) : null}
+              </div>
             )}
             <div>
               <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700">
@@ -74,7 +90,7 @@ const ResetPasswordPage: React.FC = () => {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 className="mt-1 input-field w-full"
-                minLength={8}
+                maxLength={128}
                 required
                 disabled={!token}
               />
@@ -90,7 +106,7 @@ const ResetPasswordPage: React.FC = () => {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 className="mt-1 input-field w-full"
-                minLength={8}
+                maxLength={128}
                 required
                 disabled={!token}
               />

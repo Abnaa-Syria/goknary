@@ -1,7 +1,17 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 
-const prisma = new PrismaClient();
+// Lightweight endpoint for polling the bell badge.
+export const getUnreadNotificationCount = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const unreadCount = await prisma.notification.count({ where: { userId, read: false } });
+    res.json({ unreadCount });
+  } catch (error) {
+    console.error('Error counting unread notifications:', error);
+    res.status(500).json({ error: 'Failed to count unread notifications' });
+  }
+};
 
 export const getUserNotifications = async (req: Request, res: Response) => {
   try {

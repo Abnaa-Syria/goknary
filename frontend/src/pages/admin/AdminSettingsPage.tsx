@@ -16,7 +16,7 @@ import {
   Eye
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import api from '../../lib/api';
+import api, { storeAuthTokens } from '../../lib/api';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { getCurrentUser } from '../../store/slices/authSlice';
 import { fetchPublicSettings } from '../../store/slices/settingsSlice';
@@ -234,10 +234,11 @@ const AdminSettingsPage: React.FC = () => {
 
     setPasswordLoading(true);
     try {
-      await api.post('/auth/change-password', {
+      const { data } = await api.post('/auth/change-password', {
         currentPassword: passwordData.currentPassword,
         newPassword: passwordData.newPassword,
       });
+      storeAuthTokens(data?.accessToken, data?.refreshToken);
       toast.success(t('admin.settingsPage.passwordChangeSuccess'));
       setPasswordData({
         currentPassword: '',

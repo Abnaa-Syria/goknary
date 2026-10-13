@@ -8,55 +8,67 @@ datasource db {
 }
 
 model User {
-  id                   String    @id @default(cuid())
-  email                String    @unique
-  passwordHash         String    @map("password_hash")
-  role                 UserRole  @default(CUSTOMER)
-  name                 String?
-  phone                String?   @unique
-  avatar               String?
-  emailVerified        Boolean   @default(false) @map("email_verified")
-  phoneVerified        Boolean   @default(false) @map("phone_verified")
-  createdAt            DateTime  @default(now()) @map("created_at")
-  updatedAt            DateTime  @updatedAt @map("updated_at")
-  otpCode              String?   @map("otp_code") @db.VarChar(255)
-  otpExpiresAt         DateTime? @map("otp_expires_at")
-  otpAttempts          Int       @default(0) @map("otp_attempts")
-  passwordResetOtp     String?   @map("password_reset_otp") @db.VarChar(255)
+  id                      String    @id @default(cuid())
+  email                   String    @unique
+  passwordHash            String    @map("password_hash")
+  role                    UserRole  @default(CUSTOMER)
+  name                    String?
+  phone                   String?   @unique
+  avatar                  String?
+  emailVerified           Boolean   @default(false) @map("email_verified")
+  phoneVerified           Boolean   @default(false) @map("phone_verified")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+  otpCode                 String?   @map("otp_code") @db.VarChar(255)
+  otpExpiresAt            DateTime? @map("otp_expires_at")
+  otpAttempts             Int       @default(0) @map("otp_attempts")
+  passwordResetOtp        String?   @map("password_reset_otp") @db.VarChar(255)
   passwordResetOtpExpires DateTime? @map("password_reset_otp_expires")
-  passwordResetToken   String?   @map("password_reset_token") @db.VarChar(255)
-  passwordResetExpires DateTime? @map("password_reset_expires") @db.DateTime(0)
+  passwordResetToken      String?   @map("password_reset_token") @db.VarChar(255)
+  passwordResetExpires    DateTime? @map("password_reset_expires") @db.DateTime(0)
+  passwordResetAttempts   Int       @default(0) @map("password_reset_attempts")
+  passwordChangedAt       DateTime? @map("password_changed_at")
 
-  customRoleId  String?     @map("custom_role_id")
-  walletBalance Float       @default(0) @map("wallet_balance")
+  customRoleId  String? @map("custom_role_id")
+  walletBalance Float   @default(0) @map("wallet_balance")
 
-  vendor        Vendor?
-  reviews       Review[]
-  orders        Order[]
-  addresses     Address[]
-  notifications Notification[]
-  wishlistItems WishlistItem[]
-  customRole    CustomRole? @relation(fields: [customRoleId], references: [id])
-  tickets       SupportTicket[]
+  vendor         Vendor?
+  reviews        Review[]
+  orders         Order[]
+  checkoutAttempts CheckoutAttempt[]
+  addresses      Address[]
+  notifications  Notification[]
+  wishlistItems  WishlistItem[]
+  customRole     CustomRole?     @relation(fields: [customRoleId], references: [id])
+  tickets        SupportTicket[]
   ticketMessages TicketMessage[]
-  refunds       RefundRequest[]
+  refunds        RefundRequest[]
+  events         UserEvent[]
 
   @@index([customRoleId])
+  @@index([passwordResetToken])
   @@map("users")
 }
 
 model Notification {
-  id        String   @id @default(cuid())
-  userId    String   @map("user_id")
-  title     String
-  message   String   @db.Text
-  read      Boolean  @default(false)
-  type      String   @default("info")
-  createdAt DateTime @default(now()) @map("created_at")
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  title      String
+  message    String   @db.Text
+  titleAr    String?  @map("title_ar")
+  messageAr  String?  @map("message_ar") @db.Text
+  read       Boolean  @default(false)
+  type       String   @default("info")
+  link       String?  @db.VarChar(500)
+  entityType String?  @map("entity_type")
+  entityId   String?  @map("entity_id")
+  createdAt  DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([userId, read])
+  @@index([userId, createdAt])
   @@map("notifications")
 }
 
@@ -73,31 +85,43 @@ model RefreshTokenBlacklist {
 }
 
 model Vendor {
-  id             String       @id @default(cuid())
-  userId         String       @unique @map("user_id")
-  storeName      String       @map("store_name")
-  storeNameAr    String?      @map("store_name_ar")
-  slug           String       @unique
-  description    String?      @db.Text
-  descriptionAr  String?      @map("description_ar") @db.Text
-  logo           String?
-  banner         String?
-  rating         Float        @default(0)
-  totalReviews   Int          @default(0) @map("total_reviews")
-  status         VendorStatus @default(PENDING)
-  verified       Boolean      @default(false)
-  commissionRate Float        @default(10) @map("commission_rate")
-  balance        Float        @default(0)
-  pendingBalance Float        @default(0) @map("pending_balance")
-  withdrawnAmount Float       @default(0) @map("withdrawn_amount")
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
+  id               String       @id @default(cuid())
+  userId           String       @unique @map("user_id")
+  storeName        String       @map("store_name")
+  storeNameAr      String?      @map("store_name_ar")
+  slug             String       @unique
+  description      String?      @db.Text
+  descriptionAr    String?      @map("description_ar") @db.Text
+  logo             String?
+  banner           String?
+  rating           Float        @default(0)
+  totalReviews     Int          @default(0) @map("total_reviews")
+  status           VendorStatus @default(PENDING)
+  verified         Boolean      @default(false)
+  commissionRate   Float        @default(10) @map("commission_rate")
+  balance          Float        @default(0)
+  pendingBalance   Float        @default(0) @map("pending_balance")
+  withdrawnAmount  Float        @default(0) @map("withdrawn_amount")
+  returnPolicy     String?      @map("return_policy") @db.Text
+  returnPolicyAr   String?      @map("return_policy_ar") @db.Text
+  shippingPolicy   String?      @map("shipping_policy") @db.Text
+  shippingPolicyAr String?      @map("shipping_policy_ar") @db.Text
+  exchangePolicy   String?      @map("exchange_policy") @db.Text
+  exchangePolicyAr String?      @map("exchange_policy_ar") @db.Text
+  returnWindowDays Int?         @map("return_window_days")
+  // General marketplace ranking (F4), 0–100, written only by lib/ranking.ts recompute.
+  rankingScore     Float        @default(0) @map("ranking_score")
+  rankingUpdatedAt DateTime?    @map("ranking_updated_at")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
 
-  user           User            @relation(fields: [userId], references: [id])
-  products       Product[]
-  orders         Order[]
-  payoutRequests PayoutRequest[]
+  user                User                 @relation(fields: [userId], references: [id])
+  products            Product[]
+  orders              Order[]
+  payoutRequests      PayoutRequest[]
+  discountSuggestions DiscountSuggestion[]
 
+  @@index([rankingScore])
   @@map("vendors")
 }
 
@@ -139,40 +163,50 @@ model Brand {
 }
 
 model Product {
-  id            String        @id @default(cuid())
-  vendorId      String        @map("vendor_id")
-  categoryId    String        @map("category_id")
-  brandId       String?       @map("brand_id")
-  name          String
-  nameAr        String?       @map("name_ar")
-  slug          String        @unique
-  description   String?       @db.Text
-  descriptionAr String?       @map("description_ar") @db.Text
-  sku           String        @unique
-  price         Float
-  discountPrice Float?        @map("discount_price")
-  discountType  DiscountType? @map("discount_type")
-  discountValue Float?        @default(0) @map("discount_value")
-  stock         Int           @default(0)
-  ratingAvg     Float         @default(0) @map("rating_avg")
-  ratingCount   Int           @default(0) @map("rating_count")
-  images        String        @db.Text
+  id                String        @id @default(cuid())
+  vendorId          String        @map("vendor_id")
+  categoryId        String        @map("category_id")
+  brandId           String?       @map("brand_id")
+  name              String
+  nameAr            String?       @map("name_ar")
+  slug              String        @unique
+  description       String?       @db.Text
+  descriptionAr     String?       @map("description_ar") @db.Text
+  sku               String        @unique
+  price             Float
+  discountPrice     Float?        @map("discount_price")
+  discountType      DiscountType? @map("discount_type")
+  discountValue     Float?        @default(0) @map("discount_value")
+  stock             Int           @default(0)
+  ratingAvg         Float         @default(0) @map("rating_avg")
+  ratingCount       Int           @default(0) @map("rating_count")
+  images            String        @db.Text
+  // Per-image alt text keyed by URL: JSON `[{ url, altEn, altAr }]`. `images` stays the ordered URL list.
+  imageMetadata     String?       @map("image_metadata") @db.Text
   status            ProductStatus @default(DRAFT)
   featured          Boolean       @default(false)
   hasVariants       Boolean       @default(false) @map("has_variants")
   lowStockThreshold Int           @default(5) @map("low_stock_threshold")
+  rejectionReason   String?       @map("rejection_reason") @db.Text
+  submittedAt       DateTime?     @map("submitted_at")
+  reviewedAt        DateTime?     @map("reviewed_at")
+  reviewedBy        String?       @map("reviewed_by")
+  // General marketplace ranking (F4), 0–100, written only by lib/ranking.ts recompute.
+  rankingScore      Float         @default(0) @map("ranking_score")
+  rankingUpdatedAt  DateTime?     @map("ranking_updated_at")
   createdAt         DateTime      @default(now()) @map("created_at")
   updatedAt         DateTime      @updatedAt @map("updated_at")
 
-  vendor        Vendor           @relation(fields: [vendorId], references: [id])
-  category      Category         @relation(fields: [categoryId], references: [id])
-  brand         Brand?           @relation(fields: [brandId], references: [id])
-  variants      ProductVariant[]
-  reviews       Review[]
-  cartItems     CartItem[]
-  wishlistItems WishlistItem[]
-  compareItems  CompareItem[]
-  orderItems    OrderItem[]
+  vendor              Vendor               @relation(fields: [vendorId], references: [id])
+  category            Category             @relation(fields: [categoryId], references: [id])
+  brand               Brand?               @relation(fields: [brandId], references: [id])
+  variants            ProductVariant[]
+  reviews             Review[]
+  cartItems           CartItem[]
+  wishlistItems       WishlistItem[]
+  compareItems        CompareItem[]
+  orderItems          OrderItem[]
+  discountSuggestions DiscountSuggestion[]
 
   @@index([categoryId])
   @@index([vendorId])
@@ -180,6 +214,8 @@ model Product {
   @@index([brandId])
   @@index([name])
   @@index([description(length: 255)])
+  @@index([status])
+  @@index([rankingScore])
   @@map("products")
 }
 
@@ -193,6 +229,8 @@ model ProductVariant {
   discountPrice Float?   @map("discount_price")
   stock         Int      @default(0)
   image         String?
+  imageAlt      String?  @map("image_alt") @db.VarChar(255)
+  imageAltAr    String?  @map("image_alt_ar") @db.VarChar(255)
   attributes    String   @db.Text
   isDefault     Boolean  @default(false) @map("is_default")
   status        Boolean  @default(true)
@@ -208,24 +246,31 @@ model ProductVariant {
 }
 
 model Order {
-  id             String      @id @default(cuid())
-  userId         String      @map("user_id")
-  vendorId       String      @map("vendor_id")
-  status         OrderStatus @default(PENDING)
-  subtotal       Float
-  shippingCost   Float       @default(0) @map("shipping_cost")
-  total          Float
-  couponCode     String?     @map("coupon_code")
-  discountAmount Float       @default(0) @map("discount_amount")
-  addressJson    String      @map("address_json") @db.Text
-  shippingMethod String?     @map("shipping_method")
-  notes          String?     @db.Text
-  paymentMethod  String?     @default("COD") @map("payment_method")
-  paymentStatus  String?     @default("PENDING") @map("payment_status")
-  createdAt      DateTime    @default(now()) @map("created_at")
-  updatedAt      DateTime    @updatedAt @map("updated_at")
+  id                     String      @id @default(cuid())
+  userId                 String      @map("user_id")
+  vendorId               String      @map("vendor_id")
+  status                 OrderStatus @default(PENDING)
+  subtotal               Float
+  shippingCost           Float       @default(0) @map("shipping_cost")
+  total                  Float
+  couponCode             String?     @map("coupon_code")
+  discountAmount         Float       @default(0) @map("discount_amount")
+  addressJson            String      @map("address_json") @db.Text
+  shippingMethod         String?     @map("shipping_method")
+  notes                  String?     @db.Text
+  paymentMethod          String?     @default("COD") @map("payment_method")
+  paymentStatus          String?     @default("PENDING") @map("payment_status")
+  // Provider references from the first verified successful payment webhook. Null for COD and older orders.
+  // One Kashier session can pay several vendor orders, so the transaction id is not unique per order.
+  paymentTransactionId   String?     @map("payment_transaction_id")
+  paymentProviderOrderId String?     @map("payment_provider_order_id")
+  paidAt                 DateTime?   @map("paid_at")
+  checkoutAttemptId      String?     @map("checkout_attempt_id")
+  createdAt              DateTime    @default(now()) @map("created_at")
+  updatedAt              DateTime    @updatedAt @map("updated_at")
 
   user           User                 @relation(fields: [userId], references: [id])
+  checkoutAttempt CheckoutAttempt?    @relation(fields: [checkoutAttemptId], references: [id])
   vendor         Vendor               @relation(fields: [vendorId], references: [id])
   items          OrderItem[]
   statusHistory  OrderStatusHistory[]
@@ -234,7 +279,34 @@ model Order {
   @@index([userId])
   @@index([vendorId])
   @@index([status])
+  @@index([paymentTransactionId])
+  @@index([checkoutAttemptId])
   @@map("orders")
+}
+
+model CheckoutAttempt {
+  id                         String                @id @default(cuid())
+  userId                     String                @map("user_id")
+  idempotencyKey             String                @map("idempotency_key") @db.VarChar(128)
+  requestFingerprint         String                @map("request_fingerprint") @db.Char(64)
+  paymentMethod              String                @map("payment_method") @db.VarChar(32)
+  status                     CheckoutAttemptStatus @default(ORDERS_CREATED)
+  providerReference          String                @unique @map("provider_reference") @db.VarChar(64)
+  providerSessionId          String?               @unique @map("provider_session_id") @db.VarChar(191)
+  providerSessionUrl         String?               @map("provider_session_url") @db.Text
+  providerStatus             String?               @map("provider_status") @db.VarChar(64)
+  paymentInitiationStartedAt DateTime?             @map("payment_initiation_started_at")
+  expiresAt                  DateTime?             @map("expires_at")
+  createdAt                  DateTime              @default(now()) @map("created_at")
+  updatedAt                  DateTime              @updatedAt @map("updated_at")
+
+  user   User    @relation(fields: [userId], references: [id])
+  orders Order[]
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, status])
+  @@index([status, expiresAt])
+  @@map("checkout_attempts")
 }
 
 model OrderItem {
@@ -248,10 +320,10 @@ model OrderItem {
   variantInfo   String?  @map("variant_info") @db.Text
   createdAt     DateTime @default(now()) @map("created_at")
 
-  order         Order           @relation(fields: [orderId], references: [id])
-  product       Product         @relation(fields: [productId], references: [id])
-  variant       ProductVariant? @relation(fields: [variantId], references: [id])
-  refundRequest RefundRequest?
+  order          Order           @relation(fields: [orderId], references: [id])
+  product        Product         @relation(fields: [productId], references: [id])
+  variant        ProductVariant? @relation(fields: [variantId], references: [id])
+  refundRequests RefundRequest[]
 
   @@index([orderId])
   @@index([productId])
@@ -494,6 +566,16 @@ enum OrderStatus {
   REFUNDED
 }
 
+enum CheckoutAttemptStatus {
+  ORDERS_CREATED
+  PAYMENT_INITIATING
+  PAYMENT_READY
+  PAYMENT_FAILED
+  PAID
+  COMPLETED
+  CANCELLED
+}
+
 enum BannerType {
   HERO
   PROMO
@@ -526,7 +608,7 @@ model PayoutRequest {
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
 
-  vendor         Vendor       @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  vendor Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
 
   @@index([vendorId])
   @@map("payout_requests")
@@ -539,35 +621,77 @@ enum PayoutStatus {
 }
 
 model RefundRequest {
-  id          String       @id @default(cuid())
-  orderId     String       @map("order_id")
-  orderItemId String       @unique @map("order_item_id")
-  customerId  String       @map("customer_id")
-  vendorId    String       @map("vendor_id")
-  reason      String       @db.Text
-  amount      Float
-  status      RefundStatus @default(PENDING)
-  vendorNotes String?      @map("vendor_notes") @db.Text
-  adminNotes  String?      @map("admin_notes") @db.Text
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
+  id              String       @id @default(cuid())
+  orderId         String       @map("order_id")
+  // Null only for kind CANCELLED_PAYMENT (refund of a payment captured after the order was cancelled).
+  orderItemId     String?      @map("order_item_id")
+  customerId      String       @map("customer_id")
+  vendorId        String       @map("vendor_id")
+  // RETURN (customer item return) or CANCELLED_PAYMENT (administrative refund, no item involved).
+  kind            String       @default("RETURN")
+  quantity        Int          @default(1)
+  reason          String       @db.Text
+  description     String?      @db.Text
+  // JSON array of upload paths (/uploads/...).
+  images          String?      @db.Text
+  amount          Float
+  status          RefundStatus @default(REQUESTED)
+  // Seller recommendation (APPROVE / REJECT); the platform admin makes the final decision.
+  vendorDecision  String?      @map("vendor_decision")
+  vendorNotes     String?      @map("vendor_notes") @db.Text
+  adminNotes      String?      @map("admin_notes") @db.Text
+  refundMethod    String?      @map("refund_method")
+  gatewayRefundId String?      @map("gateway_refund_id")
+  manualReference String?      @map("manual_reference")
+  receivedAt      DateTime?    @map("received_at")
+  refundedAt      DateTime?    @map("refunded_at")
+  processedBy     String?      @map("processed_by")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
 
-  order       Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  orderItem   OrderItem    @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
-  customer    User         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  order     Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItem OrderItem?            @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  customer  User                  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  history   RefundStatusHistory[]
 
   @@index([customerId])
   @@index([vendorId])
   @@index([orderId])
+  @@index([orderItemId])
+  @@index([status])
   @@map("refund_requests")
 }
 
+// PENDING, VENDOR_* and ADMIN_* are legacy values kept for existing rows; new rows use the rest.
 enum RefundStatus {
   PENDING
   VENDOR_APPROVED
   VENDOR_REJECTED
   ADMIN_APPROVED
   ADMIN_REJECTED
+  REQUESTED
+  UNDER_REVIEW
+  APPROVED
+  ITEM_RECEIVED
+  REFUND_PROCESSING
+  REFUNDED
+  REJECTED
+}
+
+model RefundStatusHistory {
+  id              String        @id @default(cuid())
+  refundRequestId String        @map("refund_request_id")
+  fromStatus      RefundStatus? @map("from_status")
+  toStatus        RefundStatus  @map("to_status")
+  actorId         String?       @map("actor_id")
+  actorRole       String?       @map("actor_role")
+  notes           String?       @db.Text
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  refundRequest RefundRequest @relation(fields: [refundRequestId], references: [id], onDelete: Cascade)
+
+  @@index([refundRequestId])
+  @@map("refund_status_history")
 }
 
 model SupportTicket {
@@ -580,8 +704,8 @@ model SupportTicket {
   createdAt DateTime       @default(now()) @map("created_at")
   updatedAt DateTime       @updatedAt @map("updated_at")
 
-  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages  TicketMessage[]
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages TicketMessage[]
 
   @@index([userId])
   @@map("support_tickets")
@@ -607,8 +731,8 @@ model TicketMessage {
   message   String   @db.Text
   createdAt DateTime @default(now()) @map("created_at")
 
-  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  sender    User          @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  sender User          @relation(fields: [senderId], references: [id], onDelete: Cascade)
 
   @@index([ticketId])
   @@index([senderId])
@@ -647,5 +771,68 @@ model SearchLog {
   @@map("search_logs")
 }
 
+// First-party behavior events of logged-in customers (F1). Catalog/order references are plain ids
+// without foreign keys, so analytics rows never block or cascade into business tables.
+// `type` values are defined in src/lib/user-events.ts.
+model UserEvent {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  type        String   @db.VarChar(32)
+  productId   String?  @map("product_id")
+  categoryId  String?  @map("category_id")
+  vendorId    String?  @map("vendor_id")
+  orderId     String?  @map("order_id")
+  orderItemId String?  @map("order_item_id")
+  searchQuery String?  @map("search_query") @db.VarChar(191)
+  // Small JSON object with allow-listed keys only (no personal or payment data).
+  metadata    String?  @db.Text
+  // Set only for business events that must be recorded once (e.g. PURCHASE per order item).
+  dedupeKey   String?  @unique @map("dedupe_key")
+  createdAt   DateTime @default(now()) @map("created_at")
 
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId, createdAt])
+  @@index([type, createdAt])
+  @@index([productId, type, createdAt])
+  @@index([categoryId, type, createdAt])
+  @@index([vendorId, type, createdAt])
+  @@map("user_events")
+}
+
+// Rule-based discount suggestions (F2). A suggestion never changes a price by itself: only an explicit
+// vendor/admin approval applies it, in the same transaction that marks it APPROVED.
+model DiscountSuggestion {
+  id              String                   @id @default(cuid())
+  productId       String                   @map("product_id")
+  vendorId        String                   @map("vendor_id")
+  // HIGH_VIEWS_LOW_CONVERSION | HIGH_WISHLIST_LOW_SALES | SLOW_MOVING_STOCK (src/lib/discount-suggestion-config.ts)
+  reasonType      String                   @map("reason_type") @db.VarChar(40)
+  suggestedType   DiscountType             @default(PERCENTAGE) @map("suggested_type")
+  suggestedValue  Float                    @map("suggested_value")
+  reason          String                   @db.Text
+  // Aggregate evidence only (counts and rates), never customer identities.
+  metrics         String                   @db.Text
+  // Product/variant prices when generated; approval is refused when current pricing differs.
+  pricingSnapshot String                   @map("pricing_snapshot") @db.Text
+  status          DiscountSuggestionStatus @default(PENDING)
+  decidedBy       String?                  @map("decided_by")
+  decidedByRole   String?                  @map("decided_by_role")
+  decidedAt       DateTime?                @map("decided_at")
+  createdAt       DateTime                 @default(now()) @map("created_at")
+  updatedAt       DateTime                 @updatedAt @map("updated_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  vendor  Vendor  @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([vendorId, status, createdAt])
+  @@index([productId, status])
+  @@index([status, createdAt])
+  @@map("discount_suggestions")
+}
+
+enum DiscountSuggestionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}

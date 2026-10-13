@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { 
   getUserNotifications, 
+  getUnreadNotificationCount,
   markNotificationRead, 
   markAllNotificationsRead, 
   deleteNotification 
@@ -12,6 +13,7 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/', getUserNotifications);
+router.get('/unread-count', getUnreadNotificationCount);
 router.patch('/read-all', markAllNotificationsRead);
 router.patch('/:id/read', markNotificationRead);
 router.delete('/:id', deleteNotification);

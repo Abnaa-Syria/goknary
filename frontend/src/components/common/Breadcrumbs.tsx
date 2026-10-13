@@ -8,6 +8,8 @@ interface BreadcrumbItem {
 
 interface BreadcrumbsProps {
   items: BreadcrumbItem[];
+  /** False in authenticated previews, which should not navigate into the storefront. */
+  homeLink?: boolean;
 }
 
 // Custom home icon SVG component
@@ -24,16 +26,20 @@ const ChevronRightIcon: React.FC<{ className?: string }> = ({ className = "w-4 h
   </svg>
 );
 
-const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ items }) => {
+const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ items, homeLink = true }) => {
   return (
-    <nav className="flex items-center space-x-2 text-sm text-gray-600 mb-6" aria-label="Breadcrumb">
-      <Link
-        to="/"
-        className="flex items-center hover:text-primary-600 transition-colors"
-        aria-label="Home"
-      >
-        <HomeIcon />
-      </Link>
+    <nav className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-600 mb-6" aria-label="Breadcrumb">
+      {homeLink ? (
+        <Link
+          to="/"
+          className="flex items-center hover:text-primary-600 transition-colors"
+          aria-label="Home"
+        >
+          <HomeIcon />
+        </Link>
+      ) : (
+        <span aria-hidden="true"><HomeIcon className="w-4 h-4 text-gray-400" /></span>
+      )}
       {items.map((item, index) => (
         <React.Fragment key={index}>
           <ChevronRightIcon className="w-4 h-4 text-gray-400" />

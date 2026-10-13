@@ -37,6 +37,7 @@ import cartRoutes from './routes/cart';
 import orderRoutes from './routes/orders';
 import authRoutes from './routes/auth';
 import { forgotPassword, resetPassword } from './controllers/auth';
+import { forgotPasswordLimiter, resetPasswordLimiter } from './middleware/password-reset-limits';
 import addressRoutes from './routes/addresses';
 import wishlistRoutes from './routes/wishlist';
 import compareRoutes from './routes/compare';
@@ -49,15 +50,21 @@ import paymentRoutes from './routes/payment';
 import payoutRoutes from './routes/payouts';
 import refundRoutes from './routes/refunds';
 import ticketRoutes from './routes/tickets';
+import eventRoutes from './routes/events';
+import recommendationRoutes from './routes/recommendations';
 
 // ─── Vendor Routes (specific paths BEFORE parent path — H-03 Fix) ─────────────
 import vendorProductRoutes from './routes/vendor-products';
 import vendorOrderRoutes from './routes/vendor-orders';
 import vendorAnalyticsRoutes from './routes/vendor-analytics';
+import vendorDiscountSuggestionRoutes from './routes/vendor-discount-suggestions';
 import vendorProfileRoutes from './routes/vendor';
 
 // ─── Admin Routes ─────────────────────────────────────────────────────────────
 import adminRoutes from './routes/admin';
+import { getScheduledIntervalMinutes, startRankingScheduler } from './lib/ranking';
+import { getSuggestionIntervalHours, startDiscountSuggestionScheduler } from './lib/discount-suggestions';
+import { getCheckoutExpiryScheduledMinutes, startCheckoutExpiryScheduler } from './lib/checkout-expiry-scheduler';
 import adminVendorRoutes from './routes/admin-vendors';
 import adminCategoryRoutes from './routes/admin-categories';
 import adminBrandRoutes from './routes/admin-brands';
@@ -140,12 +147,27 @@ app.use('/api/uploads', express.static(uploadDir));
 console.log(path.join(process.cwd(), ''));
 console.log(`Serving uploads from ${uploadDir}`);
 
+// Session-maintenance endpoints get their own budget so a busy dashboard that
+// exhausts the global limit can still refresh its token instead of being logged out.
+const SESSION_ENDPOINTS = new Set(['/auth/refresh', '/auth/logout']);
+// Customer page-view tracking has its own per-user limiter (routes/events.ts).
+const SEPARATELY_LIMITED_ENDPOINTS = new Set([...SESSION_ENDPOINTS, '/events']);
+
 // Rate limiting — more lenient in development
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: process.env.NODE_ENV === 'production' ? 100 : 1000,
+  skip: (req) => SEPARATELY_LIMITED_ENDPOINTS.has(req.path),
 });
 app.use('/api/', limiter);
+
+const sessionLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: process.env.NODE_ENV === 'production' ? 300 : 3000,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use(['/api/auth/refresh', '/api/auth/logout'], sessionLimiter);
 
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
@@ -160,8 +182,8 @@ app.get('/api/health', (_req, res) => {
 // ─── Public API Routes ────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 // Also register on the app so POST /api/auth/forgot-password always hits the handler (avoids 404 if router file was out of sync or process not restarted)
-app.post('/api/auth/forgot-password', forgotPassword);
-app.post('/api/auth/reset-password', resetPassword);
+app.post('/api/auth/forgot-password', forgotPasswordLimiter, forgotPassword);
+app.post('/api/auth/reset-password', resetPasswordLimiter, resetPassword);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/home', homeRoutes);
@@ -186,12 +208,15 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/payouts', payoutRoutes);
 app.use('/api/refunds', refundRoutes);
 app.use('/api/tickets', ticketRoutes);
+app.use('/api/events', eventRoutes);
+app.use('/api/recommendations', recommendationRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
 
 // ─── Vendor Routes (specific subroutes BEFORE parent — H-03 Fix) ──────────────
 app.use('/api/vendor/products', vendorProductRoutes);
 app.use('/api/vendor/orders', vendorOrderRoutes);
 app.use('/api/vendor/analytics', vendorAnalyticsRoutes);
+app.use('/api/vendor/discount-suggestions', vendorDiscountSuggestionRoutes);
 app.use('/api/vendor', vendorProfileRoutes); // parent LAST
 
 // ─── Admin Governance Direct Routes (H-03 Route Prioritization) ───────────────
@@ -223,7 +248,16 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 
 // ─── Start Server ─────────────────────────────────────────────────────────────
 app.listen(PORT, async () => {
+  if (startCheckoutExpiryScheduler()) {
+    console.log(`Checkout expiry reconciliation -> every ${getCheckoutExpiryScheduledMinutes()} min`);
+  }
   console.log(`\n🚀 Server running   → http://localhost:${PORT}`);
   console.log(`📊 Health check     → http://localhost:${PORT}/api/health`);
   console.log(`📱 WhatsApp API    → Twilio Business (Production)`);
+  if (startRankingScheduler()) {
+    console.log(`🏆 Ranking recompute → every ${getScheduledIntervalMinutes()} min`);
+  }
+  if (startDiscountSuggestionScheduler()) {
+    console.log(`🏷️ Discount suggestions → every ${getSuggestionIntervalHours()} h`);
+  }
 });

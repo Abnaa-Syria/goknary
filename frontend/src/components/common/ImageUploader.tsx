@@ -11,6 +11,9 @@ import {
 import { getImageUrl } from '../../utils/image';
 import toast from 'react-hot-toast';
 
+/** Same formats the upload endpoint accepts; the server converts them all to WebP. */
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
 interface ImageUploaderProps {
   value: (File | string)[];
   onChange: (value: (File | string)[]) => void;
@@ -20,12 +23,13 @@ interface ImageUploaderProps {
 }
 
 const ImageUploader: React.FC<ImageUploaderProps> = ({
-  value = [],
+  value: rawValue,
   onChange,
   multiple = true,
   label,
   helperText
 }) => {
+  const value: (File | string)[] = (Array.isArray(rawValue) ? rawValue : rawValue ? [rawValue] : []).filter(Boolean);
   const [activeTab, setActiveTab] = useState<'LOCAL' | 'URL'>('LOCAL');
   const [urlInput, setUrlInput] = useState('');
   const [isDragging, setIsDragging] = useState(false);
@@ -39,8 +43,8 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
 
   const handleFiles = useCallback((incomingFiles: FileList | File[]) => {
     const validFiles = Array.from(incomingFiles).filter(file => {
-      if (!file.type.startsWith('image/')) {
-        toast.error(`${file.name} is not a valid image format`);
+      if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+        toast.error(`${file.name}: only JPEG, PNG and WebP images are allowed`);
         return false;
       }
       if (file.size > 10 * 1024 * 1024) {
@@ -49,6 +53,8 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
       }
       return true;
     });
+
+    if (validFiles.length === 0) return;
 
     if (multiple) {
       onChange([...value, ...validFiles]);
@@ -142,8 +148,11 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
               ref={fileInputRef}
               className="hidden"
               multiple={multiple}
-              accept="image/*"
-              onChange={(e) => e.target.files && handleFiles(e.target.files)}
+              accept={ACCEPTED_IMAGE_TYPES.join(',')}
+              onChange={(e) => {
+                if (e.target.files) handleFiles(e.target.files);
+                e.target.value = '';
+              }}
             />
             <div className="flex flex-col items-center gap-3">
               <div className="w-14 h-14 bg-white rounded-2xl shadow-sm flex items-center justify-center text-primary-500 group-hover:scale-110 transition-transform">

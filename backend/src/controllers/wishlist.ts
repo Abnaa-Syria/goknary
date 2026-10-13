@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { z } from 'zod';
+import { trackAuthenticatedCustomerEvent } from '../lib/user-events';
 
 const addToWishlistSchema = z.object({
   productId: z.string(),
@@ -133,6 +134,13 @@ export const addToWishlist = async (req: AuthRequest, res: Response) => {
       },
     });
 
+    trackAuthenticatedCustomerEvent(req.user, {
+      type: 'ADD_TO_WISHLIST',
+      productId,
+      categoryId: product.categoryId,
+      vendorId: product.vendorId,
+    });
+
     res.status(201).json({
       id: wishlistItem.id,
       product: {
@@ -173,6 +181,11 @@ export const removeFromWishlist = async (req: AuthRequest, res: Response) => {
       where: { id },
     });
 
+    trackAuthenticatedCustomerEvent(req.user, {
+      type: 'REMOVE_FROM_WISHLIST',
+      productId: wishlistItem.productId,
+    });
+
     res.json({ message: 'Item removed from wishlist' });
   } catch (error) {
     console.error('Error removing from wishlist:', error);
@@ -203,6 +216,11 @@ export const removeFromWishlistByProductId = async (req: AuthRequest, res: Respo
 
     await prisma.wishlistItem.delete({
       where: { id: wishlistItem.id },
+    });
+
+    trackAuthenticatedCustomerEvent(req.user, {
+      type: 'REMOVE_FROM_WISHLIST',
+      productId,
     });
 
     res.json({ message: 'Item removed from wishlist' });

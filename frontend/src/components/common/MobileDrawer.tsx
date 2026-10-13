@@ -1,6 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { FiX, FiUser, FiShoppingCart, FiHeart } from 'react-icons/fi';
+import { FiX, FiUser, FiShoppingCart, FiHeart, FiChevronDown } from 'react-icons/fi';
 import { useTranslation } from 'react-i18next';
 import { Category } from '../../store/slices/categorySlice';
 
@@ -51,10 +51,57 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({
     return () => document.removeEventListener('keydown', handleEscape);
   }, [isOpen, onClose]);
 
+  // The API returns the tree: roots with nested children at any depth.
   const topLevelCategories = categories.filter((cat) => !cat.parentId);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggleExpanded = (id: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const handleLinkClick = () => {
     onClose();
+  };
+
+  const renderCategory = (category: Category, depth: number): React.ReactNode => {
+    const children = category.children ?? [];
+    const isExpanded = expanded.has(category.id);
+    return (
+      <li key={category.id}>
+        <div className="flex items-center">
+          <Link
+            to={`/category/${category.slug}`}
+            onClick={handleLinkClick}
+            className={`flex-1 px-3 py-2 rounded-md transition-colors hover:bg-primary-50 hover:text-primary-600 ${
+              depth === 0 ? 'text-sm text-gray-700' : 'text-xs text-gray-600'
+            }`}
+          >
+            {getCategoryName(category)}
+          </Link>
+          {children.length > 0 && (
+            <button
+              type="button"
+              onClick={() => toggleExpanded(category.id)}
+              className="p-2 text-gray-400 hover:text-primary-600 rounded-md"
+              aria-expanded={isExpanded}
+              aria-label={isExpanded ? 'Collapse' : 'Expand'}
+            >
+              <FiChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+            </button>
+          )}
+        </div>
+        {children.length > 0 && isExpanded && (
+          <ul className="ms-3 ps-2 border-s border-gray-100 space-y-0.5">
+            {children.map((child) => renderCategory(child, depth + 1))}
+          </ul>
+        )}
+      </li>
+    );
   };
 
   return (
@@ -153,40 +200,15 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({
             <div className="p-4">
               <h3 className="text-sm font-semibold text-gray-900 mb-3">Categories</h3>
               <ul className="space-y-1">
-                {topLevelCategories.map((category) => {
-                  const subcategories = categories.filter((cat) => cat.parentId === category.id);
-                  return (
-                    <li key={category.id}>
-                      <Link
-                        to={`/category/${category.slug}`}
-                        onClick={handleLinkClick}
-                        className="flex items-center justify-between px-3 py-2 text-sm text-gray-700 hover:bg-primary-50 hover:text-primary-600 rounded-md transition-colors"
-                      >
-                        <span>{getCategoryName(category)}</span>
-                        {subcategories.length > 0 && (
-                          <span className="text-gray-400 text-xs">{subcategories.length}</span>
-                        )}
-                      </Link>
-                      {/* Show subcategories on click (simplified) */}
-                      {subcategories.length > 0 && (
-                        <ul className="ml-4 mt-1 space-y-1">
-                          {subcategories.slice(0, 5).map((subcat) => (
-                            <li key={subcat.id}>
-                              <Link
-                                to={`/category/${subcat.slug}`}
-                                onClick={handleLinkClick}
-                                className="block px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50 hover:text-primary-600 rounded-md transition-colors"
-                              >
-                                {getCategoryName(subcat)}
-                              </Link>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </li>
-                  );
-                })}
+                {topLevelCategories.map((category) => renderCategory(category, 0))}
               </ul>
+              <Link
+                to="/categories"
+                onClick={handleLinkClick}
+                className="block mt-2 px-3 py-2 text-sm font-medium text-primary-600 hover:underline"
+              >
+                {isRTL ? 'كل الفئات' : 'All categories'}
+              </Link>
             </div>
           </div>
 

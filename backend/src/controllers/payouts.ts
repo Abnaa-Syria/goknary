@@ -4,6 +4,8 @@ import { AuthRequest } from '../middleware/auth';
 import { z } from 'zod';
 import { ValidationError } from '../lib/errors';
 import { calculatePendingEarnings } from '../lib/vendor-earnings';
+import { formatPrice } from '../lib/utils';
+import { NotificationType, notifyVendor } from '../lib/notify';
 
 const createPayoutSchema = z.object({
   amount: z.number().positive(),
@@ -202,6 +204,23 @@ export const updatePayoutStatus = async (req: AuthRequest, res: Response) => {
       }
 
       return updated;
+    });
+
+    const payoutApproved = status === 'APPROVED';
+    const amountText = formatPrice(updatedPayout.amount);
+    await notifyVendor(updatedPayout.vendorId, {
+      type: NotificationType.PAYOUT_STATUS_CHANGED,
+      title: payoutApproved ? 'Payout approved' : 'Payout rejected',
+      titleAr: payoutApproved ? 'تمت الموافقة على طلب السحب' : 'تم رفض طلب السحب',
+      message: payoutApproved
+        ? `Your payout request of ${amountText} was approved.`
+        : `Your payout request of ${amountText} was rejected and the amount returned to your balance.${notes ? ` Note: ${notes}` : ''}`,
+      messageAr: payoutApproved
+        ? `تمت الموافقة على طلب سحب بقيمة ${amountText}.`
+        : `تم رفض طلب سحب بقيمة ${amountText} وتم إرجاع المبلغ لرصيدك.${notes ? ` ملاحظة: ${notes}` : ''}`,
+      link: '/vendor/payouts',
+      entityType: 'PAYOUT',
+      entityId: updatedPayout.id,
     });
 
     res.json({ message: `Payout request ${status.toLowerCase()} successfully`, payout: updatedPayout });

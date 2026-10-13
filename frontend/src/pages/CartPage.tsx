@@ -2,22 +2,25 @@ import React, { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { fetchCart, updateCartItem, removeFromCart } from '../store/slices/cartSlice';
+import { fetchCart, updateCartItem, removeFromCart, hasVariantProblem, hasCartItemProblem, getCartItemStock } from '../store/slices/cartSlice';
+import VariantSummary from '../components/common/VariantSummary';
 import { FiTrash, FiMinusCircle, FiPlusCircle } from 'react-icons/fi';
 import { Tag } from 'lucide-react';
 import { formatPrice } from '../lib/utils';
 import { SEO } from '../components/common/SEO';
 import EmptyState from '../components/common/EmptyState';
+import RecommendationSection from '../components/product/RecommendationSection';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
-import { getImageUrl } from '../utils/image';
+import { IMAGE_PLACEHOLDER, getImageUrl } from '../utils/image';
+import { getProductImageAlt, getVariantImageAlt } from '../utils/imageAlt';
 
 const CartPage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const isRTL = i18n.language === 'ar';
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
-  const { items, subtotal, total, itemCount, loading } = useAppSelector((state) => state.cart);
+  const { items, subtotal, itemCount, loading } = useAppSelector((state) => state.cart);
   const { freeShippingThreshold } = useAppSelector((state) => state.settings);
 
   const [promoCode, setPromoCode] = React.useState('');
@@ -57,6 +60,7 @@ const CartPage: React.FC = () => {
     }
   };
 
+  const hasInvalidItems = items.some(hasCartItemProblem);
   const currentShipping = subtotal >= freeShippingThreshold ? 0 : 50;
   const finalCalculatedTotal = (subtotal - (appliedPromo?.discountAmount || 0)) + currentShipping;
 
@@ -97,8 +101,12 @@ const CartPage: React.FC = () => {
           <div className="lg:col-span-2 space-y-4">
             {items.map((item) => {
               const displayPrice = item.discountPrice || item.price;
-              const mainImage = item.product.images?.[0] || '/imgs/default-product.jpg';
+              const mainImage = item.variant?.image || item.product.images?.[0] || IMAGE_PLACEHOLDER;
               const productName = isRTL && (item.product as any).nameAr ? (item.product as any).nameAr : item.product.name;
+              const maxQuantity = getCartItemStock(item);
+              const variantProblem = hasVariantProblem(item);
+              const outOfStock = !variantProblem && maxQuantity <= 0;
+              const overStock = !variantProblem && !outOfStock && item.quantity > maxQuantity;
 
               return (
                 <div key={item.id} className="card p-3 sm:p-4">
@@ -110,7 +118,9 @@ const CartPage: React.FC = () => {
                     >
                       <img
                         src={getImageUrl(mainImage)}
-                        alt={productName}
+                        alt={item.variant?.image
+                          ? getVariantImageAlt(item.variant, item.product as any, isRTL)
+                          : getProductImageAlt(item.product as any, item.product.images?.[0], isRTL)}
                         className="w-full h-full object-cover"
                       />
                     </Link>
@@ -122,6 +132,36 @@ const CartPage: React.FC = () => {
                           {productName}
                         </h3>
                       </Link>
+                      <VariantSummary variant={item.variant} className="text-sm text-gray-600 mb-1" />
+                      {item.requiresVariantSelection && (
+                        <p className="text-sm text-red-600 mb-2" role="status">
+                          {t('variantOptions.cartReselect', 'Please remove this item and add it again after choosing an option.')}
+                        </p>
+                      )}
+                      {item.unavailable && (
+                        <p className="text-sm text-red-600 mb-2" role="status">
+                          {t('variantOptions.cartUnavailable', 'This option is no longer available. Please remove it from your cart.')}
+                        </p>
+                      )}
+                      {outOfStock && (
+                        <p className="text-sm text-red-600 mb-2" role="status">
+                          {item.variant
+                            ? t('variantOptions.cartOutOfStock', 'This option is currently out of stock. Remove it to continue to checkout.')
+                            : t('variantOptions.cartProductOutOfStock', 'This product is currently out of stock. Remove it to continue to checkout.')}
+                        </p>
+                      )}
+                      {overStock && (
+                        <p className="text-sm text-amber-700 mb-2" role="status">
+                          {t('variantOptions.cartOverStock', 'Only {{count}} available. Reduce the quantity to continue.', { count: maxQuantity })}{' '}
+                          <button
+                            type="button"
+                            onClick={() => handleQuantityChange(item.id, maxQuantity)}
+                            className="font-semibold underline hover:text-amber-900"
+                          >
+                            {t('variantOptions.setQuantity', 'Change quantity to {{count}}', { count: maxQuantity })}
+                          </button>
+                        </p>
+                      )}
                       <p className="text-sm text-gray-500 mb-2">
                         {t('product.vendor')}:{' '}
                         <Link
@@ -148,17 +188,21 @@ const CartPage: React.FC = () => {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center border border-gray-300 rounded-lg">
                           <button
+                            type="button"
                             onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
-                            className="p-2 hover:bg-gray-100"
+                            className="p-2 hover:bg-gray-100 disabled:opacity-50"
                             disabled={item.quantity <= 1}
+                            aria-label={t('variantOptions.decreaseQuantity', 'Decrease quantity')}
                           >
                             <FiMinusCircle className="w-4 h-4" />
                           </button>
                           <span className="px-4 py-2 min-w-[3rem] text-center">{item.quantity}</span>
                           <button
+                            type="button"
                             onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
-                            className="p-2 hover:bg-gray-100"
-                            disabled={item.quantity >= item.product.stock}
+                            className="p-2 hover:bg-gray-100 disabled:opacity-50"
+                            disabled={item.quantity >= maxQuantity || variantProblem}
+                            aria-label={t('variantOptions.increaseQuantity', 'Increase quantity')}
                           >
                             <FiPlusCircle className="w-4 h-4" />
                           </button>
@@ -245,9 +289,17 @@ const CartPage: React.FC = () => {
                 </div>
               </div>
 
+              {hasInvalidItems && (
+                <p className="text-sm text-red-600 mt-6">
+                  {isRTL
+                    ? 'بعض المنتجات في السلة تحتاج مراجعة قبل إتمام الطلب'
+                    : 'Some items in your cart need attention before checkout'}
+                </p>
+              )}
               <button
                 onClick={() => navigate('/checkout', { state: { appliedPromo } })}
-                className="w-full btn-primary py-3 text-lg mt-6"
+                disabled={hasInvalidItems}
+                className="w-full btn-primary py-3 text-lg mt-6 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {t('cart.checkout')}
               </button>
@@ -267,6 +319,14 @@ const CartPage: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Optional and independent of the cart: hidden while loading or if the request fails */}
+        <RecommendationSection
+          context="cart"
+          cartProductIds={items.map((item) => item.product.id)}
+          title={() => t('recommendations.youMayAlsoLike', 'You may also like')}
+          className="mt-8 sm:mt-12"
+        />
       </div>
     </>
   );

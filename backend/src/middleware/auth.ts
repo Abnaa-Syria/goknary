@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../lib/prisma';
+import { isIssuedBeforePasswordChange } from '../lib/jwt';
 
 export interface AuthRequest extends Request {
   user?: {
@@ -34,19 +35,26 @@ export const authenticate = async (
       id: string;
       email: string;
       role: string;
+      iat?: number;
     };
+
+    const dbUser = await prisma.user.findUnique({
+      where: { id: decoded.id },
+      select: {
+        passwordChangedAt: true,
+        customRole: decoded.role === 'STAFF' ? { select: { permissions: true } } : false,
+      },
+    });
+
+    // Sessions issued before a password change/reset are revoked.
+    if (!dbUser || isIssuedBeforePasswordChange(decoded.iat, dbUser.passwordChangedAt)) {
+      return res.status(401).json({ error: 'Session expired. Please log in again.' });
+    }
 
     let permissions: string[] = [];
 
     if (decoded.role === 'STAFF') {
-      const dbUser = await prisma.user.findUnique({
-        where: { id: decoded.id },
-        select: {
-          customRole: { select: { permissions: true } },
-        },
-      });
-
-      if (dbUser?.customRole?.permissions) {
+      if (dbUser.customRole?.permissions) {
         try {
           permissions = JSON.parse(dbUser.customRole.permissions);
         } catch {
@@ -111,4 +119,18 @@ export const requirePermission = (permission: string) => {
       required: permission,
     });
   };
+};
+
+export const optionalAuthenticate = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    next();
+    return;
+  }
+
+  return authenticate(req, res, next);
 };

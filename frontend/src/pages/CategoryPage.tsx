@@ -9,6 +9,7 @@ import { ProductCardSkeleton } from '../components/common/Skeleton';
 import { SEO } from '../components/common/SEO';
 import Breadcrumbs from '../components/common/Breadcrumbs';
 import { FiFilter, FiX } from 'react-icons/fi';
+import { useTrackView } from '../lib/tracking';
 
 // Custom chevron icons
 const ChevronDownIcon: React.FC<{ className?: string }> = ({ className = "w-4 h-4" }) => (
@@ -32,6 +33,9 @@ const CategoryPage: React.FC = () => {
   const { currentCategory } = useAppSelector((state) => state.categories);
   const { products, loading, pagination, filters } = useAppSelector((state) => state.products);
   const [showFilters, setShowFilters] = useState(false);
+
+  useTrackView('CATEGORY_VIEW', currentCategory && currentCategory.slug === slug ? currentCategory.id : null);
+
   const [expandedFilters, setExpandedFilters] = useState<string[]>(['price', 'rating']);
   const [priceRange, setPriceRange] = useState({
     min: searchParams.get('priceMin') || searchParams.get('minPrice') || '',
@@ -51,9 +55,11 @@ const CategoryPage: React.FC = () => {
   }, [slug, dispatch]);
 
   useEffect(() => {
+    // Wait for the category of this URL; the backend expands it to all of its subcategories.
+    if (!currentCategory || currentCategory.slug !== slug) return;
     // Normalization layer for Backend Alignment
     const apiParams: any = {
-      category: currentCategory?.id, // mapped from categoryId
+      category: currentCategory.id,
       page: searchParams.get('page') || '1',
       limit: searchParams.get('limit') || '24',
     };
@@ -81,7 +87,7 @@ const CategoryPage: React.FC = () => {
 
     dispatch(setFilters(apiParams));
     dispatch(fetchProducts(apiParams));
-  }, [currentCategory, searchParams, dispatch]);
+  }, [currentCategory, slug, searchParams, dispatch]);
 
   const toggleFilterSection = (section: string) => {
     setExpandedFilters((prev) =>
@@ -138,14 +144,13 @@ const CategoryPage: React.FC = () => {
     activeFilters.push(isRTL ? 'العلامة التجارية' : 'Brand');
   }
 
+  // Full path at any depth: top-level category → ... → direct parent → current.
+  const ancestors = currentCategory?.ancestors ?? (currentCategory?.parent ? [currentCategory.parent] : []);
   const breadcrumbItems = [
-    // Add parent category if exists
-    ...(currentCategory?.parent
-      ? [{
-          label: getCategoryName(currentCategory.parent),
-          to: `/category/${currentCategory.parent.slug}`,
-        }]
-      : []),
+    ...ancestors.map((ancestor) => ({
+      label: getCategoryName(ancestor),
+      to: `/category/${ancestor.slug}`,
+    })),
     {
       label: getCategoryName(currentCategory),
       to: currentCategory ? `/category/${currentCategory.slug}` : undefined,
@@ -427,6 +432,9 @@ const CategoryPage: React.FC = () => {
                 >
                   <option value="relevance">
                     {isRTL ? 'الصلة' : 'Relevance'}
+                  </option>
+                  <option value="recommended">
+                    {isRTL ? 'المقترح' : 'Recommended'}
                   </option>
                   <option value="price_low">
                     {isRTL ? 'السعر: من الأقل للأعلى' : 'Price: Low to High'}

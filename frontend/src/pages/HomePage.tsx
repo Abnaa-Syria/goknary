@@ -4,6 +4,7 @@ import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { fetchHomeSections } from '../store/slices/homeSlice';
 import { Link, useNavigate } from 'react-router-dom';
 import ProductCard from '../components/product/ProductCard';
+import RecommendationSection, { RecentlyViewedSection } from '../components/product/RecommendationSection';
 import CategoryCard from '../components/category/CategoryCard';
 import { fetchCategories } from '../store/slices/categorySlice';
 import { ProductCardSkeleton, CategoryCardSkeleton } from '../components/common/Skeleton';
@@ -11,7 +12,7 @@ import { SEO } from '../components/common/SEO';
 import { FiChevronRight, FiStar } from 'react-icons/fi';
 import { formatPrice } from '../lib/utils';
 import api from '../lib/api';
-import { getImageUrl } from '../utils/image';
+import { IMAGE_PLACEHOLDER, getImageUrl } from '../utils/image';
 
 // Custom arrow/chevron icons since they may not be in react-icons v4
 const ArrowRightIcon: React.FC<{ className?: string }> = ({ className = "w-4 h-4" }) => (
@@ -20,11 +21,14 @@ const ArrowRightIcon: React.FC<{ className?: string }> = ({ className = "w-4 h-4
   </svg>
 );
 
-const ChevronRightIcon: React.FC<{ className?: string }> = ({ className = "w-4 h-4" }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-  </svg>
-);
+/**
+ * "View all" targets that reproduce a home section with an existing shop sort. Sections without an
+ * equivalent (best sellers by sold units, trending by recent views, discounted-only) show no link
+ * rather than a list that does not match the section.
+ */
+const SECTION_SHOP_LINKS: Record<string, string> = {
+  recommended: '/shop?sort=recommended',
+};
 
 const HomePage: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -39,8 +43,16 @@ const HomePage: React.FC = () => {
   const hasFetchedCategories = useRef(false);
   
   // Get featured products from sections
-  const featuredProducts = sections.find(s => s.type === 'best_sellers' || s.type === 'trending')?.products || [];
+  const featuredSection = sections.find(s => s.type === 'best_sellers' || s.type === 'trending');
+  const featuredProducts = featuredSection?.products || [];
+  const featuredTitle = featuredSection
+    ? (isRTL && (featuredSection as any).titleAr) ||
+      featuredSection.title ||
+      (featuredSection.type === 'best_sellers' ? t('nav.bestSellers') : t('home.trending'))
+    : '';
   const topDealsProducts = sections.find(s => s.type === 'top_deals')?.products || [];
+  // The admin-configured "recommended" section already shows the general ranking to everyone.
+  const hasGeneralRecommendedSection = sections.some((s) => s.type === 'recommended');
 
   // Phase 4 New Arrivals
   const [newArrivals, setNewArrivals] = useState<any[]>([]);
@@ -117,7 +129,7 @@ const HomePage: React.FC = () => {
                             alt={banner.title || 'Banner'}
                             className="w-full h-full object-cover"
                             onError={(e) => {
-                              (e.target as HTMLImageElement).src = '/imgs/default-product.jpg';
+                              (e.target as HTMLImageElement).src = IMAGE_PLACEHOLDER;
                             }}
                           />
                           {/* Improved Gradient Overlay */}
@@ -139,12 +151,6 @@ const HomePage: React.FC = () => {
                                     {isRTL && (banner as any).titleAr ? (banner as any).titleAr : banner.title}
                                   </h2>
                                   
-                                  {/* Description */}
-                                  <p className="text-white/95 text-sm sm:text-base lg:text-lg mb-2 sm:mb-6 lg:mb-8 drop-shadow-md max-w-xl">
-                                    {isRTL 
-                                      ? 'اكتشف العروض المذهلة ووفر حتى 50% على المنتجات المختارة'
-                                      : 'Discover amazing deals and save up to 50% on selected items'}
-                                  </p>
                                 </div>
                                 
                                 {/* CTA Button - always visible */}
@@ -230,7 +236,7 @@ const HomePage: React.FC = () => {
                               alt={banner.title || 'Promo'}
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                               onError={(e) => {
-                                (e.target as HTMLImageElement).src = '/imgs/default-product.jpg';
+                                (e.target as HTMLImageElement).src = IMAGE_PLACEHOLDER;
                               }}
                             />
                             {/* Improved Overlay */}
@@ -256,7 +262,37 @@ const HomePage: React.FC = () => {
             </section>
           )}
 
-          {/* Hot Deals Section - Below Hero */}
+          {/* Shop by Category strip - directly below the hero, all top-level categories */}
+          {(categoriesLoading || categories.length > 0) && (
+            <section className="mb-6 sm:mb-8 lg:mb-10 bg-gray-50 py-4 sm:py-6">
+              <div className="container mx-auto px-3 sm:px-4">
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">{t('nav.shopByCategory')}</h2>
+                  <Link
+                    to="/categories"
+                    className="flex items-center text-primary-600 hover:text-primary-700 font-medium text-sm"
+                  >
+                    {t('common.viewAll')} <FiChevronRight className={`ms-1 w-4 h-4 ${isRTL ? 'rotate-180' : ''}`} />
+                  </Link>
+                </div>
+                <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 snap-x">
+                  {categoriesLoading && categories.length === 0
+                    ? [1, 2, 3, 4, 5, 6].map((i) => (
+                        <div key={i} className="w-28 sm:w-36 flex-shrink-0">
+                          <CategoryCardSkeleton />
+                        </div>
+                      ))
+                    : categories.map((category) => (
+                        <div key={category.id} className="w-28 sm:w-36 flex-shrink-0 snap-start">
+                          <CategoryCard category={category} />
+                        </div>
+                      ))}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Best sellers / trending highlight - Below Hero */}
           {featuredProducts.length > 0 && (
             <section className="mb-6 sm:mb-8 lg:mb-10">
               <div className="container mx-auto px-3 sm:px-4">
@@ -264,14 +300,8 @@ const HomePage: React.FC = () => {
                   <div className="flex items-center justify-between mb-4 sm:mb-6">
                     <h3 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-gray-900 flex items-center gap-2 sm:gap-3">
                       <span className="text-2xl sm:text-3xl">🔥</span>
-                      <span>Hot Deals</span>
+                      <span>{featuredTitle}</span>
                     </h3>
-                    <Link
-                      to="/category/deals"
-                      className="text-sm text-primary-600 hover:text-primary-700 font-semibold flex items-center gap-1"
-                    >
-                      See All <ChevronRightIcon className="w-4 h-4" />
-                    </Link>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 sm:gap-4">
                     {featuredProducts.slice(0, 6).map((product) => {
@@ -310,13 +340,15 @@ const HomePage: React.FC = () => {
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center space-x-1">
-                            <FiStar className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
-                            <span className="text-xs font-semibold text-gray-700">
-                              {product.ratingAvg.toFixed(1)}
-                            </span>
-                            <span className="text-xs text-gray-400">({product.ratingCount})</span>
-                          </div>
+                          {product.ratingCount > 0 && (
+                            <div className="flex items-center space-x-1">
+                              <FiStar className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
+                              <span className="text-xs font-semibold text-gray-700">
+                                {product.ratingAvg.toFixed(1)}
+                              </span>
+                              <span className="text-xs text-gray-400">({product.ratingCount})</span>
+                            </div>
+                          )}
                         </Link>
                       );
                     })}
@@ -345,33 +377,23 @@ const HomePage: React.FC = () => {
             </section>
           )}
 
-          {/* Categories Strip */}
-          <section className="mb-6 sm:mb-8 lg:mb-10 bg-gray-50 py-4 sm:py-6 lg:py-8">
-            <div className="container mx-auto px-3 sm:px-4">
-              <div className="flex items-center justify-between mb-4 sm:mb-6">
-                <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">{t('nav.shopByCategory')}</h2>
-                <Link
-                  to="/categories"
-                  className="hidden md:flex items-center text-primary-600 hover:text-primary-700 font-medium text-sm"
-                >
-                  {t('common.viewAll')} <FiChevronRight className={`ms-1 w-4 h-4 ${isRTL ? 'rotate-180' : ''}`} />
-                </Link>
-              </div>
-              {categoriesLoading ? (
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                  {[1, 2, 3, 4, 5, 6].map((i) => (
-                    <CategoryCardSkeleton key={i} />
-                  ))}
-                </div>
-              ) : categories.length > 0 ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4 lg:gap-6">
-                  {categories.slice(0, 6).map((category) => (
-                    <CategoryCard key={category.id} category={category} />
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          </section>
+          {/* Personalized (logged-in customers) or general recommendations; hidden on any failure */}
+          <div className="container mx-auto px-3 sm:px-4">
+              <RecommendationSection
+                context="home"
+                className="mb-6 sm:mb-8 lg:mb-10"
+                title={(personalized) =>
+                  personalized
+                    ? t('recommendations.forYou', 'Recommended for You')
+                    : t('recommendations.general', 'Recommended Products')
+                }
+                personalizedOnly={hasGeneralRecommendedSection}
+              />
+              <RecentlyViewedSection
+                className="mb-6 sm:mb-8 lg:mb-10"
+                title={t('recommendations.recentlyViewed', 'Recently Viewed')}
+              />
+          </div>
 
           {/* Product Sections */}
           <div className="container mx-auto px-3 sm:px-4 pb-6 sm:pb-8">
@@ -383,13 +405,15 @@ const HomePage: React.FC = () => {
                       {isRTL && (section as any).titleAr ? (section as any).titleAr : section.title}
                     </h2>
                   </div>
-                  <Link
-                    to={`/category/${section.type === 'top_deals' ? 'deals' : section.type}`}
-                    className="hidden md:flex items-center text-primary-600 hover:text-primary-700 font-medium text-sm group"
-                  >
-                    {t('common.viewAll')}
-                    <FiChevronRight className={`ms-1 w-4 h-4 group-hover:translate-x-1 transition-transform ${isRTL ? 'rotate-180' : ''}`} />
-                  </Link>
+                  {SECTION_SHOP_LINKS[section.type] && (
+                    <Link
+                      to={SECTION_SHOP_LINKS[section.type]}
+                      className="hidden md:flex items-center text-primary-600 hover:text-primary-700 font-medium text-sm group"
+                    >
+                      {t('common.viewAll')}
+                      <FiChevronRight className={`ms-1 w-4 h-4 group-hover:translate-x-1 transition-transform ${isRTL ? 'rotate-180' : ''}`} />
+                    </Link>
+                  )}
                 </div>
                 {loading ? (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 sm:gap-4 lg:gap-6">

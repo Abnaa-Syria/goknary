@@ -1,66 +1,52 @@
 import { Request, Response } from 'express';
-import { prisma } from '../lib/prisma';
 import { NotFoundError } from '../lib/errors';
+import {
+  buildCategoryTree,
+  getCategoryAncestors,
+  getDescendantCategoryIds,
+  loadAllCategories,
+} from '../lib/category-tree';
 
-export const getCategories = async (req: Request, res: Response) => {
+/**
+ * Top-level categories with nested `children` at every depth. Same shape as before (roots with a
+ * `children` array); deeper levels simply carry their own `children` now.
+ */
+export const getCategories = async (_req: Request, res: Response) => {
   try {
-    const categories = await prisma.category.findMany({
-      where: {
-        parentId: null, // Only top-level categories
-      },
-      include: {
-        children: {
-          orderBy: {
-            orderIndex: 'asc',
-          },
-        },
-      },
-      orderBy: {
-        orderIndex: 'asc',
-      },
-    });
-
-    res.json(categories);
+    const categories = await loadAllCategories();
+    res.json(buildCategoryTree(categories));
   } catch (error) {
     console.error('Error fetching categories:', error);
     res.status(500).json({ error: 'Failed to fetch categories' });
   }
 };
 
+/**
+ * One category with its parent, ancestors (top level → parent, for breadcrumbs), nested children and
+ * siblings. `?include=descendants` adds every category id below it.
+ */
 export const getCategoryBySlug = async (req: Request, res: Response) => {
   try {
     const { slug } = req.params;
-
-    const category = await prisma.category.findUnique({
-      where: { slug },
-      include: {
-        parent: {
-          include: {
-            children: {
-              orderBy: {
-                orderIndex: 'asc',
-              },
-            },
-          },
-        },
-        children: {
-          orderBy: {
-            orderIndex: 'asc',
-          },
-        },
-      },
-    });
-
+    const categories = await loadAllCategories();
+    const category = categories.find((c) => c.slug === slug);
     if (!category) {
       throw new NotFoundError('Category not found');
     }
 
-    // If this category has a parent, include siblings (other children of parent)
-    const siblings = category.parent?.children?.filter(c => c.id !== category.id) || [];
+    const ancestors = getCategoryAncestors(categories, category.id);
+    const parent = ancestors[ancestors.length - 1] ?? null;
+    const siblings = parent ? buildCategoryTree(categories, parent.id).filter((c) => c.id !== category.id) : [];
 
     res.json({
       ...category,
+      parent,
+      ancestors,
+      children: buildCategoryTree(categories, category.id),
       siblings,
+      ...(req.query.include === 'descendants'
+        ? { descendantIds: getDescendantCategoryIds(categories, [category.id]).filter((id) => id !== category.id) }
+        : {}),
     });
   } catch (error: any) {
     if (error instanceof NotFoundError) {
@@ -70,4 +56,3 @@ export const getCategoryBySlug = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to fetch category' });
   }
 };
-

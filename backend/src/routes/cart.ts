@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import { getCart, addToCart, updateCartItem, removeCartItem, clearCart } from '../controllers/cart';
-import { authenticate } from '../middleware/auth';
+import { optionalAuthenticate } from '../middleware/auth';
 
 const router = Router();
+
+router.use(optionalAuthenticate);
 
 // Cart routes - some endpoints work with guest (sessionId) and authenticated users
 router.get('/', getCart);

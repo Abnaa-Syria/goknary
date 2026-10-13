@@ -8,6 +8,7 @@ import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { addToWishlist, removeFromWishlistByProductId } from '../../store/slices/wishlistSlice';
 import { addToCompare, removeFromCompare } from '../../store/slices/compareSlice';
 import { getImageUrl, parseProductImages } from '../../utils/image';
+import { getProductImageAlt } from '../../utils/imageAlt';
 
 interface ProductCardProps {
   product: Product;
@@ -80,6 +81,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   const images = parseProductImages(product.images);
   const mainImage = getImageUrl(images[0]);
   const hoverImage = images.length > 1 ? getImageUrl(images[1]) : mainImage;
+  const showingHoverImage = hovered && images.length > 1;
+  const imageAlt = getProductImageAlt(product, showingHoverImage ? images[1] : images[0], isRTL);
 
   // Featured products typically have high ratings and sales - using rating as proxy
   const isFeatured = false; // product.featured is not in the Product type yet
@@ -141,7 +144,9 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
       <Link to={`/product/${product.slug}`} className="block relative overflow-hidden bg-gray-100 aspect-square">
         <img
           src={imageError ? getImageUrl(null) : (hovered ? hoverImage : mainImage)}
-          alt={productName}
+          alt={imageAlt}
+          loading="lazy"
+          decoding="async"
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
           onError={() => setImageError(true)}
         />

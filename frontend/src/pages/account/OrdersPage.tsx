@@ -3,6 +3,10 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import api from '../../lib/api';
 import { formatPrice } from '../../lib/utils';
+import { IMAGE_PLACEHOLDER, getImageUrl } from '../../utils/image';
+import { getProductImageAlt, getVariantImageAlt } from '../../utils/imageAlt';
+import { parseVariantSnapshot } from '../../lib/variants';
+import OrderItemVariant from '../../components/common/OrderItemVariant';
 
 interface Order {
   id: string;
@@ -22,9 +26,11 @@ interface Order {
       nameAr?: string;
       slug: string;
       images: string[];
+      imageMetadata?: string | null;
     };
     quantity: number;
     price: number;
+    variantInfo?: string | null;
   }>;
 }
 
@@ -107,10 +113,17 @@ const OrdersPage: React.FC = () => {
         <div className="space-y-4">
           {orders.map((order) => {
             const firstItem = order.items[0];
-            const mainImage = firstItem?.product?.images?.[0] || '/imgs/default-product.jpg';
-            const productName = i18n.language === 'ar' && firstItem?.product?.nameAr
+            const isArabic = i18n.language === 'ar';
+            // The purchase-time variant image wins, so the list shows what was actually bought.
+            const snapshot = parseVariantSnapshot(firstItem?.variantInfo);
+            const productImage = firstItem?.product?.images?.[0];
+            const mainImage = snapshot?.image || productImage || IMAGE_PLACEHOLDER;
+            const productName = isArabic && firstItem?.product?.nameAr
               ? firstItem.product.nameAr
               : firstItem?.product?.name || t('product.product');
+            const imageAlt = snapshot?.image
+              ? getVariantImageAlt(snapshot, firstItem?.product, isArabic)
+              : getProductImageAlt(firstItem?.product, productImage, isArabic) || productName;
             const vendorName = i18n.language === 'ar' && order.vendor.storeNameAr
               ? order.vendor.storeNameAr
               : order.vendor.storeName;
@@ -124,8 +137,10 @@ const OrdersPage: React.FC = () => {
                 <div className="flex flex-col md:flex-row gap-4">
                   <div className="flex-shrink-0 w-full md:w-32 h-32 rounded-lg overflow-hidden bg-gray-100">
                     <img
-                      src={mainImage}
-                      alt={productName}
+                      src={getImageUrl(mainImage)}
+                      alt={imageAlt}
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover"
                     />
                   </div>
@@ -145,6 +160,8 @@ const OrdersPage: React.FC = () => {
                       </span>
                     </div>
 
+                    <p className="text-sm text-gray-800 font-medium">{productName}</p>
+                    <OrderItemVariant snapshot={snapshot} className="text-xs text-gray-500 mb-1" />
                     <p className="text-sm text-gray-600 mb-2">
                       {order.items.length} {order.items.length === 1 ? t('account.item') : t('account.items')} •{' '}
                       {new Date(order.createdAt).toLocaleDateString(i18n.language === 'ar' ? 'ar-EG' : 'en-US')}

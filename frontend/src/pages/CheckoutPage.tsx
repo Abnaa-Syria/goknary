@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { fetchCart, clearCartState } from '../store/slices/cartSlice';
+import { fetchCart, hasCartItemProblem } from '../store/slices/cartSlice';
+import VariantSummary from '../components/common/VariantSummary';
+import { getProductImageAlt, getVariantImageAlt } from '../utils/imageAlt';
 import { formatPrice } from '../lib/utils';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
@@ -11,6 +13,8 @@ import { getImageUrl } from '../utils/image';
 import { getGovernorateLabel } from '../utils/localization';
 // @ts-ignore
 import PaymentButton from '../components/PaymentButton';
+import { ensureCartSessionId } from '../lib/cartSession';
+import { clearCheckoutIdempotencyKey, getCheckoutIdempotencyKey } from '../lib/checkoutIdempotency';
 
 interface Address {
   id?: string;
@@ -38,7 +42,7 @@ const CheckoutPage: React.FC = () => {
   const location = useLocation();
   const { appliedPromo } = location.state || {};
 
-  const { items, subtotal, itemCount, loading } = useAppSelector((state) => state.cart);
+  const { items, subtotal, itemCount, loading, hydrationStatus } = useAppSelector((state) => state.cart);
   const { user, isAuthenticated: authStatus } = useAppSelector((state) => state.auth);
   const { freeShippingThreshold } = useAppSelector((state) => state.settings);
   
@@ -86,10 +90,10 @@ const CheckoutPage: React.FC = () => {
   }, [authStatus, navigate]);
 
   useEffect(() => {
-    if (!loading && items.length === 0) {
+    if (hydrationStatus === 'succeeded' && (items.length === 0 || items.some(hasCartItemProblem))) {
       navigate('/cart');
     }
-  }, [items, loading, navigate]);
+  }, [items, hydrationStatus, navigate]);
 
   const handleAddressChange = (field: keyof Address, value: string) => {
     setAddress((prev) => ({ ...prev, [field]: value }));
@@ -115,15 +119,6 @@ const CheckoutPage: React.FC = () => {
     setStep('review');
   };
 
-  const getSessionId = () => {
-    let sessionId = localStorage.getItem('cart_session_id');
-    if (!sessionId) {
-      sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-      localStorage.setItem('cart_session_id', sessionId);
-    }
-    return sessionId;
-  };
-
   const handleKashierInitiate = async () => {
     try {
       if (saveAddress && !address.id) {
@@ -134,9 +129,10 @@ const CheckoutPage: React.FC = () => {
         }
       }
 
-      const sessionId = getSessionId();
+      const sessionId = ensureCartSessionId();
       const mappedItems = items.map(item => ({
         productId: item.product.id,
+        ...(item.variantId ? { variantId: item.variantId } : {}),
         quantity: item.quantity,
         price: item.discountPrice || item.price,
       }));
@@ -150,19 +146,26 @@ const CheckoutPage: React.FC = () => {
         paymentStatus: 'PENDING',
         paymentMethod: 'KASHIER'
       };
+      const idempotencyKey = getCheckoutIdempotencyKey(orderPayload);
 
       const response = await api.post('/orders', orderPayload, {
         headers: {
           'x-session-id': sessionId,
+          'Idempotency-Key': idempotencyKey,
         },
       });
 
       const orderIds = (response.data.orders || []).map((order: any) => order.id).filter(Boolean);
+      const serverTotal = (response.data.orders || []).reduce(
+        (sum: number, order: any) => sum + Number(order.total || 0),
+        0,
+      );
       
       return {
         orderId: orderIds[0],
         orderIds,
-        amount: total,
+        checkoutAttemptId: response.data.checkoutAttemptId,
+        amount: serverTotal,
         customerName: address.fullName,
         customerEmail: user?.email || 'customer@example.com'
       };
@@ -184,9 +187,10 @@ const CheckoutPage: React.FC = () => {
         }
       }
 
-      const sessionId = getSessionId();
+      const sessionId = ensureCartSessionId();
       const mappedItems = items.map(item => ({
         productId: item.product.id,
+        ...(item.variantId ? { variantId: item.variantId } : {}),
         quantity: item.quantity,
         price: item.discountPrice || item.price,
       }));
@@ -200,17 +204,20 @@ const CheckoutPage: React.FC = () => {
         paymentMethod: 'COD',
         paymentStatus: 'PENDING',
       };
+      const idempotencyKey = getCheckoutIdempotencyKey(orderPayload);
 
       const response = await api.post('/orders', orderPayload, {
         headers: {
           'x-session-id': sessionId,
+          'Idempotency-Key': idempotencyKey,
         },
       });
 
-      dispatch(clearCartState());
-      localStorage.removeItem('cart_session_id');
-
       const orderIds = (response.data.orders || []).map((order: any) => order.id).filter(Boolean);
+      if (orderIds.length === 0) {
+        throw new Error('Order confirmation did not include an order reference.');
+      }
+      clearCheckoutIdempotencyKey();
       navigate(`/payment-success?order_ids=${encodeURIComponent(orderIds.join(','))}&method=cod`);
     } catch (error: any) {
       console.error('Error placing order:', error);
@@ -224,7 +231,7 @@ const CheckoutPage: React.FC = () => {
   const shippingCost = subtotal >= freeShippingThreshold ? 0 : baseShippingCost;
   const total = (subtotal - promoDiscount) + shippingCost;
 
-  if (loading || items.length === 0) {
+  if (hydrationStatus === 'idle' || hydrationStatus === 'loading' || loading || items.length === 0) {
     return (
       <div className="container mx-auto px-4 py-8 text-center">{t('common.loading')}</div>
     );
@@ -539,12 +546,20 @@ const CheckoutPage: React.FC = () => {
               <div className="space-y-6 mb-12">
                 <h3 className="text-xl font-black text-gray-900 border-b border-gray-50 pb-5">{t('checkout.manifestSummary')}</h3>
                 <div className="grid grid-cols-1 gap-4 max-h-[300px] overflow-y-auto pe-2 custom-scrollbar">
-                  {items.map((item) => (
+                  {items.map((item) => {
+                    const isArabic = i18n.language === 'ar';
+                    const product = item.product as any;
+                    return (
                     <div key={item.id} className="flex gap-5 p-4 rounded-2xl hover:bg-gray-50 transition-colors">
                       <div className="relative flex-shrink-0">
                         <img 
-                          src={getImageUrl(item.product.images?.[0])} 
-                          alt={item.product.name} 
+                          src={getImageUrl(item.variant?.image || item.product.images?.[0])}
+                          alt={item.variant?.image
+                            ? getVariantImageAlt(item.variant, product, isArabic)
+                            : getProductImageAlt(product, item.product.images?.[0], isArabic)}
+                          width={80}
+                          height={80}
+                          loading="lazy"
                           className="w-20 h-20 rounded-2xl object-cover shadow-sm bg-white" 
                         />
                         <span className="absolute -top-2 -end-2 w-6 h-6 bg-gray-900 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white shadow-lg">
@@ -552,12 +567,14 @@ const CheckoutPage: React.FC = () => {
                         </span>
                       </div>
                       <div className="flex flex-col justify-center py-1">
-                        <h4 className="font-bold text-gray-900 line-clamp-1">{item.product.name}</h4>
+                        <h4 className="font-bold text-gray-900 line-clamp-1">{(isArabic && product.nameAr) || item.product.name}</h4>
+                        <VariantSummary variant={item.variant} className="text-xs text-gray-500 mt-0.5" />
                         <p className="text-[10px] text-gray-400 uppercase tracking-widest font-black mt-1">{t('checkout.itemUnitCost')}</p>
                         <p className="font-black text-primary-600 mt-0.5">{formatPrice(item.discountPrice || item.price)}</p>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 

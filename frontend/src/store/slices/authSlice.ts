@@ -1,5 +1,6 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import api from '../../lib/api';
+import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import api, { clearAuthSession } from '../../lib/api';
+import { clearCartSessionId } from '../../lib/cartSession';
 
 export interface User {
   id: string;
@@ -136,17 +137,15 @@ export const login = createAsyncThunk(
 
 export const logout = createAsyncThunk(
   'auth/logout',
-  async (_, { rejectWithValue }) => {
+  async () => {
+    const refreshToken = localStorage.getItem('refreshToken');
     try {
-      await api.post('/auth/logout');
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('cartSessionId');
-    } catch (error: any) {
-      // Even if API call fails, clear local storage
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('cartSessionId');
+      await api.post('/auth/logout', refreshToken ? { refreshToken } : {});
+    } catch {
+      // Even if the API call fails, the local session is still cleared below
+    } finally {
+      clearAuthSession();
+      clearCartSessionId();
     }
   }
 );
@@ -160,8 +159,7 @@ export const getCurrentUser = createAsyncThunk(
     } catch (error: any) {
       // If unauthorized, clear tokens
       if (error.response?.status === 401) {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
+        clearAuthSession();
       }
       return rejectWithValue(error.response?.data?.error || 'Failed to fetch user');
     }
@@ -174,6 +172,20 @@ const authSlice = createSlice({
   reducers: {
     clearError: (state) => {
       state.error = null;
+    },
+    // Mirrors token changes made by other tabs (refresh rotation, login, logout).
+    tokensSyncedFromStorage: (
+      state,
+      action: PayloadAction<{ accessToken: string | null; refreshToken: string | null }>
+    ) => {
+      state.accessToken = action.payload.accessToken;
+      state.refreshToken = action.payload.refreshToken;
+      if (!action.payload.accessToken) {
+        state.user = null;
+        state.isAuthenticated = false;
+      } else {
+        state.isAuthenticated = true;
+      }
     },
   },
   extraReducers: (builder) => {
@@ -212,7 +224,7 @@ const authSlice = createSlice({
         state.isAuthenticated = true;
         
         // M-03 Fix: Clear guest session ID after successful merge-triggering login
-        localStorage.removeItem('cartSessionId');
+        clearCartSessionId();
       })
       .addCase(login.rejected, (state, action) => {
         state.loading = false;
@@ -265,7 +277,7 @@ const authSlice = createSlice({
         state.error = null;
 
         // M-03 Fix: Clear guest session ID after successful merge-triggering verification
-        localStorage.removeItem('cartSessionId');
+        clearCartSessionId();
       })
       .addCase(verifyEmail.rejected, (state, action) => {
         state.loading = false;
@@ -277,6 +289,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { clearError } = authSlice.actions;
+export const { clearError, tokensSyncedFromStorage } = authSlice.actions;
 export default authSlice.reducer;
-

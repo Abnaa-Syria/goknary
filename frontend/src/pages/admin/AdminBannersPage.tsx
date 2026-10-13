@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { FiPlusCircle, FiEdit2, FiTrash } from 'react-icons/fi';
 import ImageUploader from '../../components/common/ImageUploader';
-import { uploadImages } from '../../utils/upload';
+import { getRequestErrorMessage, uploadImages } from '../../utils/upload';
 import { getImageUrl } from '../../utils/image';
 
 interface Banner {
@@ -68,7 +68,7 @@ const AdminBannersPage: React.FC = () => {
       fetchBanners();
       resetForm();
     } catch (error: any) {
-      toast.error(error.response?.data?.error || t('admin.bannersPage.saveFailed'));
+      toast.error(getRequestErrorMessage(error, t('admin.bannersPage.saveFailed'), t('common.uploadFailed')));
     }
   };
 

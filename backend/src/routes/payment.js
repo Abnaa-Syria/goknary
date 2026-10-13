@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { initiatePayment, handleWebhook } from '../controllers/payment.controller.js';
+import { authenticate, authorize } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -8,7 +9,7 @@ const router = Router();
  * @desc Initialize payment and get secure hash
  * @access Private (usually requires authentication)
  */
-router.post('/initiate', initiatePayment);
+router.post('/initiate', authenticate, authorize('CUSTOMER'), initiatePayment);
 
 /**
  * @route POST /api/payment/webhook
