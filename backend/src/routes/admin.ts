@@ -36,6 +36,7 @@ import {
   generateAdminSuggestions
 } from '../controllers/discount-suggestions';
 import { authenticate, authorize, requirePermission } from '../middleware/auth';
+import { getAdminAuditLog } from '../controllers/admin-audit';
 
 import { Router } from 'express';
 
@@ -47,6 +48,7 @@ router.use(authorize('ADMIN', 'STAFF'));
 
 // Dashboard
 router.get('/dashboard', requirePermission('READ_DASHBOARD'), getDashboardStats);
+router.get('/audit-log', requirePermission('READ_AUDIT_LOG'), getAdminAuditLog);
 router.get('/search-analytics', requirePermission('READ_DASHBOARD'), getSearchAnalytics);
 router.post('/platform/settle', requirePermission('MANAGE_ROLES'), settlePlatform);
 

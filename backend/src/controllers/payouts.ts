@@ -6,12 +6,23 @@ import { ValidationError } from '../lib/errors';
 import { calculatePendingEarnings } from '../lib/vendor-earnings';
 import { formatPrice } from '../lib/utils';
 import { NotificationType, notifyVendor } from '../lib/notify';
+import { createHash } from 'crypto';
+import { Prisma } from '@prisma/client';
+import { ConflictError } from '../lib/errors';
+import { writeAdminAudit } from '../lib/audit-log';
 
 const createPayoutSchema = z.object({
   amount: z.number().positive(),
   paymentMethod: z.string().min(1),
   paymentDetails: z.string().min(1),
 });
+
+export const payoutFingerprint = (input: z.infer<typeof createPayoutSchema>) =>
+  createHash('sha256').update(JSON.stringify({
+    amount: Math.round(input.amount * 100),
+    paymentMethod: input.paymentMethod.trim().toUpperCase(),
+    paymentDetails: input.paymentDetails.trim(),
+  })).digest('hex');
 
 const updatePayoutSchema = z.object({
   status: z.enum(['APPROVED', 'REJECTED']),
@@ -90,39 +101,55 @@ export const createPayoutRequest = async (req: AuthRequest, res: Response) => {
     const vendor = await prisma.vendor.findUnique({ where: { userId: req.user.id } });
     if (!vendor) return res.status(404).json({ error: 'Vendor profile not found' });
 
-    const { amount, paymentMethod, paymentDetails } = createPayoutSchema.parse(req.body);
+    const input = createPayoutSchema.parse(req.body);
+    const { amount, paymentMethod, paymentDetails } = input;
+    const idempotencyKey = z.string().min(8).max(128).parse(req.header('Idempotency-Key'));
+    const requestFingerprint = payoutFingerprint(input);
+
+    const replay = await prisma.payoutRequest.findFirst({ where: { vendorId: vendor.id, idempotencyKey } });
+    if (replay) {
+      if (replay.requestFingerprint !== requestFingerprint) {
+        throw new ConflictError('Idempotency key was already used for a different payout request');
+      }
+      return res.status(200).json({ message: 'Payout request already submitted', payout: replay, replayed: true });
+    }
 
     // Strict transaction with locking checks to prevent double-spending / race conditions
-    const payout = await prisma.$transaction(async (tx) => {
-      // Fetch latest vendor balance inside transaction
-      const currentVendor = await tx.vendor.findUnique({
-        where: { id: vendor.id },
-        select: { id: true, balance: true },
-      });
+    let payout;
+    try {
+      payout = await prisma.$transaction(async (tx) => {
+        // The unique key is claimed before any balance mutation. A racing retry rolls back cleanly.
+        const created = await tx.payoutRequest.create({
+          data: {
+            vendorId: vendor.id,
+            amount,
+            paymentMethod,
+            paymentDetails,
+            idempotencyKey,
+            requestFingerprint,
+            status: 'PENDING',
+          },
+        });
 
-      if (!currentVendor || currentVendor.balance < amount) {
-        throw new ValidationError('Insufficient available balance for this withdrawal');
+        const debit = await tx.vendor.updateMany({
+          where: { id: vendor.id, balance: { gte: amount } },
+          data: { balance: { decrement: amount } },
+        });
+        if (debit.count !== 1) {
+          throw new ValidationError('Insufficient available balance for this withdrawal');
+        }
+        return created;
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const raced = await prisma.payoutRequest.findFirst({ where: { vendorId: vendor.id, idempotencyKey } });
+        if (raced && raced.requestFingerprint === requestFingerprint) {
+          return res.status(200).json({ message: 'Payout request already submitted', payout: raced, replayed: true });
+        }
+        throw new ConflictError('Idempotency key was already used for a different payout request');
       }
-
-      // Decrement the vendor balance atomically
-      await tx.vendor.update({
-        where: { id: vendor.id },
-        data: {
-          balance: { decrement: amount },
-        },
-      });
-
-      // Create the payout request
-      return tx.payoutRequest.create({
-        data: {
-          vendorId: vendor.id,
-          amount,
-          paymentMethod,
-          paymentDetails,
-          status: 'PENDING',
-        },
-      });
-    });
+      throw error;
+    }
 
     res.status(201).json({ message: 'Payout request submitted successfully', payout });
   } catch (error) {
@@ -131,6 +158,9 @@ export const createPayoutRequest = async (req: AuthRequest, res: Response) => {
     }
     if (error instanceof ValidationError) {
       return res.status(error.statusCode).json({ error: error.message });
+    }
+    if (error instanceof ConflictError) {
+      return res.status(error.statusCode).json({ error: error.message, code: 'IDEMPOTENCY_KEY_REUSE' });
     }
     console.error('Error creating payout request:', error);
     res.status(500).json({ error: 'Failed to submit payout request' });
@@ -165,6 +195,8 @@ export const updatePayoutStatus = async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const { status, notes } = updatePayoutSchema.parse(req.body);
 
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const actor = req.user;
     const updatedPayout = await prisma.$transaction(async (tx) => {
       // Check payout request
       const payout = await tx.payoutRequest.findUnique({
@@ -175,15 +207,11 @@ export const updatePayoutStatus = async (req: AuthRequest, res: Response) => {
         throw new ValidationError('Payout request not found');
       }
 
-      if (payout.status !== 'PENDING') {
-        throw new ValidationError('Payout request has already been processed');
-      }
-
-      // Update payout status
-      const updated = await tx.payoutRequest.update({
-        where: { id },
-        data: { status, notes },
+      const claimed = await tx.payoutRequest.updateMany({
+        where: { id, status: 'PENDING' },
+        data: { status, notes, processedBy: actor.id, processedAt: new Date() },
       });
+      if (claimed.count !== 1) throw new ConflictError('Payout request has already been processed');
 
       if (status === 'APPROVED') {
         // If approved, lock the withdrawn amount increment
@@ -203,7 +231,15 @@ export const updatePayoutStatus = async (req: AuthRequest, res: Response) => {
         });
       }
 
-      return updated;
+      await writeAdminAudit(tx, {
+        actor,
+        action: `PAYOUT_${status}`,
+        entityType: 'PAYOUT',
+        entityId: id,
+        metadata: { vendorId: payout.vendorId, amount: payout.amount, previousStatus: payout.status, status },
+      });
+
+      return tx.payoutRequest.findUniqueOrThrow({ where: { id } });
     });
 
     const payoutApproved = status === 'APPROVED';
@@ -229,6 +265,9 @@ export const updatePayoutStatus = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Invalid data', details: error.errors });
     }
     if (error instanceof ValidationError) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
+    if (error instanceof ConflictError) {
       return res.status(error.statusCode).json({ error: error.message });
     }
     console.error('Error updating payout status:', error);

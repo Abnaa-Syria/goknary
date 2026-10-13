@@ -17,12 +17,15 @@ export const RESOURCES = [
   'PRODUCTS',
   'BANNERS',
   'ORDERS',
+  'PAYOUTS',
+  'REFUNDS',
   'REVIEWS',
   'COUPONS',
   'SHIPPING',
   'ANNOUNCEMENTS',
   'SETTINGS',
   'ROLES',
+  'AUDIT_LOG',
 ] as const;
 
 export type Resource = (typeof RESOURCES)[number];

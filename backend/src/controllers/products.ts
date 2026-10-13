@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { NotFoundError } from '../lib/errors';
 import { Prisma } from '@prisma/client';
-import { AuthRequest } from '../middleware/auth';
 import jwt from 'jsonwebtoken';
 import { expandWithSynonyms } from '../config/search-synonyms';
 import { formatVariantForResponse } from '../lib/variants';
@@ -572,105 +571,5 @@ export const getProductReviews = async (req: Request, res: Response) => {
     }
     console.error('Error fetching reviews:', error);
     res.status(500).json({ error: 'Failed to fetch reviews' });
-  }
-};
-
-export const createProductReview = async (req: AuthRequest, res: Response) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const { slug } = req.params;
-
-    // H-04 Fix: Validate review body with Zod (consistent with rest of codebase)
-    const reviewSchema = z.object({
-      rating: z.number({ required_error: 'Rating is required' }).int().min(1).max(5),
-      title: z.string().max(200).optional(),
-      comment: z.string().max(2000).optional(),
-      images: z.array(z.string().url()).max(5).optional(),
-    });
-
-    let reviewData: z.infer<typeof reviewSchema>;
-    try {
-      reviewData = reviewSchema.parse(req.body);
-    } catch (zodErr) {
-      if (zodErr instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid review data', details: zodErr.errors });
-      }
-      throw zodErr;
-    }
-
-    const { rating, title, comment, images } = reviewData;
-
-    // Find product
-    const product = await prisma.product.findUnique({
-      where: { slug },
-      select: { id: true },
-    });
-
-    if (!product) {
-      throw new NotFoundError('Product not found');
-    }
-
-    // Check if user already reviewed this product
-    const existingReview = await prisma.review.findUnique({
-      where: {
-        productId_userId: {
-          productId: product.id,
-          userId: req.user.id,
-        },
-      },
-    });
-
-    if (existingReview) {
-      return res.status(400).json({ error: 'You have already reviewed this product' });
-    }
-
-    // Create review
-    const review = await prisma.review.create({
-      data: {
-        productId: product.id,
-        userId: req.user.id,
-        rating: rating,
-        title: title || null,
-        comment: comment || null,
-        images: images ? JSON.stringify(images) : null,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            avatar: true,
-          },
-        },
-      },
-    });
-
-    // Update product rating average and count
-    const allReviews = await prisma.review.findMany({
-      where: { productId: product.id },
-      select: { rating: true },
-    });
-
-    const avgRating = allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length;
-    const ratingCount = allReviews.length;
-
-    await prisma.product.update({
-      where: { id: product.id },
-      data: {
-        ratingAvg: avgRating,
-        ratingCount: ratingCount,
-      },
-    });
-
-    res.status(201).json({ review });
-  } catch (error: any) {
-    if (error instanceof NotFoundError) {
-      return res.status(error.statusCode).json({ error: error.message });
-    }
-    console.error('Error creating review:', error);
-    res.status(500).json({ error: 'Failed to create review' });
   }
 };

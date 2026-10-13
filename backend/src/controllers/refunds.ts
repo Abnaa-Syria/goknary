@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
+import { writeAdminAudit } from '../lib/audit-log';
 import { AuthRequest } from '../middleware/auth';
 import { AppError, ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../lib/errors';
 import { calculateVendorNetEarnings } from '../lib/vendor-earnings';
@@ -280,7 +281,19 @@ const runAction = (fn: ActionFn) => async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const actor = { id: req.user.id, role: req.user.role };
-    const result = await prisma.$transaction((tx) => fn(tx, req, actor));
+    const result = await prisma.$transaction(async (tx) => {
+      const action = await fn(tx, req, actor);
+      if (actor.role === 'ADMIN' || actor.role === 'STAFF') {
+        await writeAdminAudit(tx, {
+          actor,
+          action: 'REFUND_WORKFLOW_ACTION',
+          entityType: 'REFUND',
+          entityId: action.refundId,
+          metadata: { method: req.method, route: req.route?.path || req.path },
+        });
+      }
+      return action;
+    });
     const refund = await prisma.refundRequest.findUniqueOrThrow({ where: { id: result.refundId }, include: refundInclude });
     await result.notify?.(refund);
     res.json({ message: result.message, refund: serializeRefund(refund, actor.role, await buildContext([refund], actor.role)) });

@@ -26,6 +26,7 @@ import {
   fingerprintCheckout,
   readIdempotencyKey,
 } from '../lib/checkout-idempotency';
+import { findAndEvaluateCoupon } from '../lib/coupons';
 
 const createOrderSchema = z.object({
   addressId: z.string().optional(),
@@ -148,24 +149,9 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
     let globalDiscount = 0;
     let appliedCoupon = null;
     if (couponCode) {
-      const coupon = await prisma.coupon.findUnique({ where: { code: couponCode.toUpperCase() } });
-      if (
-        coupon &&
-        coupon.status &&
-        (!coupon.expiresAt || new Date() < new Date(coupon.expiresAt)) &&
-        (!coupon.maxUses || coupon.usedCount < coupon.maxUses) &&
-        globalSubtotal >= (coupon.minPurchase || 0)
-      ) {
-        appliedCoupon = coupon;
-        if (coupon.discountType === 'percentage') {
-          globalDiscount = (globalSubtotal * coupon.discountValue) / 100;
-        } else if (coupon.discountType === 'fixed') {
-          globalDiscount = coupon.discountValue;
-        }
-        globalDiscount = Math.min(globalDiscount, globalSubtotal);
-      } else {
-        throw new ValidationError('Invalid or expired promotional code bounds applied');
-      }
+      const evaluation = await findAndEvaluateCoupon(prisma, couponCode, globalSubtotal);
+      appliedCoupon = evaluation.coupon;
+      globalDiscount = evaluation.discountAmount;
     }
 
     // Group items by vendor
@@ -304,7 +290,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
             },
           },
       })),
-      couponId: appliedCoupon?.id,
+      coupon: appliedCoupon,
       clearCartWhere: normalizedPaymentMethod === 'COD' ? cartWhere : null,
     }, reserveStock);
 

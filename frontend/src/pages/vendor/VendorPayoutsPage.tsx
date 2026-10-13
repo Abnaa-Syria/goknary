@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -55,6 +55,7 @@ const VendorPayoutsPage: React.FC = () => {
   const [vodafoneNumber, setVodafoneNumber] = useState('');
   const [instapayAddress, setInstapayAddress] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const payoutKeyRef = useRef<{ key: string; fingerprint: string } | null>(null);
 
   useEffect(() => {
     fetchWalletAndPayouts();
@@ -114,10 +115,16 @@ const VendorPayoutsPage: React.FC = () => {
 
     setSubmitting(true);
     try {
+      const fingerprint = JSON.stringify({ amount: reqAmount, paymentMethod, paymentDetails });
+      if (!payoutKeyRef.current || payoutKeyRef.current.fingerprint !== fingerprint) {
+        payoutKeyRef.current = { key: crypto.randomUUID(), fingerprint };
+      }
       await api.post('/payouts/vendor', {
         amount: reqAmount,
         paymentMethod,
         paymentDetails
+      }, {
+        headers: { 'Idempotency-Key': payoutKeyRef.current.key },
       });
 
       toast.success(t('vendor.payouts.requestSuccess', 'Payout request submitted successfully!'));
@@ -129,6 +136,7 @@ const VendorPayoutsPage: React.FC = () => {
       setAccountName('');
       setVodafoneNumber('');
       setInstapayAddress('');
+      payoutKeyRef.current = null;
       // Refresh details
       fetchWalletAndPayouts();
     } catch (error: any) {

@@ -121,6 +121,15 @@ export const requirePermission = (permission: string) => {
   };
 };
 
+/** Applies an extra permission only to STAFF while preserving already-scoped customer/vendor routes. */
+export const requirePermissionIfStaff = (permission: string) => {
+  return (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    if (req.user.role !== 'STAFF' || req.user.permissions.includes(permission)) return next();
+    return res.status(403).json({ error: 'Insufficient permissions', required: permission });
+  };
+};
+
 export const optionalAuthenticate = async (
   req: AuthRequest,
   res: Response,

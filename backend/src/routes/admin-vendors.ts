@@ -23,8 +23,8 @@ router.patch('/:id/approve', requirePermission('UPDATE_VENDORS'), approveVendor)
 router.patch('/:id/reject', requirePermission('UPDATE_VENDORS'), rejectVendor);
 router.patch('/:id/suspend', requirePermission('UPDATE_VENDORS'), suspendVendor);
 router.patch('/:id/status', requirePermission('UPDATE_VENDORS'), updateVendorStatus);
-router.patch('/:id/commission', requirePermission('UPDATE_VENDORS'), updateVendorCommission);
-router.post('/:id/settle', requirePermission('UPDATE_VENDORS'), settleVendorBalance);
+router.patch('/:id/commission', requirePermission('UPDATE_PAYOUTS'), updateVendorCommission);
+router.post('/:id/settle', requirePermission('UPDATE_PAYOUTS'), settleVendorBalance);
 
 export default router;
 

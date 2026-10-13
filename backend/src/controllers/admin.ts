@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
-import { AppError, ConflictError, NotFoundError } from '../lib/errors';
+import { AppError, ConflictError, NotFoundError, ValidationError } from '../lib/errors';
 import { ProductStatus, OrderStatus, UserRole, VendorStatus } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth';
 import { slugify } from '../lib/utils';
@@ -10,6 +10,7 @@ import { findInvalidProductReferences, INVALID_REFERENCES_ERROR } from '../lib/p
 import { imageMetadataSchema, serializeImageMetadata } from '../lib/product-images';
 import { isCodOrder, isOrderFinanciallyConfirmed, settleOrderOnDelivery } from '../lib/vendor-earnings';
 import { sendOrderStatusNotification } from '../services/whatsapp.service';
+import { transitionOrderStatus } from '../services/order-state.service';
 import { cancelOrderWithStockRestore } from '../lib/variants';
 import { formatPreviewProduct, previewProductInclude } from '../lib/product-preview';
 import {
@@ -820,6 +821,31 @@ export const updateAdminOrderStatus = async (req: any, res: Response) => {
       });
     }
 
+    const transition = await transitionOrderStatus({
+      orderId: id,
+      toStatus: status as OrderStatus,
+      notes: notes || `Status updated by administrator (${req.user?.email})`,
+      actor: req.user ? { id: req.user.id, role: req.user.role } : undefined,
+    });
+    const transitionedOrder = transition.order;
+    if (transition.changed) {
+      await notifyCustomerOrderStatus(transitionedOrder.userId, id, status);
+      await notifyVendorOrderStatus(transitionedOrder.vendorId, id, status, {
+        en: `The platform administrator updated order #${shortId(id)} to ${status}.`,
+        ar: `The platform administrator updated order #${shortId(id)} to ${status}.`,
+      });
+      if (transitionedOrder.user?.phone && transitionedOrder.user.name) {
+        sendOrderStatusNotification(
+          transitionedOrder.user.phone,
+          transitionedOrder.user.name,
+          transitionedOrder.id,
+          status
+        ).catch((err) => console.error('Failed to send WhatsApp status notification from admin:', err));
+      }
+    }
+    return res.json({ message: `Order status updated to ${status}`, order: transitionedOrder });
+
+    /* Legacy duplicated transition path retained only in history; central service above is authoritative.
     const order = await prisma.order.findUnique({
       where: { id },
     });
@@ -904,8 +930,12 @@ export const updateAdminOrderStatus = async (req: any, res: Response) => {
       message: `Order status updated to ${status}`,
       order: updatedOrder,
     });
+    */
   } catch (error) {
     if (error instanceof NotFoundError) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
+    if (error instanceof ValidationError || error instanceof ConflictError) {
       return res.status(error.statusCode).json({ error: error.message });
     }
     console.error('Error updating order status:', error);

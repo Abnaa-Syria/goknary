@@ -14,12 +14,15 @@ export const RESOURCES = [
   'PRODUCTS',
   'BANNERS',
   'ORDERS',
+  'PAYOUTS',
+  'REFUNDS',
   'REVIEWS',
   'COUPONS',
   'SHIPPING',
   'ANNOUNCEMENTS',
   'SETTINGS',
   'ROLES',
+  'AUDIT_LOG',
 ] as const;
 
 export type Resource = (typeof RESOURCES)[number];
@@ -44,12 +47,15 @@ export const RESOURCE_LABELS: Record<Resource, string> = {
   PRODUCTS: 'Products',
   BANNERS: 'Banners',
   ORDERS: 'Orders',
+  PAYOUTS: 'Payouts',
+  REFUNDS: 'Refunds',
   REVIEWS: 'Reviews',
   COUPONS: 'Coupons',
   SHIPPING: 'Shipping',
   ANNOUNCEMENTS: 'Announcements',
   SETTINGS: 'Settings',
   ROLES: 'Roles',
+  AUDIT_LOG: 'Audit Log',
 };
 
 export const RESOURCE_GROUPS: Record<string, Resource[]> = {
@@ -57,6 +63,6 @@ export const RESOURCE_GROUPS: Record<string, Resource[]> = {
   'User Management': ['USERS', 'VENDORS'],
   Catalog: ['CATEGORIES', 'BRANDS', 'PRODUCTS'],
   Content: ['BANNERS', 'REVIEWS', 'ANNOUNCEMENTS'],
-  Commerce: ['ORDERS', 'COUPONS', 'SHIPPING'],
-  System: ['SETTINGS', 'ROLES'],
+  Commerce: ['ORDERS', 'PAYOUTS', 'REFUNDS', 'COUPONS', 'SHIPPING'],
+  System: ['SETTINGS', 'ROLES', 'AUDIT_LOG'],
 };

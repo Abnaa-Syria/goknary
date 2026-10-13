@@ -1,27 +1,17 @@
 import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
-import { NotFoundError } from '../lib/errors';
+import { ConflictError, NotFoundError, ValidationError } from '../lib/errors';
 import { z } from 'zod';
 import { sendOrderStatusNotification } from '../services/whatsapp.service';
-import { isCodOrder, isOrderFinanciallyConfirmed, settleOrderOnDelivery } from '../lib/vendor-earnings';
-import { cancelOrderWithStockRestore } from '../lib/variants';
 import { notifyCustomerOrderStatus } from '../lib/notify';
 import { withoutPaymentReferences } from '../lib/payment-reference';
+import { transitionOrderStatus } from '../services/order-state.service';
 
 const updateStatusSchema = z.object({
   status: z.enum(['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED']),
   notes: z.string().optional(),
 });
-
-const STATUS_FLOW: Record<string, string[]> = {
-  PENDING: ['CONFIRMED', 'CANCELLED'],
-  CONFIRMED: ['PROCESSING', 'CANCELLED'],
-  PROCESSING: ['SHIPPED', 'CANCELLED'],
-  SHIPPED: ['DELIVERED'],
-  DELIVERED: [],
-  CANCELLED: [],
-};
 
 export const getVendorOrders = async (req: AuthRequest, res: Response) => {
   try {
@@ -211,80 +201,22 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const { status, notes } = updateStatusSchema.parse(req.body);
 
-    // Verify order belongs to vendor
-    const order = await prisma.order.findFirst({
-      where: {
-        id,
-        vendorId: vendor.id,
-      },
-      include: {
-        user: true,
-      },
+    const result = await transitionOrderStatus({
+      orderId: id,
+      toStatus: status,
+      notes,
+      vendorId: vendor.id,
     });
+    const updated = result.order;
 
-    if (!order) {
-      throw new NotFoundError('Order not found');
-    }
-
-    if (!STATUS_FLOW[order.status]?.includes(status)) {
-      throw new z.ZodError([{
-        code: z.ZodIssueCode.custom,
-        path: ['status'],
-        message: `Invalid status transition from ${order.status} to ${status}`,
-      }]);
-    }
-
-    if (status !== 'CANCELLED' && !isOrderFinanciallyConfirmed(order)) {
-      throw new z.ZodError([{
-        code: z.ZodIssueCode.custom,
-        path: ['paymentStatus'],
-        message: 'Online payment must be paid before processing this order',
-      }]);
-    }
-
-    // H-08 Fix: wrap status update + history in a single atomic transaction
-    // If history creation fails, the status rollback is automatic
-    let cancelledNow = false;
-    const updated = await prisma.$transaction(async (tx) => {
-      if (status === 'DELIVERED' && order.status !== 'DELIVERED') {
-        await settleOrderOnDelivery(tx, order, vendor);
-      }
-
-      if (status === 'CANCELLED') {
-        cancelledNow = await cancelOrderWithStockRestore(tx, id, ['PENDING', 'CONFIRMED', 'PROCESSING']);
-      }
-
-      const updatedOrder = await tx.order.update({
-        where: { id },
-        data: {
-          status,
-          ...(status === 'DELIVERED' && isCodOrder(order.paymentMethod)
-            ? { paymentStatus: 'PAID' }
-            : {}),
-        },
-      });
-
-      await tx.orderStatusHistory.create({
-        data: {
-          orderId: id,
-          status,
-          notes: notes || `Status updated to ${status}`,
-        },
-      });
-
-      return updatedOrder;
-    });
-
-    if (status !== order.status && (status !== 'CANCELLED' || cancelledNow)) {
-      await notifyCustomerOrderStatus(order.userId, id, status);
-    }
+    if (result.changed) await notifyCustomerOrderStatus(updated.userId, id, status);
 
     // Send WhatsApp order status update notification to the customer
-    if (order.user && order.user.phone && order.user.name) {
+    if (result.changed && updated.user && updated.user.phone && updated.user.name) {
       sendOrderStatusNotification(
-        order.user.phone,
-        order.user.name,
-        order.id,
+        updated.user.phone,
+        updated.user.name,
+        updated.id,
         status
       ).catch((err) => console.error('Failed to send WhatsApp status notification:', err));
     }
@@ -300,8 +232,10 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid request data', details: error.errors });
     }
+    if (error instanceof ValidationError || error instanceof ConflictError) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
     console.error('Error updating order status:', error);
     res.status(500).json({ error: 'Failed to update order status' });
   }
 };
-

@@ -8,7 +8,7 @@ import {
   DollarSign, X, Store, MessageSquare, Percent,
   TrendingUp, ShoppingCart, RefreshCw, ArrowUpRight,
   Truck, Megaphone, Shield, Trophy,
-  CheckCircle2, AlertTriangle, Clock, CreditCard, ArrowRight
+  CheckCircle2, AlertTriangle, Clock, CreditCard, ArrowRight, FileClock
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -42,6 +42,7 @@ import AdminRefundsPage from './AdminRefundsPage';
 import AdminTicketsPage from './AdminTicketsPage';
 import AdminTicketDetailsPage from './AdminTicketDetailsPage';
 import AdminSearchAnalyticsPage from './AdminSearchAnalyticsPage';
+import AdminAuditLogPage from './AdminAuditLogPage';
 import { DashboardFooter } from '../../components/layout/DashboardFooter';
 
 import { hasPermission, getRoleTheme } from '../../utils/permissions';
@@ -290,7 +291,7 @@ const AdminDashboardHome: React.FC<{
       try {
         const promises: Promise<{ key: string; count: number | null }>[] = [];
 
-        if (checkPerm('READ_ORDERS')) {
+        if (checkPerm('READ_REFUNDS')) {
           promises.push(
             api.get('/refunds')
               .then((res) => {
@@ -306,7 +307,7 @@ const AdminDashboardHome: React.FC<{
           );
         }
 
-        if (checkPerm('READ_VENDORS')) {
+        if (checkPerm('READ_PAYOUTS')) {
           promises.push(
             api.get('/payouts/admin')
               .then((res) => {
@@ -417,12 +418,14 @@ const AdminDashboardHome: React.FC<{
   const hasDashboard = checkPerm('READ_DASHBOARD');
   const hasOrders = checkPerm('READ_ORDERS');
   const hasVendors = checkPerm('READ_VENDORS');
+  const hasPayouts = checkPerm('READ_PAYOUTS');
+  const hasRefunds = checkPerm('READ_REFUNDS');
   const hasUsers = checkPerm('READ_USERS');
   const hasProducts = checkPerm('READ_PRODUCTS');
   const hasManageVendors = checkPerm('MANAGE_VENDORS');
 
   const hasAnyWidget =
-    hasDashboard || hasOrders || hasVendors || hasUsers || hasProducts || hasManageVendors;
+    hasDashboard || hasOrders || hasVendors || hasPayouts || hasRefunds || hasUsers || hasProducts || hasManageVendors;
 
   // Define Needs Attention queue items based strictly on available real counts
   const attentionItems = [
@@ -440,14 +443,14 @@ const AdminDashboardHome: React.FC<{
       link: '/admin/pending-products',
       icon: Package,
     },
-    hasOrders && queueData.pendingRefunds !== null && {
+    hasRefunds && queueData.pendingRefunds !== null && {
       id: 'pending-refunds',
       title: isRTL ? 'طلبات استرداد مفتوحة' : 'Open Refund Requests',
       count: queueData.pendingRefunds,
       link: '/admin/refunds',
       icon: RefreshCw,
     },
-    hasVendors && queueData.pendingPayouts !== null && {
+    hasPayouts && queueData.pendingPayouts !== null && {
       id: 'pending-payouts',
       title: isRTL ? 'طلبات سحب معلقة' : 'Pending Payouts',
       count: queueData.pendingPayouts,
@@ -1061,14 +1064,14 @@ const AdminDashboard: React.FC = () => {
     { path: '/admin/search-analytics', name: t('search.analyticsTitle', 'Search Analytics'), icon: TrendingUp, permission: 'READ_DASHBOARD' },
     { path: '/admin/users', name: t('admin.users', 'Users'), icon: Users, permission: 'READ_USERS' },
     { path: '/admin/vendors', name: t('admin.vendors', 'Vendors'), icon: Briefcase, permission: 'READ_VENDORS', countKey: 'pendingVendors' },
-    { path: '/admin/payouts', name: t('admin.payouts', 'Payout Requests'), icon: DollarSign, permission: 'READ_VENDORS' },
+    { path: '/admin/payouts', name: t('admin.payouts', 'Payout Requests'), icon: DollarSign, permission: 'READ_PAYOUTS' },
     { path: '/admin/products', name: t('admin.products', 'Products'), icon: Package, permission: 'READ_PRODUCTS' },
     { path: '/admin/pending-products', name: t('admin.pendingProducts.nav', 'Pending Products'), icon: Package, permission: 'READ_PRODUCTS', countKey: 'pendingProducts' },
     { path: '/admin/categories', name: t('admin.categories', 'Categories'), icon: Tag, permission: 'READ_CATEGORIES' },
     { path: '/admin/brands', name: t('admin.brands', 'Brands'), icon: ShoppingBag, permission: 'READ_BRANDS' },
     { path: '/admin/banners', name: t('admin.banners', 'Banners'), icon: ImageIcon, permission: 'READ_BANNERS' },
     { path: '/admin/orders', name: t('admin.orders', 'Orders'), icon: Package, permission: 'READ_ORDERS' },
-    { path: '/admin/refunds', name: t('admin.refunds', 'Refund Requests'), icon: RefreshCw, permission: 'READ_ORDERS' },
+    { path: '/admin/refunds', name: t('admin.refunds', 'Refund Requests'), icon: RefreshCw, permission: 'READ_REFUNDS' },
     { path: '/admin/reviews', name: t('admin.reviews', 'Reviews'), icon: MessageSquare, permission: 'READ_REVIEWS' },
     { path: '/admin/tickets', name: t('admin.tickets', 'Support Tickets'), icon: MessageSquare, permission: 'READ_USERS' },
     { path: '/admin/coupons', name: t('admin.coupons', 'Coupons'), icon: Percent, permission: 'READ_COUPONS' },
@@ -1078,6 +1081,7 @@ const AdminDashboard: React.FC = () => {
     { path: '/admin/discount-suggestions', name: t('discountSuggestions.adminNav', 'Discount Suggestions'), icon: Tag, permission: 'READ_PRODUCTS' },
     { path: '/admin/settings', name: t('admin.settings', 'Settings'), icon: Settings, permission: 'MANAGE_ROLES' },
     { path: '/admin/roles', name: t('admin.roles', 'Roles & Access'), icon: Shield, permission: 'MANAGE_ROLES' },
+    { path: '/admin/audit-log', name: t('admin.auditLog', 'Audit Log'), icon: FileClock, permission: 'READ_AUDIT_LOG' },
   ];
 
   const visibleMenuItems = menuItems.filter((item) => hasPermission(user, item.permission));
@@ -1206,7 +1210,7 @@ const AdminDashboard: React.FC = () => {
             <Route path="vendors" element={<Guard perm="READ_VENDORS"><AdminVendorsPage /></Guard>} />
             <Route path="vendors/:vendorId" element={<Guard perm="READ_VENDORS"><AdminVendorDetailPage /></Guard>} />
             <Route path="vendors/:vendorId/products" element={<Guard perm="READ_PRODUCTS"><AdminVendorProductsPage /></Guard>} />
-            <Route path="payouts" element={<Guard perm="READ_VENDORS"><AdminPayoutsPage /></Guard>} />
+            <Route path="payouts" element={<Guard perm="READ_PAYOUTS"><AdminPayoutsPage /></Guard>} />
             <Route path="products" element={<Guard perm="READ_PRODUCTS"><AdminProductsPage /></Guard>} />
             <Route path="pending-products" element={<Guard perm="READ_PRODUCTS"><AdminPendingProductsPage /></Guard>} />
             <Route path="products/new" element={<Guard perm="CREATE_PRODUCTS"><AdminProductStudioPage /></Guard>} />
@@ -1218,7 +1222,7 @@ const AdminDashboard: React.FC = () => {
             <Route path="banners" element={<Guard perm="READ_BANNERS"><AdminBannersPage /></Guard>} />
             <Route path="orders" element={<Guard perm="READ_ORDERS"><AdminOrdersPage /></Guard>} />
             <Route path="orders/:id" element={<Guard perm="READ_ORDERS"><AdminOrderDetailPage /></Guard>} />
-            <Route path="refunds" element={<Guard perm="READ_ORDERS"><AdminRefundsPage /></Guard>} />
+            <Route path="refunds" element={<Guard perm="READ_REFUNDS"><AdminRefundsPage /></Guard>} />
             <Route path="reviews" element={<Guard perm="READ_REVIEWS"><AdminReviewsPage /></Guard>} />
             <Route path="tickets" element={<Guard perm="READ_USERS"><AdminTicketsPage /></Guard>} />
             <Route path="tickets/:id" element={<Guard perm="READ_USERS"><AdminTicketDetailsPage /></Guard>} />
@@ -1226,6 +1230,7 @@ const AdminDashboard: React.FC = () => {
             <Route path="shipping" element={<Guard perm="READ_SHIPPING"><AdminShippingPage /></Guard>} />
             <Route path="announcements" element={<Guard perm="READ_ANNOUNCEMENTS"><AdminAnnouncementPage /></Guard>} />
             <Route path="roles" element={<Guard perm="MANAGE_ROLES"><AdminRolesPage /></Guard>} />
+            <Route path="audit-log" element={<Guard perm="READ_AUDIT_LOG"><AdminAuditLogPage /></Guard>} />
             <Route path="ranking" element={<Guard perm="READ_SETTINGS"><AdminRankingPage /></Guard>} />
             <Route path="discount-suggestions" element={<Guard perm="READ_PRODUCTS"><AdminDiscountSuggestionsPage /></Guard>} />
             <Route path="settings" element={<Guard perm="MANAGE_ROLES"><AdminSettingsPage /></Guard>} />

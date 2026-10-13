@@ -22,6 +22,8 @@ import {
   productImage,
 } from '../../lib/refunds';
 import { RefundEvidence, RefundStatusBadge, RefundTimeline, useRefundLabels } from '../../components/refunds/RefundParts';
+import { useAppSelector } from '../../store/hooks';
+import { hasPermission } from '../../utils/permissions';
 
 interface PaymentIssueOrder {
   id: string;
@@ -76,6 +78,8 @@ const AdminRefundsPage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const labels = useRefundLabels();
   const dateLocale = i18n.language === 'ar' ? 'ar-EG' : 'en-US';
+  const user = useAppSelector((state) => state.auth.user);
+  const canUpdateRefunds = hasPermission(user, 'UPDATE_REFUNDS');
 
   const [tab, setTab] = useState<'requests' | 'payment-issues'>('requests');
   const [refunds, setRefunds] = useState<Refund[]>([]);
@@ -314,7 +318,7 @@ const AdminRefundsPage: React.FC = () => {
                         {t('returns.details', 'Details & timeline')}
                       </button>
                       <div className="flex flex-wrap gap-2">
-                        {adminActions.map((action) => (
+                        {canUpdateRefunds && adminActions.map((action) => (
                           <button
                             key={action}
                             type="button"

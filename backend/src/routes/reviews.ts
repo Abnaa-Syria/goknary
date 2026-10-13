@@ -6,14 +6,14 @@ import {
   getAdminReviews, 
   deleteAdminReview 
 } from '../controllers/reviews';
-import { authenticate, requirePermission } from '../middleware/auth';
+import { authenticate, authorize, requirePermission } from '../middleware/auth';
 
 const router = Router();
 
 // User routes
-router.post('/', authenticate, createReview);
-router.patch('/:id', authenticate, updateReview);
-router.delete('/:id', authenticate, deleteReview);
+router.post('/', authenticate, authorize('CUSTOMER'), createReview);
+router.patch('/:id', authenticate, authorize('CUSTOMER'), updateReview);
+router.delete('/:id', authenticate, authorize('CUSTOMER'), deleteReview);
 
 // Admin routes
 router.get('/admin', authenticate, requirePermission('READ_REVIEWS'), getAdminReviews);

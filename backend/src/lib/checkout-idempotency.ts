@@ -1,5 +1,7 @@
 import { createHash, randomUUID } from 'crypto';
 import { ValidationError } from './errors';
+import { Coupon } from '@prisma/client';
+import { claimCouponUsage } from './coupons';
 
 export const IDEMPOTENCY_KEY_REUSE = 'IDEMPOTENCY_KEY_REUSE';
 
@@ -82,7 +84,7 @@ interface AtomicCheckoutInput {
     data: Record<string, unknown>;
     include?: Record<string, unknown>;
   }>;
-  couponId?: string | null;
+  coupon?: Coupon | null;
   clearCartWhere?: Record<string, unknown> | null;
 }
 
@@ -101,8 +103,8 @@ export const createCheckoutAtomically = async (
     for (const line of order.stockLines) await reserve(tx, line);
     orders.push(await tx.order.create({ data: { ...order.data, checkoutAttemptId: attempt.id }, include: order.include }));
   }
-  if (input.couponId) {
-    await tx.coupon.update({ where: { id: input.couponId }, data: { usedCount: { increment: 1 } } });
+  if (input.coupon) {
+    await claimCouponUsage(tx, input.coupon);
   }
   if (input.clearCartWhere) await tx.cartItem.deleteMany({ where: input.clearCartWhere });
   return { attempt, orders };

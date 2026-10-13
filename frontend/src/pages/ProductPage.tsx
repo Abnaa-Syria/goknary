@@ -234,7 +234,8 @@ const ProductPage: React.FC = () => {
 
     setSubmittingReview(true);
     try {
-      const response = await api.post(`/products/${slug}/reviews`, {
+      const response = await api.post('/reviews', {
+        productId: product.id,
         rating: reviewRating,
         title: reviewTitle.trim() || null,
         comment: reviewComment.trim() || null,

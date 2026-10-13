@@ -65,6 +65,7 @@ import adminRoutes from './routes/admin';
 import { getScheduledIntervalMinutes, startRankingScheduler } from './lib/ranking';
 import { getSuggestionIntervalHours, startDiscountSuggestionScheduler } from './lib/discount-suggestions';
 import { getCheckoutExpiryScheduledMinutes, startCheckoutExpiryScheduler } from './lib/checkout-expiry-scheduler';
+import { operationalConfig, startOperationalNotificationScheduler } from './lib/operational-notifications';
 import adminVendorRoutes from './routes/admin-vendors';
 import adminCategoryRoutes from './routes/admin-categories';
 import adminBrandRoutes from './routes/admin-brands';
@@ -221,7 +222,7 @@ app.use('/api/vendor', vendorProfileRoutes); // parent LAST
 
 // ─── Admin Governance Direct Routes (H-03 Route Prioritization) ───────────────
 app.get('/api/admin/vendors/:vendorId/products', authenticate, authorize('ADMIN', 'STAFF'), requirePermission('READ_PRODUCTS'), getAdminVendorProducts);
-app.patch('/api/admin/vendors/:id/commission', authenticate, authorize('ADMIN', 'STAFF'), requirePermission('UPDATE_VENDORS'), updateVendorCommission);
+app.patch('/api/admin/vendors/:id/commission', authenticate, authorize('ADMIN', 'STAFF'), requirePermission('UPDATE_PAYOUTS'), updateVendorCommission);
 
 // ─── Admin Routes (specific subroutes BEFORE parent) ─────────────────────────
 app.use('/api/admin/vendors', adminVendorRoutes);
@@ -250,6 +251,9 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 app.listen(PORT, async () => {
   if (startCheckoutExpiryScheduler()) {
     console.log(`Checkout expiry reconciliation -> every ${getCheckoutExpiryScheduledMinutes()} min`);
+  }
+  if (startOperationalNotificationScheduler()) {
+    console.log(`Operational alerts -> every ${operationalConfig().intervalMinutes} min`);
   }
   console.log(`\n🚀 Server running   → http://localhost:${PORT}`);
   console.log(`📊 Health check     → http://localhost:${PORT}/api/health`);

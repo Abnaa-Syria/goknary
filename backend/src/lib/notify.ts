@@ -11,6 +11,8 @@ export const NotificationType = {
   PAYOUT_STATUS_CHANGED: 'PAYOUT_STATUS_CHANGED',
   TICKET_UPDATED: 'TICKET_UPDATED',
   DISCOUNT_SUGGESTION: 'DISCOUNT_SUGGESTION',
+  LOW_STOCK: 'LOW_STOCK',
+  ORDER_SLA: 'ORDER_SLA',
 } as const;
 
 export type NotificationTypeValue = (typeof NotificationType)[keyof typeof NotificationType];

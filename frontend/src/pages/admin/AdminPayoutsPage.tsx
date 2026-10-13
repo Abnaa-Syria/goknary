@@ -20,6 +20,8 @@ import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { formatPrice } from '../../lib/utils';
 import { EmptyState } from './DashboardComponents';
+import { useAppSelector } from '../../store/hooks';
+import { hasPermission } from '../../utils/permissions';
 
 interface PayoutRequest {
   id: string;
@@ -41,6 +43,8 @@ interface PayoutRequest {
 const AdminPayoutsPage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const isRTL = i18n.language === 'ar';
+  const user = useAppSelector((state) => state.auth.user);
+  const canUpdatePayouts = hasPermission(user, 'UPDATE_PAYOUTS');
 
   const [payouts, setPayouts] = useState<PayoutRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -263,7 +267,7 @@ const AdminPayoutsPage: React.FC = () => {
                     </td>
                     <td className="px-6 py-4">{getStatusBadge(payout.status)}</td>
                     <td className="px-6 py-4">
-                      {payout.status === 'PENDING' ? (
+                      {payout.status === 'PENDING' && canUpdatePayouts ? (
                         <div className="flex gap-2">
                           <button
                             onClick={() => {

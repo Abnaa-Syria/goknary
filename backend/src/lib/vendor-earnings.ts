@@ -77,7 +77,7 @@ export async function settleOrderOnDelivery(
     return false;
   }
 
-  const existing = await tx.commission.findFirst({
+  const existing = await tx.commission.findUnique({
     where: { orderId: order.id },
   });
   if (existing) return false;

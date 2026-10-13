@@ -32,18 +32,18 @@ model User {
   customRoleId  String? @map("custom_role_id")
   walletBalance Float   @default(0) @map("wallet_balance")
 
-  vendor         Vendor?
-  reviews        Review[]
-  orders         Order[]
+  vendor           Vendor?
+  reviews          Review[]
+  orders           Order[]
   checkoutAttempts CheckoutAttempt[]
-  addresses      Address[]
-  notifications  Notification[]
-  wishlistItems  WishlistItem[]
-  customRole     CustomRole?     @relation(fields: [customRoleId], references: [id])
-  tickets        SupportTicket[]
-  ticketMessages TicketMessage[]
-  refunds        RefundRequest[]
-  events         UserEvent[]
+  addresses        Address[]
+  notifications    Notification[]
+  wishlistItems    WishlistItem[]
+  customRole       CustomRole?       @relation(fields: [customRoleId], references: [id])
+  tickets          SupportTicket[]
+  ticketMessages   TicketMessage[]
+  refunds          RefundRequest[]
+  events           UserEvent[]
 
   @@index([customRoleId])
   @@index([passwordResetToken])
@@ -269,12 +269,12 @@ model Order {
   createdAt              DateTime    @default(now()) @map("created_at")
   updatedAt              DateTime    @updatedAt @map("updated_at")
 
-  user           User                 @relation(fields: [userId], references: [id])
-  checkoutAttempt CheckoutAttempt?    @relation(fields: [checkoutAttemptId], references: [id])
-  vendor         Vendor               @relation(fields: [vendorId], references: [id])
-  items          OrderItem[]
-  statusHistory  OrderStatusHistory[]
-  refundRequests RefundRequest[]
+  user            User                 @relation(fields: [userId], references: [id])
+  checkoutAttempt CheckoutAttempt?     @relation(fields: [checkoutAttemptId], references: [id])
+  vendor          Vendor               @relation(fields: [vendorId], references: [id])
+  items           OrderItem[]
+  statusHistory   OrderStatusHistory[]
+  refundRequests  RefundRequest[]
 
   @@index([userId])
   @@index([vendorId])
@@ -456,7 +456,7 @@ model Coupon {
 model Commission {
   id               String    @id @default(cuid())
   vendorId         String    @map("vendor_id")
-  orderId          String    @map("order_id")
+  orderId          String    @unique @map("order_id")
   commissionRate   Float     @map("commission_rate")
   commissionAmount Float     @map("commission_amount")
   status           String    @default("pending")
@@ -598,20 +598,41 @@ model Setting {
 }
 
 model PayoutRequest {
-  id             String       @id @default(cuid())
-  vendorId       String       @map("vendor_id")
-  amount         Float
-  paymentMethod  String       @map("payment_method")
-  paymentDetails String       @map("payment_details") @db.Text
-  status         PayoutStatus @default(PENDING)
-  notes          String?      @db.Text
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
+  id                 String       @id @default(cuid())
+  vendorId           String       @map("vendor_id")
+  amount             Float
+  paymentMethod      String       @map("payment_method")
+  paymentDetails     String       @map("payment_details") @db.Text
+  status             PayoutStatus @default(PENDING)
+  notes              String?      @db.Text
+  idempotencyKey     String?      @map("idempotency_key") @db.VarChar(128)
+  requestFingerprint String?      @map("request_fingerprint") @db.Char(64)
+  processedBy        String?      @map("processed_by")
+  processedAt        DateTime?    @map("processed_at")
+  createdAt          DateTime     @default(now()) @map("created_at")
+  updatedAt          DateTime     @updatedAt @map("updated_at")
 
   vendor Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
 
+  @@unique([vendorId, idempotencyKey])
   @@index([vendorId])
   @@map("payout_requests")
+}
+
+model AdminAuditLog {
+  id         String   @id @default(cuid())
+  actorId    String   @map("actor_id")
+  actorRole  String   @map("actor_role") @db.VarChar(32)
+  action     String   @db.VarChar(96)
+  entityType String   @map("entity_type") @db.VarChar(64)
+  entityId   String?  @map("entity_id")
+  metadata   String?  @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([actorId, createdAt])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("admin_audit_logs")
 }
 
 enum PayoutStatus {

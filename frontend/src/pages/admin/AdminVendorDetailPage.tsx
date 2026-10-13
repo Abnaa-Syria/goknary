@@ -23,6 +23,8 @@ import {
   paymentStatusMap,
 } from '../../utils/localization';
 import { getPolicyText, getReturnWindowDays, type VendorPolicyFields } from '../../lib/vendorPolicies';
+import { useAppSelector } from '../../store/hooks';
+import { hasPermission } from '../../utils/permissions';
 
 interface VendorDetails {
   vendor: VendorPolicyFields & {
@@ -108,6 +110,8 @@ const AdminVendorDetailPage: React.FC = () => {
   const isRTL = i18n.language === 'ar';
   const { vendorId } = useParams<{ vendorId: string }>();
   const navigate = useNavigate();
+  const user = useAppSelector((state) => state.auth.user);
+  const canManageFinance = hasPermission(user, 'UPDATE_PAYOUTS');
 
   const [data, setData] = useState<VendorDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -311,14 +315,14 @@ const AdminVendorDetailPage: React.FC = () => {
 
         {/* Administration Actions */}
         <div className="flex flex-wrap gap-2">
-          <button
+          {canManageFinance && <button
             disabled={actionLoading}
             onClick={() => setCommissionModalOpen(true)}
             className="px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-semibold rounded-xl text-sm transition-all flex items-center gap-1.5 shadow-sm"
           >
             <Percent size={15} />
             {isRTL ? 'تعديل نسبة العمولة' : 'Edit Commission'}
-          </button>
+          </button>}
           {vendor.status === 'PENDING' && (
             <>
               <button

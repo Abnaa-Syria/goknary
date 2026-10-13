@@ -1,7 +1,9 @@
 import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { Prisma, VendorStatus } from '@prisma/client';
-import { NotFoundError } from '../lib/errors';
+import { ConflictError, NotFoundError } from '../lib/errors';
+import { AuthRequest } from '../middleware/auth';
+import { writeAdminAudit } from '../lib/audit-log';
 import {
   calculatePendingEarnings,
   calculateVendorNetEarnings,
@@ -440,7 +442,7 @@ export const updateVendorStatus = async (req: Request, res: Response) => {
   }
 };
 
-export const updateVendorCommission = async (req: Request, res: Response) => {
+export const updateVendorCommission = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { commissionRate } = req.body;
@@ -453,9 +455,14 @@ export const updateVendorCommission = async (req: Request, res: Response) => {
     const vendor = await prisma.vendor.findUnique({ where: { id } });
     if (!vendor) throw new NotFoundError('Vendor not found');
 
-    const updated = await prisma.vendor.update({
-      where: { id },
-      data: { commissionRate: rate },
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const updated = await prisma.$transaction(async (tx) => {
+      const value = await tx.vendor.update({ where: { id }, data: { commissionRate: rate } });
+      await writeAdminAudit(tx, {
+        actor: req.user!, action: 'VENDOR_COMMISSION_UPDATED', entityType: 'VENDOR', entityId: id,
+        metadata: { previousRate: vendor.commissionRate, commissionRate: rate },
+      });
+      return value;
     });
 
     res.json({
@@ -469,10 +476,11 @@ export const updateVendorCommission = async (req: Request, res: Response) => {
   }
 };
 
-export const settleVendorBalance = async (req: Request, res: Response) => {
+export const settleVendorBalance = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
 
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const result = await prisma.$transaction(async (tx) => {
       const vendor = await tx.vendor.findUnique({
         where: { id },
@@ -487,14 +495,16 @@ export const settleVendorBalance = async (req: Request, res: Response) => {
         return { vendor, payout: null, message: 'Vendor balance is already zero.' };
       }
 
-      // 1. Reset vendor balance and increment withdrawnAmount
-      const updatedVendor = await tx.vendor.update({
-        where: { id },
+      // One conditional claim prevents two staff requests from settling the same balance twice.
+      const claimed = await tx.vendor.updateMany({
+        where: { id, balance: amountToSettle },
         data: {
-          balance: 0,
+          balance: { decrement: amountToSettle },
           withdrawnAmount: { increment: amountToSettle },
         },
       });
+      if (claimed.count !== 1) throw new ConflictError('Vendor balance changed concurrently; refresh and retry');
+      const updatedVendor = await tx.vendor.findUniqueOrThrow({ where: { id } });
 
       // 2. Log approved PayoutRequest ledger entry
       const payout = await tx.payoutRequest.create({
@@ -505,7 +515,14 @@ export const settleVendorBalance = async (req: Request, res: Response) => {
           paymentDetails: 'Administrative Balance Settlement / Ledger Reset',
           status: 'APPROVED',
           notes: 'Store balance reset to 0 by Administrator.',
+          processedBy: req.user!.id,
+          processedAt: new Date(),
         },
+      });
+
+      await writeAdminAudit(tx, {
+        actor: req.user!, action: 'VENDOR_BALANCE_SETTLED', entityType: 'VENDOR', entityId: id,
+        metadata: { amount: amountToSettle, payoutId: payout.id },
       });
 
       return { vendor: updatedVendor, payout, message: 'Vendor balance successfully settled to zero.' };
@@ -516,6 +533,7 @@ export const settleVendorBalance = async (req: Request, res: Response) => {
     if (error instanceof NotFoundError) {
       return res.status(error.statusCode).json({ error: error.message });
     }
+    if (error instanceof ConflictError) return res.status(error.statusCode).json({ error: error.message });
     console.error('Error settling vendor balance:', error);
     res.status(500).json({ error: 'Failed to settle vendor balance' });
   }

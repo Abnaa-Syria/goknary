@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { getOrders, getOrderById, createOrder, cancelOrder, returnOrder, getOrderStatusHistory } from '../controllers/orders';
-import { authenticate } from '../middleware/auth';
+import { authenticate, authorize } from '../middleware/auth';
 
 const router = Router();
 
 // All order routes require authentication
 router.use(authenticate);
+router.use(authorize('CUSTOMER'));
 
 router.post('/', createOrder);
 router.get('/', getOrders);
